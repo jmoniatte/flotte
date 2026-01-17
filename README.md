@@ -54,25 +54,24 @@ Or:
 
 ## Configuration
 
-Before running, create `~/.config/flotte/config.toml` with your main repo path:
+Create `~/.config/flotte/config.toml`:
 
-```bash
-mkdir -p ~/.config/flotte
-cat > ~/.config/flotte/config.toml << 'EOF'
-# Path to main repo (worktrees are created as siblings)
-main_repo_path = "/path/to/myproject"
-
+```toml
 poll_interval = 5
 auto_discover = true
 
-# Optional: command for "Go Ride" button
-ride_command = "my-workspace-script"
-EOF
+[[projects]]
+name = "my-project"
+path = "/path/to/my-project"
+ride_command = ""
 ```
 
-Edit `main_repo_path` to point to your docker-compose project. This is required - the app will create an empty config on first run, but won't work until you set this path.
+Each `[[projects]]` entry defines a project:
+- `name`: Display name in dropdown
+- `path`: Path to main git repo (worktrees created as siblings)
+- `ride_command`: Optional command for "Go Ride" button (receives `PROJECT_PATH` and `PROJECT_NAME` env vars)
 
-The optional `ride_command` is executed when clicking "Go Ride". It receives `PROJECT_PATH` and `PROJECT_NAME` as environment variables.
+The first project loads automatically on startup. Use the dropdown to switch between projects.
 
 ## Usage
 

@@ -27,4 +27,9 @@ flotte/                 # project dir (run uv commands here)
 
 ## Config
 
-`~/.config/flotte/config.toml` - requires `main_repo_path` to be set.
+`~/.config/flotte/config.toml` - requires at least one `[[projects]]` entry with `name` and `path`.
+
+Config structure:
+- `poll_interval`: seconds between status polls (global)
+- `auto_discover`: discover worktrees on startup (global)
+- `[[projects]]`: array of project configs (name, path, ride_command)

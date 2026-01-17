@@ -1,15 +1,20 @@
 # Flotte Configuration
 # Copy to ~/.config/flotte/config.toml
 
-# Path to main repo (required - worktrees are created as siblings)
-main_repo_path = "/path/to/myproject"
-
 # Polling interval in seconds
 poll_interval = 5
 
 # Discover worktrees on startup
 auto_discover = true
 
-# External command for "Go Ride" button (optional)
-# Receives PROJECT_PATH and PROJECT_NAME as environment variables
+# Projects (at least one required)
+[[projects]]
+name = "my-project"
+path = "/path/to/my-project"
 ride_command = ""
+
+# Add more projects:
+# [[projects]]
+# name = "another-project"
+# path = "/path/to/another"
+# ride_command = "my-workspace-script"

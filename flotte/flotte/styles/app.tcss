@@ -24,10 +24,58 @@ Screen {
     color: $onedark-fg;
 }
 
-Header {
+/* Custom app header with project selector */
+#app-header {
     dock: top;
+    height: auto;
     background: $onedark-bg;
-    color: $onedark-blue;
+    padding: 0 1;
+}
+
+#app-title {
+    width: 1fr;
+    text-style: bold;
+    color: $onedark-fg;
+}
+
+#project-selector {
+    width: auto;
+    min-width: 25;
+    max-width: 40;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+#project-selector SelectCurrent {
+    background: transparent;
+    border: none;
+    border-bottom: solid $onedark-gutter;
+    padding: 0;
+}
+
+#project-selector SelectCurrent:hover {
+    border-bottom: solid $onedark-blue;
+}
+
+
+#project-selector SelectOverlay {
+    background: $onedark-bg-dark;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+#project-selector SelectOverlay > .option-list--option {
+    padding: 0 1;
+}
+
+#project-selector SelectOverlay > .option-list--option-highlighted {
+    background: $onedark-bg-light;
+}
+
+#no-projects-label {
+    color: $onedark-red;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -463,17 +511,23 @@ CreateWorktreeScreen #existing-branch-fields {
     height: auto;
 }
 
-/* Input - usable height */
 CreateWorktreeScreen Input {
     width: 100%;
-    height: 3;
     margin: 0 0 1 0;
-    background: $onedark-bg;
-    border: solid $onedark-gutter;
+    padding: 0 0 1 0;
+    background: transparent;
+    border: none !important;
+    border-bottom: solid $onedark-gutter !important;
+}
+
+CreateWorktreeScreen Input:hover {
+    border-bottom: solid $onedark-blue !important;
 }
 
 CreateWorktreeScreen Input:focus {
-    border: solid $onedark-blue;
+    border: none !important;
+    border-bottom: solid $onedark-gutter !important;
+    background: transparent;
 }
 
 /* Select - clean style */
@@ -493,8 +547,23 @@ CreateWorktreeScreen SelectCurrent {
     padding: 0;
 }
 
-CreateWorktreeScreen Select:focus SelectCurrent {
+CreateWorktreeScreen SelectCurrent:hover {
     border-bottom: solid $onedark-blue;
+}
+
+CreateWorktreeScreen SelectOverlay {
+    background: $onedark-bg-dark;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+CreateWorktreeScreen SelectOverlay > .option-list--option {
+    padding: 0 1;
+}
+
+CreateWorktreeScreen SelectOverlay > .option-list--option-highlighted {
+    background: $onedark-bg-light;
 }
 
 /* Checkboxes */
@@ -717,7 +786,7 @@ ErrorView #btn-error-dismiss:focus {
    ═══════════════════════════════════════════════════════════════════════ */
 
 ToastRack {
-    dock: top;
+    dock: bottom;
     align-horizontal: right;
 }
 

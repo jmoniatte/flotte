@@ -5,11 +5,11 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Header, Static
+from textual.widgets import Button, Static, Select
 from textual.timer import Timer
-from textual import work
+from textual import on, work
 
-from .config import load_config
+from .config import load_config, Project
 from .models import Worktree
 from .models.worktree import WorktreeStatus
 from .services import DockerManager, RideWrapper, WorktreeManager
@@ -61,9 +61,19 @@ class FlotteApp(App):
     def __init__(self):
         super().__init__()
         self.config = load_config()
-        self.worktree_manager = WorktreeManager(
-            main_repo_path=Path(self.config.main_repo_path),
-        )
+
+        # Initialize current project (may be None if no projects)
+        self.current_project: Project | None = None
+        if self.config.projects:
+            self.current_project = self.config.projects[0]
+
+        # Only create WorktreeManager if we have a project
+        self.worktree_manager: WorktreeManager | None = None
+        if self.current_project:
+            self.worktree_manager = WorktreeManager(
+                main_repo_path=Path(self.current_project.path),
+            )
+
         self.selected_worktree: Worktree | None = None
 
         # Operation state - single source of truth
@@ -78,7 +88,19 @@ class FlotteApp(App):
         self._recent_operation_time: float | None = None
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=False, icon="")
+        # Custom header with project selector
+        with Horizontal(id="app-header"):
+            yield Static("Flotte", id="app-title")
+            if self.config.projects:
+                yield Select(
+                    options=[(p.name, p) for p in self.config.projects],
+                    value=self.current_project,
+                    id="project-selector",
+                    allow_blank=False,
+                )
+            else:
+                yield Static("No projects configured", id="no-projects-label")
+
         with Container(id="main-content"):
             with Container(id="worktrees-box"):
                 yield WorktreeHeader(id="worktree-header")
@@ -162,6 +184,64 @@ class FlotteApp(App):
         except Exception:
             pass  # Progress view may not exist
 
+    @on(Select.Changed, "#project-selector")
+    def on_project_changed(self, event: Select.Changed) -> None:
+        """Handle project selection change."""
+        if self._operation_in_progress:
+            self.notify("Cannot switch project during operation", severity="warning")
+            # Reset selector to current project
+            self.query_one("#project-selector", Select).value = self.current_project
+            return
+
+        new_project = event.value
+        if new_project and new_project != self.current_project:
+            self.switch_project(new_project)
+
+    def switch_project(self, project: Project) -> None:
+        """Switch to a different project, resetting all state."""
+        self.current_project = project
+
+        # Reset selection
+        self.selected_worktree = None
+
+        # Create new WorktreeManager for new project
+        self.worktree_manager = WorktreeManager(
+            main_repo_path=Path(project.path),
+        )
+
+        # Clear UI state
+        self._clear_ui_state()
+
+        # Discover worktrees for new project
+        if self.config.auto_discover:
+            self.run_worker(self.refresh_worktrees())
+
+    def _clear_ui_state(self) -> None:
+        """Clear all UI widgets to blank state."""
+        # Clear worktree header
+        header = self.query_one("#worktree-header", WorktreeHeader)
+        header.refresh_worktrees([], status_fn=self.get_worktree_status)
+
+        # Clear container table by setting worktree to None
+        container_table = self.query_one("#container-table", ContainerTable)
+        container_table.worktree = None
+
+        # Reset status line
+        status_line = self.query_one("#status-line", StatusLine)
+        status_line.status = WorktreeStatus.UNKNOWN
+
+        # Hide progress/error views
+        self.query_one("#progress-view", ProgressView).display = False
+        self.query_one("#error-view", ErrorView).display = False
+
+        # Reset controls
+        controls = self.query_one("#container-controls", ContainerControls)
+        controls.status = WorktreeStatus.UNKNOWN
+        controls.is_main = False
+
+        # Reset container box title
+        self.query_one("#containers-box").border_title = "Containers"
+
     def on_mount(self) -> None:
         """Initialize app and start polling."""
         self.query_one("#worktrees-box").border_title = "Worktrees"
@@ -170,6 +250,11 @@ class FlotteApp(App):
         # Set initial display states
         self.query_one("#progress-view").display = False
         self.query_one("#error-view").display = False
+
+        # Check for empty projects
+        if not self.config.projects:
+            self.notify("No projects configured in config.toml", severity="error")
+            return  # Don't start polling or discovery
 
         if self.config.auto_discover:
             self.run_worker(self.refresh_worktrees())
@@ -180,6 +265,9 @@ class FlotteApp(App):
 
     async def refresh_worktrees(self) -> None:
         """Discover and display all worktrees."""
+        if not self.worktree_manager:
+            return  # No project selected
+
         worktrees = await self.worktree_manager.discover_worktrees()
 
         # Pre-fetch volumes so they're cached for worktree creation
@@ -203,6 +291,9 @@ class FlotteApp(App):
     @work(exclusive=True, name="status-poller")
     async def poll_container_status(self) -> None:
         """Poll container status for all worktrees in parallel."""
+        if not self.worktree_manager:
+            return  # No project selected
+
         async def poll_single(worktree: Worktree) -> None:
             """Poll a single worktree's container status."""
             try:
@@ -741,8 +832,8 @@ class FlotteApp(App):
         if not self.selected_worktree:
             return
 
-        if not self.config.ride_command:
-            self.notify("ride_command not configured in config.toml", severity="warning")
+        if not self.current_project or not self.current_project.ride_command:
+            self.notify("ride_command not configured for this project", severity="warning")
             return
 
         env = {
@@ -752,14 +843,14 @@ class FlotteApp(App):
         }
         try:
             subprocess.Popen(
-                shlex.split(self.config.ride_command),
+                shlex.split(self.current_project.ride_command),
                 env=env,
                 start_new_session=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         except FileNotFoundError:
-            self.notify(f"Command not found: {self.config.ride_command}", severity="error")
+            self.notify(f"Command not found: {self.current_project.ride_command}", severity="error")
         except Exception as e:
             self.notify(f"Failed to run ride_command: {e}", severity="error")
 

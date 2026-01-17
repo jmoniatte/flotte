@@ -1,8 +1,7 @@
 import tomllib
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +11,14 @@ CONFIG_DIR = Path.home() / ".config" / "flotte"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
 
 
+@dataclass(frozen=True)
+class Project:
+    """A configured project with its settings."""
+    name: str
+    path: str
+    ride_command: str = ""
+
+
 @dataclass
 class Config:
     """Application configuration with sensible defaults."""
@@ -19,15 +26,11 @@ class Config:
     # Polling settings
     poll_interval: int = 5  # Seconds between status polls
 
-    # Paths - main_repo_path is the only required path
-    # parent_dir and project_name are derived from it
-    main_repo_path: str = ""  # Must be set in config or via CLI
-
     # UI settings
     auto_discover: bool = True  # Discover worktrees on startup
 
-    # External command for "Go Ride" button (receives PROJECT_PATH and PROJECT_NAME env vars)
-    ride_command: str = ""
+    # Projects list
+    projects: list[Project] = field(default_factory=list)
 
 
 def ensure_config_dir() -> None:
@@ -36,16 +39,10 @@ def ensure_config_dir() -> None:
 
 
 def load_config() -> Config:
-    """
-    Load configuration from file, falling back to defaults.
-
-    Returns:
-        Config object with merged settings
-    """
-    config = Config()  # Start with defaults
+    """Load configuration from file, falling back to defaults."""
+    config = Config()
 
     if not CONFIG_FILE.exists():
-        # Create default config file on first run
         ensure_config_dir()
         save_config(config)
         return config
@@ -54,51 +51,34 @@ def load_config() -> Config:
         with open(CONFIG_FILE, "rb") as f:
             data = tomllib.load(f)
 
-        # Merge loaded values with defaults
-        config = _merge_config(config, data)
+        # Load global settings
+        if "poll_interval" in data and isinstance(data["poll_interval"], int):
+            config.poll_interval = data["poll_interval"]
+        if "auto_discover" in data and isinstance(data["auto_discover"], bool):
+            config.auto_discover = data["auto_discover"]
+
+        # Load projects array
+        if "projects" in data and isinstance(data["projects"], list):
+            for proj_data in data["projects"]:
+                if isinstance(proj_data, dict) and "name" in proj_data and "path" in proj_data:
+                    config.projects.append(Project(
+                        name=str(proj_data["name"]),
+                        path=str(proj_data["path"]),
+                        ride_command=str(proj_data.get("ride_command", "")),
+                    ))
+                else:
+                    logger.warning(f"Skipping invalid project entry: {proj_data}")
 
     except tomllib.TOMLDecodeError as e:
-        logger.warning(f"Invalid config file, using defaults: {e}")
+        logger.warning(f"Invalid config file: {e}")
     except Exception as e:
-        logger.warning(f"Error loading config, using defaults: {e}")
-
-    return config
-
-
-def _merge_config(config: Config, data: dict[str, Any]) -> Config:
-    """Merge loaded data into config, validating types."""
-    unknown_keys = []
-    for key, value in data.items():
-        if hasattr(config, key):
-            expected_type = type(getattr(config, key))
-
-            # Handle list specially
-            if expected_type == list and isinstance(value, list):
-                setattr(config, key, value)
-            # Validate type matches
-            elif isinstance(value, expected_type):
-                setattr(config, key, value)
-            else:
-                logger.warning(
-                    f"Config key '{key}' has wrong type, using default"
-                )
-        else:
-            unknown_keys.append(key)
-
-    # Clean up stale keys by re-saving config
-    if unknown_keys:
-        logger.debug(f"Removing stale config keys: {unknown_keys}")
-        save_config(config)
+        logger.warning(f"Error loading config: {e}")
 
     return config
 
 
 def save_config(config: Config) -> None:
-    """
-    Save configuration to file in TOML format.
-
-    Uses simple string formatting since tomli_w is not stdlib.
-    """
+    """Save configuration to file in TOML format."""
     ensure_config_dir()
 
     lines = [
@@ -107,16 +87,19 @@ def save_config(config: Config) -> None:
         "# Polling interval in seconds",
         f"poll_interval = {config.poll_interval}",
         "",
-        "# Path to main repo (worktrees are created as siblings)",
-        f'main_repo_path = "{config.main_repo_path}"',
-        "",
         "# Discover worktrees on startup",
         f"auto_discover = {'true' if config.auto_discover else 'false'}",
         "",
-        "# External command for 'Go Ride' button (receives PROJECT_PATH and PROJECT_NAME env vars)",
-        f'ride_command = "{config.ride_command}"',
-        "",
     ]
+
+    for project in config.projects:
+        lines.extend([
+            "[[projects]]",
+            f'name = "{project.name}"',
+            f'path = "{project.path}"',
+            f'ride_command = "{project.ride_command}"',
+            "",
+        ])
 
     with open(CONFIG_FILE, "w") as f:
         f.write("\n".join(lines))
