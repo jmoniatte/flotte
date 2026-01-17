@@ -32,6 +32,9 @@ class Config:
         default_factory=lambda: ["rails", "sidekiq"]
     )
 
+    # External command for "Go Ride" button (receives PROJECT_PATH and PROJECT_NAME env vars)
+    ride_command: str = ""
+
 
 def ensure_config_dir() -> None:
     """Create config directory if it doesn't exist."""
@@ -119,6 +122,9 @@ def save_config(config: Config) -> None:
         "",
         "# Default services to show in log streaming",
         f"default_log_services = {_format_list(config.default_log_services)}",
+        "",
+        "# External command for 'Go Ride' button (receives PROJECT_PATH and PROJECT_NAME env vars)",
+        f'ride_command = "{config.ride_command}"',
         "",
     ]
 

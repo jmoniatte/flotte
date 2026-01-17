@@ -732,11 +732,16 @@ class FlotteApp(App):
         self.push_screen(HelpScreen())
 
     def action_ride(self) -> None:
-        """Open workspace in i3 using workspace-project script."""
+        """Open workspace using configured ride_command."""
         import subprocess
+        import shlex
         import os
 
         if not self.selected_worktree:
+            return
+
+        if not self.config.ride_command:
+            self.notify("ride_command not configured in config.toml", severity="warning")
             return
 
         env = {
@@ -745,7 +750,7 @@ class FlotteApp(App):
             "PROJECT_NAME": self.selected_worktree.name,
         }
         subprocess.Popen(
-            ["workspace-project"],
+            shlex.split(self.config.ride_command),
             env=env,
             start_new_session=True,
             stdout=subprocess.DEVNULL,
