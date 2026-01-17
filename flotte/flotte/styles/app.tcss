@@ -35,7 +35,7 @@ Screen {
 #app-title {
     width: 1fr;
     text-style: bold;
-    color: $onedark-fg;
+    color: $onedark-blue;
 }
 
 #project-selector {
@@ -513,8 +513,9 @@ CreateWorktreeScreen #existing-branch-fields {
 
 CreateWorktreeScreen Input {
     width: 100%;
+    height: 2;
     margin: 0 0 1 0;
-    padding: 0 0 1 0;
+    padding: 0;
     background: transparent;
     border: none !important;
     border-bottom: solid $onedark-gutter !important;
