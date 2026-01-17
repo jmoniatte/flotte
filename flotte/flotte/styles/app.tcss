@@ -32,10 +32,18 @@ Screen {
     padding: 0 1;
 }
 
-#app-title {
+#app-title-group {
     width: 1fr;
+    height: auto;
+}
+
+#app-title {
     text-style: bold;
     color: $onedark-blue;
+}
+
+#app-subtitle {
+    color: $onedark-comment;
 }
 
 #project-selector {

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, Static, Select
 from textual.timer import Timer
 from textual import on, work
@@ -90,7 +90,9 @@ class FlotteApp(App):
     def compose(self) -> ComposeResult:
         # Custom header with project selector
         with Horizontal(id="app-header"):
-            yield Static("Flotte", id="app-title")
+            with Vertical(id="app-title-group"):
+                yield Static("Flotte", id="app-title")
+                yield Static("Manage docker-compose projects across git worktrees", id="app-subtitle")
             if self.config.projects:
                 yield Select(
                     options=[(p.name, p) for p in self.config.projects],
