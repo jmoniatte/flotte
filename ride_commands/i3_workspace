@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euo pipefail
+
+PROJECT_PATH="${PROJECT_PATH:?PROJECT_PATH required}"
+PROJECT_NAME="${PROJECT_NAME:?PROJECT_NAME required}"
+
+# Expand tilde
+PROJECT_PATH="${PROJECT_PATH/#\~/$HOME}"
+
+# Check if workspace exists
+find_workspace() {
+  i3-msg -t get_workspaces | jq -r ".[] | select(.name | endswith(\":$PROJECT_NAME\")) | .name" | head -1
+}
+
+# Find next available workspace number (11-14)
+next_workspace_num() {
+  local used=$(i3-msg -t get_workspaces | jq -r '.[].num' | grep -E '^1[1-4]$' || true)
+  for n in 11 12 13 14; do
+    if ! echo "$used" | grep -q "^$n$"; then
+      echo $n
+      return
+    fi
+  done
+  echo 15
+}
+
+spawn_terminal() {
+  local cmd="${1:-}"
+  i3-msg "exec alacritty --working-directory $PROJECT_PATH"
+  sleep 1
+  if [[ -n "$cmd" ]]; then
+    xdotool type --delay 50 "$cmd"
+    xdotool key Return
+  fi
+}
+
+# Main
+existing=$(find_workspace)
+
+if [[ -n "$existing" ]]; then
+  i3-msg "workspace $existing"
+else
+  num=$(next_workspace_num)
+  i3-msg "workspace $num:$PROJECT_NAME"
+
+  spawn_terminal "claude --dangerously-skip-permissions"  # Pane 1 (top-left)
+  i3-msg 'split h'
+  spawn_terminal "./ride.rb logs"    # Pane 3 (right)
+  i3-msg 'focus left'
+  i3-msg 'split v'
+  spawn_terminal "vim" # Pane 2 (bottom-left)
+fi

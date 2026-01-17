@@ -749,13 +749,18 @@ class FlotteApp(App):
             "PROJECT_PATH": str(self.selected_worktree.path),
             "PROJECT_NAME": self.selected_worktree.name,
         }
-        subprocess.Popen(
-            shlex.split(self.config.ride_command),
-            env=env,
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            subprocess.Popen(
+                shlex.split(self.config.ride_command),
+                env=env,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            self.notify(f"Command not found: {self.config.ride_command}", severity="error")
+        except Exception as e:
+            self.notify(f"Failed to run ride_command: {e}", severity="error")
 
     def action_open_ssh(self) -> None:
         """Open a shell in the Rails container in an external terminal."""
