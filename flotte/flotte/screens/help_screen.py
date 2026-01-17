@@ -18,14 +18,17 @@ class HelpScreen(ModalScreen):
 
             yield Static("ACTIONS", classes="section-title")
             with Horizontal(classes="shortcut-row"):
+                yield Static("n", classes="shortcut-key")
+                yield Static("Create worktree", classes="shortcut-desc")
+            with Horizontal(classes="shortcut-row"):
+                yield Static("d", classes="shortcut-key")
+                yield Static("Delete worktree", classes="shortcut-desc")
+            with Horizontal(classes="shortcut-row"):
                 yield Static("s", classes="shortcut-key")
                 yield Static("Start services", classes="shortcut-desc")
             with Horizontal(classes="shortcut-row"):
                 yield Static("x", classes="shortcut-key")
                 yield Static("Stop services", classes="shortcut-desc")
-            with Horizontal(classes="shortcut-row"):
-                yield Static("d", classes="shortcut-key")
-                yield Static("Delete worktree", classes="shortcut-desc")
             with Horizontal(classes="shortcut-row"):
                 yield Static("r", classes="shortcut-key")
                 yield Static("Refresh status", classes="shortcut-desc")

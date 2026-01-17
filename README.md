@@ -36,13 +36,18 @@ The `COMPOSE_PROJECT_NAME` determines Docker volume naming and is used when clon
 ## Installation
 
 ```bash
-# Clone and install with uv
+git clone <repo-url>
 cd flotte
-uv venv
-uv pip install -e .
 ```
 
-Or use the install script:
+Then either:
+
+```bash
+uv tool install ./flotte
+```
+
+Or:
+
 ```bash
 ./install.sh
 ```
@@ -59,28 +64,31 @@ main_repo_path = "/path/to/myproject"
 
 poll_interval = 5
 auto_discover = true
+
+# Optional: command for "Go Ride" button
+ride_command = "my-workspace-script"
 EOF
 ```
 
 Edit `main_repo_path` to point to your docker-compose project. This is required - the app will create an empty config on first run, but won't work until you set this path.
 
+The optional `ride_command` is executed when clicking "Go Ride". It receives `PROJECT_PATH` and `PROJECT_NAME` as environment variables.
+
 ## Usage
 
 ```bash
-uv run flotte
+flotte
 ```
 
 ## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `?` | Show help |
-| `s` | Start environment |
-| `x` | Stop environment |
-| `r` | Restart environment |
-| `c` | Create worktree |
+| `n` | New worktree |
 | `d` | Delete worktree |
-| `l` | View logs |
-| `Tab` | Focus next |
-| `Esc` | Deselect |
+| `s` | Start services |
+| `x` | Stop services |
+| `r` | Refresh status |
+| `R` | Go Ride |
 | `q` | Quit |
+| `?` | Show help |

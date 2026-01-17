@@ -1,6 +1,6 @@
 import tomllib
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,13 +24,7 @@ class Config:
     main_repo_path: str = ""  # Must be set in config or via CLI
 
     # UI settings
-    log_panel_height: str = "30%"
     auto_discover: bool = True  # Discover worktrees on startup
-
-    # Log streaming defaults
-    default_log_services: list[str] = field(
-        default_factory=lambda: ["rails", "sidekiq"]
-    )
 
     # External command for "Go Ride" button (receives PROJECT_PATH and PROJECT_NAME env vars)
     ride_command: str = ""
@@ -116,12 +110,8 @@ def save_config(config: Config) -> None:
         "# Path to main repo (worktrees are created as siblings)",
         f'main_repo_path = "{config.main_repo_path}"',
         "",
-        "# UI Settings",
-        f'log_panel_height = "{config.log_panel_height}"',
+        "# Discover worktrees on startup",
         f"auto_discover = {'true' if config.auto_discover else 'false'}",
-        "",
-        "# Default services to show in log streaming",
-        f"default_log_services = {_format_list(config.default_log_services)}",
         "",
         "# External command for 'Go Ride' button (receives PROJECT_PATH and PROJECT_NAME env vars)",
         f'ride_command = "{config.ride_command}"',
@@ -130,9 +120,3 @@ def save_config(config: Config) -> None:
 
     with open(CONFIG_FILE, "w") as f:
         f.write("\n".join(lines))
-
-
-def _format_list(items: list[str]) -> str:
-    """Format list as TOML array."""
-    quoted = [f'"{item}"' for item in items]
-    return "[" + ", ".join(quoted) + "]"

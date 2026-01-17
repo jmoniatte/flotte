@@ -44,9 +44,10 @@ class FlotteApp(App):
     BINDINGS = [
         Binding("q", "quit", show=False),
         Binding("?", "show_help", show=False),
+        Binding("n", "new_worktree", show=False),
+        Binding("d", "delete_worktree", show=False),
         Binding("s", "start_environment", show=False),
         Binding("x", "stop_environment", show=False),
-        Binding("d", "delete_worktree", show=False),
         Binding("r", "refresh", show=False),
         Binding("R", "ride", show=False),
         Binding("tab", "focus_next", show=False),
