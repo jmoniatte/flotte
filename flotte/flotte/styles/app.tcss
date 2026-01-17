@@ -1,0 +1,801 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ONEDARK COLOR THEME
+   ═══════════════════════════════════════════════════════════════════════ */
+
+$onedark-bg: #282c34;
+$onedark-bg-dark: #21252b;
+$onedark-bg-light: #3e4451;
+$onedark-fg: #abb2bf;
+$onedark-comment: #5c6370;
+$onedark-red: #e06c75;
+$onedark-green: #98c379;
+$onedark-yellow: #e5c07b;
+$onedark-blue: #61afef;
+$onedark-purple: #c678dd;
+$onedark-cyan: #56b6c2;
+$onedark-gutter: #4b5263;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GLOBAL LAYOUT
+   ═══════════════════════════════════════════════════════════════════════ */
+
+Screen {
+    background: $onedark-bg;
+    color: $onedark-fg;
+}
+
+Header {
+    dock: top;
+    background: $onedark-bg;
+    color: $onedark-blue;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WORKTREES BOX
+   ═══════════════════════════════════════════════════════════════════════ */
+
+#worktrees-box {
+    height: auto;
+    max-height: 9;
+    border: round $onedark-gutter;
+    border-title-color: $onedark-yellow;
+    border-title-style: bold;
+    padding: 0 1;
+    margin: 0 1 1 1;
+    overflow-y: auto;
+}
+
+#worktrees-box:focus-within {
+    border: round $onedark-blue;
+}
+
+WorktreeHeader {
+    height: auto;
+}
+
+WorktreeHeader #worktree-table {
+    height: auto;
+    background: transparent;
+    border: none;
+}
+
+WorktreeHeader #worktree-table > .datatable--header {
+    background: transparent;
+    color: $onedark-comment;
+}
+
+WorktreeHeader #worktree-table > .datatable--cursor {
+    background: $onedark-bg-light;
+    color: auto;
+    text-style: none;
+}
+
+WorktreeHeader #worktree-table > .datatable--hover {
+    background: $onedark-bg-light 50%;
+}
+
+#worktree-controls {
+    height: 3;
+    padding: 0 0;
+    background: transparent;
+    border-top: solid $onedark-gutter;
+}
+
+#worktree-controls Button {
+    margin: 0 1 0 0;
+    min-width: 10;
+    border: none;
+    padding: 0 2;
+}
+
+#btn-new-worktree {
+    background: $onedark-blue 30%;
+    color: $onedark-blue;
+}
+
+#btn-new-worktree:hover {
+    background: $onedark-blue 50%;
+}
+
+#btn-new-worktree:focus {
+    background: $onedark-blue;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+#btn-refresh {
+    background: $onedark-purple 30%;
+    color: $onedark-purple;
+}
+
+#btn-refresh:hover {
+    background: $onedark-purple 50%;
+}
+
+#btn-refresh:focus {
+    background: $onedark-purple;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+#worktree-controls .spacer {
+    width: 1fr;
+}
+
+#btn-help {
+    background: $onedark-comment 30%;
+    color: $onedark-comment;
+}
+
+#btn-help:hover {
+    background: $onedark-comment 50%;
+}
+
+#btn-help:focus {
+    background: $onedark-fg;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONTAINERS BOX
+   ═══════════════════════════════════════════════════════════════════════ */
+
+#containers-box {
+    height: auto;
+    border: round $onedark-gutter;
+    border-title-color: $onedark-yellow;
+    border-title-style: bold;
+    padding: 0;
+    margin: 0 1 1 1;
+}
+
+#containers-box:focus-within {
+    border: round $onedark-blue;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MAIN CONTENT AREA
+   ═══════════════════════════════════════════════════════════════════════ */
+
+#main-content {
+    width: 100%;
+    height: 1fr;
+    background: $onedark-bg;
+    overflow-y: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONTAINER CONTROLS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ContainerControls {
+    height: 3;
+    padding: 0 1;
+    background: transparent;
+    border-top: solid $onedark-gutter;
+}
+
+ContainerControls Button {
+    margin: 0 1 0 0;
+    min-width: 10;
+    background: $onedark-bg-light;
+    color: $onedark-fg;
+    border: none;
+}
+
+ContainerControls Button:hover {
+    background: $onedark-gutter;
+}
+
+ContainerControls Button:focus {
+    background: $onedark-blue;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+ContainerControls #btn-container-start {
+    background: $onedark-green 30%;
+    color: $onedark-green;
+}
+
+ContainerControls #btn-container-start:hover {
+    background: $onedark-green 50%;
+}
+
+ContainerControls #btn-container-stop {
+    background: $onedark-red 30%;
+    color: $onedark-red;
+}
+
+ContainerControls #btn-container-stop:hover {
+    background: $onedark-red 50%;
+}
+
+ContainerControls #btn-container-restart {
+    background: $onedark-yellow 30%;
+    color: $onedark-yellow;
+}
+
+ContainerControls #btn-container-restart:hover {
+    background: $onedark-yellow 50%;
+}
+
+ContainerControls #btn-ride {
+    background: $onedark-cyan 30%;
+    color: $onedark-cyan;
+}
+
+ContainerControls #btn-ride:hover {
+    background: $onedark-cyan 50%;
+}
+
+ContainerControls #btn-ride:focus {
+    background: $onedark-cyan;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONTAINER TABLE
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ContainerTable {
+    height: auto;
+    background: transparent;
+    border: none;
+    margin: 0;
+    scrollbar-size: 0 0;
+}
+
+ContainerTable > .datatable--header {
+    background: transparent;
+    color: $onedark-blue;
+    text-style: bold;
+}
+
+ContainerTable > .datatable--cursor {
+    background: $onedark-bg-light;
+}
+
+ContainerTable > .datatable--hover {
+    background: $onedark-bg-light 50%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SCROLLBARS (global)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+* {
+    scrollbar-background: $onedark-bg;
+    scrollbar-color: $onedark-gutter;
+    scrollbar-color-hover: $onedark-comment;
+    scrollbar-color-active: $onedark-blue;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MODAL SCREENS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ModalScreen {
+    align: center middle;
+    background: $onedark-bg 80%;
+}
+
+ModalScreen > Vertical {
+    width: 60;
+    height: auto;
+    max-height: 80%;
+    background: $onedark-bg-dark;
+    border: solid $onedark-gutter;
+    padding: 1 2;
+}
+
+ModalScreen Input {
+    width: 100%;
+    margin: 1 0;
+    background: $onedark-bg;
+    color: $onedark-fg;
+    border: solid $onedark-gutter;
+}
+
+ModalScreen Input:focus {
+    border: solid $onedark-blue;
+}
+
+ModalScreen Button {
+    margin: 1 1 0 0;
+    background: $onedark-bg-light;
+    color: $onedark-fg;
+}
+
+ModalScreen Button:focus {
+    background: $onedark-blue;
+    color: $onedark-bg-dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HELP SCREEN
+   ═══════════════════════════════════════════════════════════════════════ */
+
+HelpScreen {
+    align: center middle;
+    background: $onedark-bg 90%;
+}
+
+HelpScreen > Vertical {
+    width: 55;
+    height: auto;
+    background: $onedark-bg-dark;
+    border: solid $onedark-blue;
+    padding: 2;
+}
+
+HelpScreen Static {
+    color: $onedark-fg;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONFIRM DIALOG
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ConfirmDialog > Vertical {
+    width: auto;
+    min-width: 40;
+    max-width: 60;
+    background: $onedark-bg-dark;
+    border: round $onedark-red;
+    padding: 0 1;
+}
+
+ConfirmDialog #dialog-title {
+    text-style: bold;
+    color: $onedark-red;
+}
+
+ConfirmDialog #dialog-message {
+    color: $onedark-fg;
+}
+
+ConfirmDialog #dialog-buttons {
+    height: 3;
+    align: right middle;
+}
+
+ConfirmDialog Button {
+    min-width: 8;
+    border: none;
+    margin-left: 1;
+}
+
+ConfirmDialog #cancel-btn {
+    background: $onedark-bg-light;
+    color: $onedark-fg;
+}
+
+ConfirmDialog #cancel-btn:hover {
+    background: $onedark-gutter;
+}
+
+ConfirmDialog #cancel-btn:focus {
+    background: $onedark-blue;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+ConfirmDialog #confirm-btn {
+    background: $onedark-red 30%;
+    color: $onedark-red;
+}
+
+ConfirmDialog #confirm-btn:hover {
+    background: $onedark-red 50%;
+}
+
+ConfirmDialog #confirm-btn:focus {
+    background: $onedark-red;
+    color: white;
+    text-style: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CREATE WORKTREE SCREEN
+   ═══════════════════════════════════════════════════════════════════════ */
+
+CreateWorktreeScreen > Vertical {
+    width: auto;
+    min-width: 45;
+    max-width: 60;
+    background: $onedark-bg-dark;
+    border: round $onedark-blue;
+    padding: 0 1;
+}
+
+CreateWorktreeScreen #dialog-title {
+    text-style: bold;
+    color: $onedark-blue;
+}
+
+CreateWorktreeScreen #title-separator {
+    height: 1;
+}
+
+/* Tab buttons for mode selection */
+CreateWorktreeScreen #mode-tabs {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+CreateWorktreeScreen #mode-tabs Button {
+    min-width: 14;
+    height: 1;
+    border: none;
+    margin: 0 1 0 0;
+    padding: 0;
+    background: transparent;
+    color: $onedark-comment;
+}
+
+CreateWorktreeScreen #mode-tabs Button.tab-active {
+    color: $onedark-blue;
+    text-style: bold;
+}
+
+CreateWorktreeScreen #mode-tabs Button:hover {
+    color: $onedark-fg;
+}
+
+CreateWorktreeScreen #mode-tabs Button:focus {
+    background: transparent;
+    text-style: none;
+}
+
+CreateWorktreeScreen #mode-tabs Button.tab-active:focus {
+    text-style: bold;
+}
+
+CreateWorktreeScreen .field-label {
+    color: $onedark-comment;
+}
+
+CreateWorktreeScreen #new-branch-fields,
+CreateWorktreeScreen #existing-branch-fields {
+    height: auto;
+}
+
+/* Input - usable height */
+CreateWorktreeScreen Input {
+    width: 100%;
+    height: 3;
+    margin: 0 0 1 0;
+    background: $onedark-bg;
+    border: solid $onedark-gutter;
+}
+
+CreateWorktreeScreen Input:focus {
+    border: solid $onedark-blue;
+}
+
+/* Select - clean style */
+CreateWorktreeScreen Select {
+    width: 100%;
+    height: auto;
+    margin: 0 0 1 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+CreateWorktreeScreen SelectCurrent {
+    background: transparent;
+    border: none;
+    border-bottom: solid $onedark-gutter;
+    padding: 0;
+}
+
+CreateWorktreeScreen Select:focus SelectCurrent {
+    border-bottom: solid $onedark-blue;
+}
+
+/* Checkboxes */
+CreateWorktreeScreen Checkbox {
+    height: auto;
+    padding: 0;
+    margin: 0 0 0 0;
+    background: transparent;
+    border: none;
+}
+
+CreateWorktreeScreen #dialog-buttons {
+    height: 3;
+    align: right middle;
+    margin-top: 1;
+}
+
+CreateWorktreeScreen Button {
+    min-width: 8;
+    border: none;
+    margin-left: 1;
+}
+
+CreateWorktreeScreen #cancel-btn {
+    background: $onedark-bg-light;
+    color: $onedark-fg;
+}
+
+CreateWorktreeScreen #cancel-btn:hover {
+    background: $onedark-gutter;
+}
+
+CreateWorktreeScreen #cancel-btn:focus {
+    background: $onedark-blue;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+CreateWorktreeScreen #create-btn {
+    background: $onedark-green 30%;
+    color: $onedark-green;
+}
+
+CreateWorktreeScreen #create-btn:hover {
+    background: $onedark-green 50%;
+}
+
+CreateWorktreeScreen #create-btn:focus {
+    background: $onedark-green;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+/* Status area during creation */
+CreateWorktreeScreen #status-area {
+    height: auto;
+    align: center middle;
+    padding: 2 0;
+}
+
+CreateWorktreeScreen #loading-icon {
+    width: auto;
+    padding-right: 1;
+    color: $onedark-blue;
+}
+
+CreateWorktreeScreen #status-text {
+    color: $onedark-blue;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DELETE WORKTREE SCREEN
+   ═══════════════════════════════════════════════════════════════════════ */
+
+DeleteWorktreeScreen #delete-dialog {
+    width: auto;
+    min-width: 45;
+    max-width: 60;
+    background: $onedark-bg-dark;
+    border: round $onedark-red;
+    padding: 0 1;
+}
+
+DeleteWorktreeScreen #dialog-title {
+    text-style: bold;
+    color: $onedark-red;
+}
+
+DeleteWorktreeScreen #confirm-content {
+    height: auto;
+    padding: 1 0;
+}
+
+DeleteWorktreeScreen #confirm-message {
+    color: $onedark-fg;
+}
+
+DeleteWorktreeScreen #confirm-warning {
+    color: $onedark-comment;
+    margin-top: 1;
+}
+
+DeleteWorktreeScreen #dialog-buttons {
+    height: 3;
+    align: right middle;
+    margin-top: 1;
+}
+
+DeleteWorktreeScreen Button {
+    min-width: 8;
+    border: none;
+    margin-left: 1;
+}
+
+DeleteWorktreeScreen #cancel-btn {
+    background: $onedark-bg-light;
+    color: $onedark-fg;
+}
+
+DeleteWorktreeScreen #cancel-btn:hover {
+    background: $onedark-gutter;
+}
+
+DeleteWorktreeScreen #cancel-btn:focus {
+    background: $onedark-blue;
+    color: $onedark-bg-dark;
+    text-style: bold;
+}
+
+DeleteWorktreeScreen #delete-btn {
+    background: $onedark-red 30%;
+    color: $onedark-red;
+}
+
+DeleteWorktreeScreen #delete-btn:hover {
+    background: $onedark-red 50%;
+}
+
+DeleteWorktreeScreen #delete-btn:focus {
+    background: $onedark-red;
+    color: white;
+    text-style: bold;
+}
+
+/* Status area during deletion */
+DeleteWorktreeScreen #status-area {
+    height: auto;
+    align: center middle;
+    padding: 2 0;
+}
+
+DeleteWorktreeScreen #loading-icon {
+    width: auto;
+    padding-right: 1;
+    color: $onedark-red;
+}
+
+DeleteWorktreeScreen #status-text {
+    color: $onedark-red;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STATUS LINE (Always visible above container table)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+StatusLine {
+    height: auto;
+    padding: 0 1;
+    border-bottom: solid $onedark-gutter;
+    color: $onedark-fg;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PROGRESS VIEW (Creating/Deleting operations)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ProgressView {
+    height: auto;
+    min-height: 5;
+    padding: 1 2;
+    color: $onedark-fg;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ERROR VIEW
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ErrorView {
+    height: auto;
+    padding: 1 2;
+}
+
+ErrorView #error-message {
+    color: $onedark-fg;
+    margin-bottom: 1;
+}
+
+ErrorView #error-buttons {
+    height: 3;
+    align: left middle;
+}
+
+ErrorView #btn-error-dismiss {
+    background: $onedark-bg-light;
+    color: $onedark-fg;
+    margin: 0;
+}
+
+ErrorView #btn-error-dismiss:hover {
+    background: $onedark-gutter;
+}
+
+ErrorView #btn-error-dismiss:focus {
+    background: $onedark-blue;
+    color: $onedark-bg-dark;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ToastRack {
+    dock: top;
+    align-horizontal: right;
+}
+
+Toast {
+    padding: 0 1;
+    margin: 0 1 1 0;
+    width: auto;
+}
+
+Toast.-information {
+    background: $onedark-green;
+    color: $onedark-bg-dark;
+}
+
+Toast.-warning {
+    background: $onedark-yellow;
+    color: $onedark-bg-dark;
+}
+
+Toast.-error {
+    background: $onedark-red;
+    color: white;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HELP SCREEN
+   ═══════════════════════════════════════════════════════════════════════ */
+
+HelpScreen {
+    align: center middle;
+    background: $background 80%;
+}
+
+HelpScreen > Vertical {
+    width: auto;
+    min-width: 40;
+    max-width: 50;
+    height: auto;
+    max-height: 80%;
+    background: $onedark-bg-dark;
+    border: solid $onedark-blue;
+    padding: 0 1 0 1;
+}
+
+HelpScreen #dialog-title {
+    text-style: bold;
+    color: $onedark-blue;
+}
+
+HelpScreen #title-separator {
+    height: 1;
+}
+
+HelpScreen .section-title {
+    text-style: bold;
+    color: $onedark-fg;
+}
+
+HelpScreen .section-title-spaced {
+    text-style: bold;
+    color: $onedark-fg;
+    margin-top: 1;
+}
+
+HelpScreen .shortcut-row {
+    height: 1;
+}
+
+HelpScreen .shortcut-key {
+    width: 4;
+    color: $onedark-green;
+}
+
+HelpScreen .shortcut-desc {
+    color: $onedark-fg;
+}
+
+HelpScreen #help-footer {
+    margin-top: 1;
+    color: $onedark-comment;
+}

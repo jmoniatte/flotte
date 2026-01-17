@@ -1,0 +1,114 @@
+from textual.widgets import DataTable
+from textual.reactive import reactive
+from rich.text import Text
+
+from ..models import Worktree, Container, ContainerState
+
+
+class ContainerTable(DataTable):
+    """Table showing container status for selected worktree."""
+
+    DEFAULT_CSS = """
+    ContainerTable {
+        height: auto;
+        border: none;
+        margin: 0;
+    }
+    """
+
+    worktree: reactive[Worktree | None] = reactive(None, always_update=True)
+
+    # State color mapping (OneDark theme)
+    STATE_COLORS = {
+        ContainerState.RUNNING: "#98c379",     # green
+        ContainerState.EXITED: "#e06c75",      # red
+        ContainerState.PAUSED: "#e5c07b",      # yellow
+        ContainerState.RESTARTING: "#e5c07b",  # yellow
+        ContainerState.DEAD: "#e06c75",        # red
+        ContainerState.CREATED: "#5c6370",     # comment/dim
+        ContainerState.UNKNOWN: "#5c6370",     # comment/dim
+    }
+
+    def on_mount(self) -> None:
+        """Set up table columns and appearance."""
+        self.cursor_type = "none"
+        self.zebra_stripes = True
+
+        # Define columns
+        self.add_column("Service", key="service", width=15)
+        self.add_column("Port", key="ports", width=10)
+        self.add_column("State", key="state", width=12)
+        self.add_column("Status", key="status", width=20)
+        self.add_column("Container Name", key="name", width=50)
+
+    def watch_worktree(self, worktree: Worktree | None) -> None:
+        """React to worktree selection changes."""
+        # Clear all existing rows
+        self.clear()
+
+        if worktree is None:
+            return
+
+        # Add rows for each container
+        for container in worktree.containers:
+            self._add_container_row(container)
+
+        # Force refresh to ensure display updates
+        self.refresh()
+
+    def _add_container_row(self, container: Container) -> None:
+        """Add a row for a container."""
+        self.add_row(
+            container.service,
+            ", ".join(container.ports) if container.ports else "-",
+            self._format_state(container.state),
+            container.status,
+            self._truncate(container.name, 50),
+            key=container.service,
+        )
+
+    def _format_state(self, state: ContainerState) -> Text:
+        """Format state with color coding."""
+        color = self.STATE_COLORS.get(state, "dim")
+        return Text(state.value, style=color)
+
+    def _truncate(self, text: str, max_len: int) -> str:
+        """Truncate text with ellipsis if too long."""
+        if len(text) <= max_len:
+            return text
+        return text[: max_len - 3] + "..."
+
+    def update_container(self, container: Container) -> None:
+        """
+        Update a single container row by key.
+
+        Use this for real-time updates during polling to avoid
+        full table refresh.
+        """
+        try:
+            # Get row index by key (service name)
+            row_key = container.service
+
+            # Update cells
+            self.update_cell(row_key, "state", self._format_state(container.state))
+            self.update_cell(row_key, "status", container.status)
+        except KeyError:
+            # Container not in table, might need full refresh
+            pass
+
+    def get_selected_container(self) -> Container | None:
+        """Get the currently selected container, if any."""
+        if self.cursor_row is None:
+            return None
+
+        try:
+            row_key = self.get_row_at(self.cursor_row)
+            # Find container by service name in current worktree
+            if self.worktree:
+                for c in self.worktree.containers:
+                    if c.service == row_key.value:
+                        return c
+        except Exception:
+            pass
+
+        return None
