@@ -59,12 +59,18 @@ Create `~/.config/flotte/config.toml`:
 ```toml
 poll_interval = 5
 auto_discover = true
+theme = "onedark"
 
 [[projects]]
 name = "my-project"
 path = "/path/to/my-project"
 ride_command = ""
 ```
+
+Global settings:
+- `poll_interval`: Seconds between container status polls
+- `auto_discover`: Discover worktrees on startup
+- `theme`: Color theme (`onedark` or `onelight`)
 
 Each `[[projects]]` entry defines a project:
 - `name`: Display name in dropdown

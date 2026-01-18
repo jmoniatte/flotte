@@ -38,7 +38,6 @@ class FlotteApp(App):
 
     TITLE = "Flotte"
     SUB_TITLE = "Manage docker-compose projects across git worktrees"
-    CSS_PATH = "styles/app.tcss"
     ENABLE_COMMAND_PALETTE = False
 
     BINDINGS = [
@@ -59,8 +58,18 @@ class FlotteApp(App):
     OPERATION_GRACE_PERIOD = 2.0  # seconds
 
     def __init__(self):
-        super().__init__()
+        # Load config first to determine theme
         self.config = load_config()
+
+        # Set CSS path based on theme (before super().__init__)
+        theme_path = Path(__file__).parent / "styles" / "themes" / f"{self.config.theme}.tcss"
+        if theme_path.exists():
+            self.CSS_PATH = f"styles/themes/{self.config.theme}.tcss"
+        else:
+            # Fallback to onedark if theme not found
+            self.CSS_PATH = "styles/themes/onedark.tcss"
+
+        super().__init__()
 
         # Initialize current project (may be None if no projects)
         self.current_project: Project | None = None

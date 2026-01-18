@@ -28,6 +28,7 @@ class Config:
 
     # UI settings
     auto_discover: bool = True  # Discover worktrees on startup
+    theme: str = "onedark"  # "onedark" or "onelight" (or any .tcss in styles/themes/)
 
     # Projects list
     projects: list[Project] = field(default_factory=list)
@@ -56,6 +57,8 @@ def load_config() -> Config:
             config.poll_interval = data["poll_interval"]
         if "auto_discover" in data and isinstance(data["auto_discover"], bool):
             config.auto_discover = data["auto_discover"]
+        if "theme" in data and isinstance(data["theme"], str):
+            config.theme = data["theme"]
 
         # Load projects array
         if "projects" in data and isinstance(data["projects"], list):
@@ -89,6 +92,9 @@ def save_config(config: Config) -> None:
         "",
         "# Discover worktrees on startup",
         f"auto_discover = {'true' if config.auto_discover else 'false'}",
+        "",
+        "# Color theme: onedark, onelight (or any .tcss file in styles/themes/)",
+        f'theme = "{config.theme}"',
         "",
     ]
 

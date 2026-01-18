@@ -1,34 +1,34 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   ONEDARK COLOR THEME
+   ONE LIGHT COLOR THEME
    ═══════════════════════════════════════════════════════════════════════ */
 
-$onedark-bg: #282c34;
-$onedark-bg-dark: #21252b;
-$onedark-bg-light: #3e4451;
-$onedark-fg: #abb2bf;
-$onedark-comment: #5c6370;
-$onedark-red: #e06c75;
-$onedark-green: #98c379;
-$onedark-yellow: #e5c07b;
-$onedark-blue: #61afef;
-$onedark-purple: #c678dd;
-$onedark-cyan: #56b6c2;
-$onedark-gutter: #4b5263;
+$bg: #e5e5e6;
+$bg-dark: #dcdcdd;
+$bg-light: #cacacb;
+$fg: #383a42;
+$comment: #a0a1a7;
+$red: #e45649;
+$green: #50a14f;
+$yellow: #c18401;
+$blue: #4078f2;
+$purple: #a626a4;
+$cyan: #0184bc;
+$gutter: #d4d4d4;
 
 /* ═══════════════════════════════════════════════════════════════════════
    GLOBAL LAYOUT
    ═══════════════════════════════════════════════════════════════════════ */
 
 Screen {
-    background: $onedark-bg;
-    color: $onedark-fg;
+    background: $bg;
+    color: $fg;
 }
 
 /* Custom app header with project selector */
 #app-header {
     dock: top;
     height: auto;
-    background: $onedark-bg;
+    background: $bg;
     padding: 0 1;
 }
 
@@ -39,11 +39,11 @@ Screen {
 
 #app-title {
     text-style: bold;
-    color: $onedark-blue;
+    color: $blue;
 }
 
 #app-subtitle {
-    color: $onedark-comment;
+    color: $comment;
 }
 
 #project-selector {
@@ -58,17 +58,17 @@ Screen {
 #project-selector SelectCurrent {
     background: transparent;
     border: none;
-    border-bottom: solid $onedark-gutter;
+    border-bottom: solid $gutter;
     padding: 0;
 }
 
 #project-selector SelectCurrent:hover {
-    border-bottom: solid $onedark-blue;
+    border-bottom: solid $blue;
 }
 
 
 #project-selector SelectOverlay {
-    background: $onedark-bg-dark;
+    background: $bg-dark;
     border: none;
     padding: 0;
     margin: 0;
@@ -79,11 +79,11 @@ Screen {
 }
 
 #project-selector SelectOverlay > .option-list--option-highlighted {
-    background: $onedark-bg-light;
+    background: $bg-light;
 }
 
 #no-projects-label {
-    color: $onedark-red;
+    color: $red;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -93,8 +93,8 @@ Screen {
 #worktrees-box {
     height: auto;
     max-height: 9;
-    border: round $onedark-gutter;
-    border-title-color: $onedark-yellow;
+    border: round $gutter;
+    border-title-color: $yellow;
     border-title-style: bold;
     padding: 0 1;
     margin: 0 1 1 1;
@@ -102,7 +102,7 @@ Screen {
 }
 
 #worktrees-box:focus-within {
-    border: round $onedark-blue;
+    border: round $blue;
 }
 
 WorktreeHeader {
@@ -113,28 +113,30 @@ WorktreeHeader #worktree-table {
     height: auto;
     background: transparent;
     border: none;
+    color: $fg;
 }
 
 WorktreeHeader #worktree-table > .datatable--header {
     background: transparent;
-    color: $onedark-comment;
+    color: $comment;
 }
 
 WorktreeHeader #worktree-table > .datatable--cursor {
-    background: $onedark-bg-light;
-    color: auto;
+    background: $bg-light;
+    color: $fg;
     text-style: none;
 }
 
 WorktreeHeader #worktree-table > .datatable--hover {
-    background: $onedark-bg-light 50%;
+    background: $bg-light 50%;
+    color: $fg;
 }
 
 #worktree-controls {
     height: 3;
     padding: 0 0;
     background: transparent;
-    border-top: solid $onedark-gutter;
+    border-top: solid $gutter;
 }
 
 #worktree-controls Button {
@@ -145,32 +147,32 @@ WorktreeHeader #worktree-table > .datatable--hover {
 }
 
 #btn-new-worktree {
-    background: $onedark-blue 30%;
-    color: $onedark-blue;
+    background: $blue 30%;
+    color: $blue;
 }
 
 #btn-new-worktree:hover {
-    background: $onedark-blue 50%;
+    background: $blue 50%;
 }
 
 #btn-new-worktree:focus {
-    background: $onedark-blue;
-    color: $onedark-bg-dark;
+    background: $blue;
+    color: $bg-dark;
     text-style: bold;
 }
 
 #btn-refresh {
-    background: $onedark-purple 30%;
-    color: $onedark-purple;
+    background: $purple 30%;
+    color: $purple;
 }
 
 #btn-refresh:hover {
-    background: $onedark-purple 50%;
+    background: $purple 50%;
 }
 
 #btn-refresh:focus {
-    background: $onedark-purple;
-    color: $onedark-bg-dark;
+    background: $purple;
+    color: $bg-dark;
     text-style: bold;
 }
 
@@ -179,17 +181,17 @@ WorktreeHeader #worktree-table > .datatable--hover {
 }
 
 #btn-help {
-    background: $onedark-comment 30%;
-    color: $onedark-comment;
+    background: $comment 30%;
+    color: $comment;
 }
 
 #btn-help:hover {
-    background: $onedark-comment 50%;
+    background: $comment 50%;
 }
 
 #btn-help:focus {
-    background: $onedark-fg;
-    color: $onedark-bg-dark;
+    background: $fg;
+    color: $bg-dark;
     text-style: bold;
 }
 
@@ -199,15 +201,15 @@ WorktreeHeader #worktree-table > .datatable--hover {
 
 #containers-box {
     height: auto;
-    border: round $onedark-gutter;
-    border-title-color: $onedark-yellow;
+    border: round $gutter;
+    border-title-color: $yellow;
     border-title-style: bold;
     padding: 0;
     margin: 0 1 1 1;
 }
 
 #containers-box:focus-within {
-    border: round $onedark-blue;
+    border: round $blue;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -217,7 +219,7 @@ WorktreeHeader #worktree-table > .datatable--hover {
 #main-content {
     width: 100%;
     height: 1fr;
-    background: $onedark-bg;
+    background: $bg;
     overflow-y: auto;
 }
 
@@ -229,66 +231,66 @@ ContainerControls {
     height: 3;
     padding: 0 1;
     background: transparent;
-    border-top: solid $onedark-gutter;
+    border-top: solid $gutter;
 }
 
 ContainerControls Button {
     margin: 0 1 0 0;
     min-width: 10;
-    background: $onedark-bg-light;
-    color: $onedark-fg;
+    background: $bg-light;
+    color: $fg;
     border: none;
 }
 
 ContainerControls Button:hover {
-    background: $onedark-gutter;
+    background: $gutter;
 }
 
 ContainerControls Button:focus {
-    background: $onedark-blue;
-    color: $onedark-bg-dark;
+    background: $blue;
+    color: $bg-dark;
     text-style: bold;
 }
 
 ContainerControls #btn-container-start {
-    background: $onedark-green 30%;
-    color: $onedark-green;
+    background: $green 30%;
+    color: $green;
 }
 
 ContainerControls #btn-container-start:hover {
-    background: $onedark-green 50%;
+    background: $green 50%;
 }
 
 ContainerControls #btn-container-stop {
-    background: $onedark-red 30%;
-    color: $onedark-red;
+    background: $red 30%;
+    color: $red;
 }
 
 ContainerControls #btn-container-stop:hover {
-    background: $onedark-red 50%;
+    background: $red 50%;
 }
 
 ContainerControls #btn-container-restart {
-    background: $onedark-yellow 30%;
-    color: $onedark-yellow;
+    background: $yellow 30%;
+    color: $yellow;
 }
 
 ContainerControls #btn-container-restart:hover {
-    background: $onedark-yellow 50%;
+    background: $yellow 50%;
 }
 
 ContainerControls #btn-ride {
-    background: $onedark-cyan 30%;
-    color: $onedark-cyan;
+    background: $cyan 30%;
+    color: $cyan;
 }
 
 ContainerControls #btn-ride:hover {
-    background: $onedark-cyan 50%;
+    background: $cyan 50%;
 }
 
 ContainerControls #btn-ride:focus {
-    background: $onedark-cyan;
-    color: $onedark-bg-dark;
+    background: $cyan;
+    color: $bg-dark;
     text-style: bold;
 }
 
@@ -302,20 +304,31 @@ ContainerTable {
     border: none;
     margin: 0;
     scrollbar-size: 0 0;
+    color: $fg;
 }
 
 ContainerTable > .datatable--header {
     background: transparent;
-    color: $onedark-blue;
+    color: $blue;
     text-style: bold;
 }
 
+ContainerTable > .datatable--even-row {
+    background: $bg;
+}
+
+ContainerTable > .datatable--odd-row {
+    background: #f0f0f0;
+}
+
 ContainerTable > .datatable--cursor {
-    background: $onedark-bg-light;
+    background: $bg-light;
+    color: $fg;
 }
 
 ContainerTable > .datatable--hover {
-    background: $onedark-bg-light 50%;
+    background: $bg-light 50%;
+    color: $fg;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -323,10 +336,10 @@ ContainerTable > .datatable--hover {
    ═══════════════════════════════════════════════════════════════════════ */
 
 * {
-    scrollbar-background: $onedark-bg;
-    scrollbar-color: $onedark-gutter;
-    scrollbar-color-hover: $onedark-comment;
-    scrollbar-color-active: $onedark-blue;
+    scrollbar-background: $bg;
+    scrollbar-color: $gutter;
+    scrollbar-color-hover: $comment;
+    scrollbar-color-active: $blue;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -335,39 +348,39 @@ ContainerTable > .datatable--hover {
 
 ModalScreen {
     align: center middle;
-    background: $onedark-bg 80%;
+    background: $bg 80%;
 }
 
 ModalScreen > Vertical {
     width: 60;
     height: auto;
     max-height: 80%;
-    background: $onedark-bg-dark;
-    border: solid $onedark-gutter;
+    background: $bg-dark;
+    border: solid $gutter;
     padding: 1 2;
 }
 
 ModalScreen Input {
     width: 100%;
     margin: 1 0;
-    background: $onedark-bg;
-    color: $onedark-fg;
-    border: solid $onedark-gutter;
+    background: $bg;
+    color: $fg;
+    border: solid $gutter;
 }
 
 ModalScreen Input:focus {
-    border: solid $onedark-blue;
+    border: solid $blue;
 }
 
 ModalScreen Button {
     margin: 1 1 0 0;
-    background: $onedark-bg-light;
-    color: $onedark-fg;
+    background: $bg-light;
+    color: $fg;
 }
 
 ModalScreen Button:focus {
-    background: $onedark-blue;
-    color: $onedark-bg-dark;
+    background: $blue;
+    color: $bg-dark;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -376,19 +389,19 @@ ModalScreen Button:focus {
 
 HelpScreen {
     align: center middle;
-    background: $onedark-bg 90%;
+    background: $bg 90%;
 }
 
 HelpScreen > Vertical {
     width: 55;
     height: auto;
-    background: $onedark-bg-dark;
-    border: solid $onedark-blue;
+    background: $bg-dark;
+    border: solid $blue;
     padding: 2;
 }
 
 HelpScreen Static {
-    color: $onedark-fg;
+    color: $fg;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -399,18 +412,18 @@ ConfirmDialog > Vertical {
     width: auto;
     min-width: 40;
     max-width: 60;
-    background: $onedark-bg-dark;
-    border: round $onedark-red;
+    background: $bg-dark;
+    border: round $red;
     padding: 0 1;
 }
 
 ConfirmDialog #dialog-title {
     text-style: bold;
-    color: $onedark-red;
+    color: $red;
 }
 
 ConfirmDialog #dialog-message {
-    color: $onedark-fg;
+    color: $fg;
 }
 
 ConfirmDialog #dialog-buttons {
@@ -425,31 +438,31 @@ ConfirmDialog Button {
 }
 
 ConfirmDialog #cancel-btn {
-    background: $onedark-bg-light;
-    color: $onedark-fg;
+    background: $bg-light;
+    color: $fg;
 }
 
 ConfirmDialog #cancel-btn:hover {
-    background: $onedark-gutter;
+    background: $gutter;
 }
 
 ConfirmDialog #cancel-btn:focus {
-    background: $onedark-blue;
-    color: $onedark-bg-dark;
+    background: $blue;
+    color: $bg-dark;
     text-style: bold;
 }
 
 ConfirmDialog #confirm-btn {
-    background: $onedark-red 30%;
-    color: $onedark-red;
+    background: $red 30%;
+    color: $red;
 }
 
 ConfirmDialog #confirm-btn:hover {
-    background: $onedark-red 50%;
+    background: $red 50%;
 }
 
 ConfirmDialog #confirm-btn:focus {
-    background: $onedark-red;
+    background: $red;
     color: white;
     text-style: bold;
 }
@@ -462,14 +475,14 @@ CreateWorktreeScreen > Vertical {
     width: auto;
     min-width: 45;
     max-width: 60;
-    background: $onedark-bg-dark;
-    border: round $onedark-blue;
+    background: $bg-dark;
+    border: round $blue;
     padding: 0 1;
 }
 
 CreateWorktreeScreen #dialog-title {
     text-style: bold;
-    color: $onedark-blue;
+    color: $blue;
 }
 
 CreateWorktreeScreen #title-separator {
@@ -489,16 +502,16 @@ CreateWorktreeScreen #mode-tabs Button {
     margin: 0 1 0 0;
     padding: 0;
     background: transparent;
-    color: $onedark-comment;
+    color: $comment;
 }
 
 CreateWorktreeScreen #mode-tabs Button.tab-active {
-    color: $onedark-blue;
+    color: $blue;
     text-style: bold;
 }
 
 CreateWorktreeScreen #mode-tabs Button:hover {
-    color: $onedark-fg;
+    color: $fg;
 }
 
 CreateWorktreeScreen #mode-tabs Button:focus {
@@ -511,7 +524,7 @@ CreateWorktreeScreen #mode-tabs Button.tab-active:focus {
 }
 
 CreateWorktreeScreen .field-label {
-    color: $onedark-comment;
+    color: $comment;
 }
 
 CreateWorktreeScreen #new-branch-fields,
@@ -526,16 +539,16 @@ CreateWorktreeScreen Input {
     padding: 0;
     background: transparent;
     border: none !important;
-    border-bottom: solid $onedark-gutter !important;
+    border-bottom: solid $gutter !important;
 }
 
 CreateWorktreeScreen Input:hover {
-    border-bottom: solid $onedark-blue !important;
+    border-bottom: solid $blue !important;
 }
 
 CreateWorktreeScreen Input:focus {
     border: none !important;
-    border-bottom: solid $onedark-gutter !important;
+    border-bottom: solid $gutter !important;
     background: transparent;
 }
 
@@ -552,16 +565,16 @@ CreateWorktreeScreen Select {
 CreateWorktreeScreen SelectCurrent {
     background: transparent;
     border: none;
-    border-bottom: solid $onedark-gutter;
+    border-bottom: solid $gutter;
     padding: 0;
 }
 
 CreateWorktreeScreen SelectCurrent:hover {
-    border-bottom: solid $onedark-blue;
+    border-bottom: solid $blue;
 }
 
 CreateWorktreeScreen SelectOverlay {
-    background: $onedark-bg-dark;
+    background: $bg-dark;
     border: none;
     padding: 0;
     margin: 0;
@@ -572,7 +585,7 @@ CreateWorktreeScreen SelectOverlay > .option-list--option {
 }
 
 CreateWorktreeScreen SelectOverlay > .option-list--option-highlighted {
-    background: $onedark-bg-light;
+    background: $bg-light;
 }
 
 /* Checkboxes */
@@ -597,32 +610,32 @@ CreateWorktreeScreen Button {
 }
 
 CreateWorktreeScreen #cancel-btn {
-    background: $onedark-bg-light;
-    color: $onedark-fg;
+    background: $bg-light;
+    color: $fg;
 }
 
 CreateWorktreeScreen #cancel-btn:hover {
-    background: $onedark-gutter;
+    background: $gutter;
 }
 
 CreateWorktreeScreen #cancel-btn:focus {
-    background: $onedark-blue;
-    color: $onedark-bg-dark;
+    background: $blue;
+    color: $bg-dark;
     text-style: bold;
 }
 
 CreateWorktreeScreen #create-btn {
-    background: $onedark-green 30%;
-    color: $onedark-green;
+    background: $green 30%;
+    color: $green;
 }
 
 CreateWorktreeScreen #create-btn:hover {
-    background: $onedark-green 50%;
+    background: $green 50%;
 }
 
 CreateWorktreeScreen #create-btn:focus {
-    background: $onedark-green;
-    color: $onedark-bg-dark;
+    background: $green;
+    color: $bg-dark;
     text-style: bold;
 }
 
@@ -636,11 +649,11 @@ CreateWorktreeScreen #status-area {
 CreateWorktreeScreen #loading-icon {
     width: auto;
     padding-right: 1;
-    color: $onedark-blue;
+    color: $blue;
 }
 
 CreateWorktreeScreen #status-text {
-    color: $onedark-blue;
+    color: $blue;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -651,14 +664,14 @@ DeleteWorktreeScreen #delete-dialog {
     width: auto;
     min-width: 45;
     max-width: 60;
-    background: $onedark-bg-dark;
-    border: round $onedark-red;
+    background: $bg-dark;
+    border: round $red;
     padding: 0 1;
 }
 
 DeleteWorktreeScreen #dialog-title {
     text-style: bold;
-    color: $onedark-red;
+    color: $red;
 }
 
 DeleteWorktreeScreen #confirm-content {
@@ -667,11 +680,11 @@ DeleteWorktreeScreen #confirm-content {
 }
 
 DeleteWorktreeScreen #confirm-message {
-    color: $onedark-fg;
+    color: $fg;
 }
 
 DeleteWorktreeScreen #confirm-warning {
-    color: $onedark-comment;
+    color: $comment;
     margin-top: 1;
 }
 
@@ -688,31 +701,31 @@ DeleteWorktreeScreen Button {
 }
 
 DeleteWorktreeScreen #cancel-btn {
-    background: $onedark-bg-light;
-    color: $onedark-fg;
+    background: $bg-light;
+    color: $fg;
 }
 
 DeleteWorktreeScreen #cancel-btn:hover {
-    background: $onedark-gutter;
+    background: $gutter;
 }
 
 DeleteWorktreeScreen #cancel-btn:focus {
-    background: $onedark-blue;
-    color: $onedark-bg-dark;
+    background: $blue;
+    color: $bg-dark;
     text-style: bold;
 }
 
 DeleteWorktreeScreen #delete-btn {
-    background: $onedark-red 30%;
-    color: $onedark-red;
+    background: $red 30%;
+    color: $red;
 }
 
 DeleteWorktreeScreen #delete-btn:hover {
-    background: $onedark-red 50%;
+    background: $red 50%;
 }
 
 DeleteWorktreeScreen #delete-btn:focus {
-    background: $onedark-red;
+    background: $red;
     color: white;
     text-style: bold;
 }
@@ -727,11 +740,11 @@ DeleteWorktreeScreen #status-area {
 DeleteWorktreeScreen #loading-icon {
     width: auto;
     padding-right: 1;
-    color: $onedark-red;
+    color: $red;
 }
 
 DeleteWorktreeScreen #status-text {
-    color: $onedark-red;
+    color: $red;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -741,8 +754,8 @@ DeleteWorktreeScreen #status-text {
 StatusLine {
     height: auto;
     padding: 0 1;
-    border-bottom: solid $onedark-gutter;
-    color: $onedark-fg;
+    border-bottom: solid $gutter;
+    color: $fg;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -753,7 +766,7 @@ ProgressView {
     height: auto;
     min-height: 5;
     padding: 1 2;
-    color: $onedark-fg;
+    color: $fg;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -766,7 +779,7 @@ ErrorView {
 }
 
 ErrorView #error-message {
-    color: $onedark-fg;
+    color: $fg;
     margin-bottom: 1;
 }
 
@@ -776,18 +789,18 @@ ErrorView #error-buttons {
 }
 
 ErrorView #btn-error-dismiss {
-    background: $onedark-bg-light;
-    color: $onedark-fg;
+    background: $bg-light;
+    color: $fg;
     margin: 0;
 }
 
 ErrorView #btn-error-dismiss:hover {
-    background: $onedark-gutter;
+    background: $gutter;
 }
 
 ErrorView #btn-error-dismiss:focus {
-    background: $onedark-blue;
-    color: $onedark-bg-dark;
+    background: $blue;
+    color: $bg-dark;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -806,27 +819,27 @@ Toast {
 }
 
 Toast.-information {
-    background: $onedark-green;
-    color: $onedark-bg-dark;
+    background: $green;
+    color: $bg-dark;
 }
 
 Toast.-warning {
-    background: $onedark-yellow;
-    color: $onedark-bg-dark;
+    background: $yellow;
+    color: $bg-dark;
 }
 
 Toast.-error {
-    background: $onedark-red;
+    background: $red;
     color: white;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   HELP SCREEN
+   HELP SCREEN (override)
    ═══════════════════════════════════════════════════════════════════════ */
 
 HelpScreen {
     align: center middle;
-    background: $background 80%;
+    background: $bg 80%;
 }
 
 HelpScreen > Vertical {
@@ -835,14 +848,14 @@ HelpScreen > Vertical {
     max-width: 50;
     height: auto;
     max-height: 80%;
-    background: $onedark-bg-dark;
-    border: solid $onedark-blue;
+    background: $bg-dark;
+    border: solid $blue;
     padding: 0 1 0 1;
 }
 
 HelpScreen #dialog-title {
     text-style: bold;
-    color: $onedark-blue;
+    color: $blue;
 }
 
 HelpScreen #title-separator {
@@ -851,12 +864,12 @@ HelpScreen #title-separator {
 
 HelpScreen .section-title {
     text-style: bold;
-    color: $onedark-fg;
+    color: $fg;
 }
 
 HelpScreen .section-title-spaced {
     text-style: bold;
-    color: $onedark-fg;
+    color: $fg;
     margin-top: 1;
 }
 
@@ -866,14 +879,14 @@ HelpScreen .shortcut-row {
 
 HelpScreen .shortcut-key {
     width: 4;
-    color: $onedark-green;
+    color: $green;
 }
 
 HelpScreen .shortcut-desc {
-    color: $onedark-fg;
+    color: $fg;
 }
 
 HelpScreen #help-footer {
     margin-top: 1;
-    color: $onedark-comment;
+    color: $comment;
 }

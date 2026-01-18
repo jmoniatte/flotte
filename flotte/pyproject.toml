@@ -21,4 +21,4 @@ where = ["."]
 include = ["flotte*"]
 
 [tool.setuptools.package-data]
-flotte = ["styles/*.tcss"]
+flotte = ["styles/themes/*.tcss"]
