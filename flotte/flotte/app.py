@@ -16,7 +16,6 @@ from .services import DockerManager, RideWrapper, WorktreeManager
 from .screens import (
     ConfirmDialog,
     CreateWorktreeScreen,
-    CreateWorktreeParams,
     CreateWorktreeResult,
     DeleteWorktreeScreen,
     DeleteWorktreeResult,
@@ -61,13 +60,14 @@ class FlotteApp(App):
         # Load config first to determine theme
         self.config = load_config()
 
-        # Set CSS path based on theme (before super().__init__)
-        theme_path = Path(__file__).parent / "styles" / "themes" / f"{self.config.theme}.tcss"
-        if theme_path.exists():
-            self.CSS_PATH = f"styles/themes/{self.config.theme}.tcss"
-        else:
-            # Fallback to onedark if theme not found
-            self.CSS_PATH = "styles/themes/onedark.tcss"
+        # Load and combine CSS: theme (variables) + base (layout rules)
+        styles_dir = Path(__file__).parent / "styles"
+        theme_path = styles_dir / "themes" / f"{self.config.theme}.tcss"
+        if not theme_path.exists():
+            theme_path = styles_dir / "themes" / "onedark.tcss"
+        base_path = styles_dir / "base.tcss"
+        # Concatenate theme variables with base rules so variables are in scope
+        self.CSS = theme_path.read_text() + "\n" + base_path.read_text()
 
         super().__init__()
 
@@ -641,13 +641,10 @@ class FlotteApp(App):
         if result is None:
             return  # Cancelled or failed
 
-        worktree = result.worktree
-        params = result.params
-
         # Refresh worktrees to show the new one
-        self.run_worker(self._finish_create_worktree(worktree, params))
+        self.run_worker(self._finish_create_worktree(result.worktree))
 
-    async def _finish_create_worktree(self, worktree: Worktree, params: CreateWorktreeParams) -> None:
+    async def _finish_create_worktree(self, worktree: Worktree) -> None:
         """Finish worktree creation after modal is done."""
         # Refresh worktrees to include the new one
         await self.refresh_worktrees()
@@ -656,22 +653,7 @@ class FlotteApp(App):
         self.selected_worktree = worktree
         self.query_one("#worktree-header", WorktreeHeader).select_worktree(worktree)
 
-        # Start if requested
-        if params.start_after:
-            if not self._acquire_operation_lock("start", worktree.name):
-                self.notify(f"Created {worktree.name}", severity="information")
-                return
-
-            returncode, stdout, stderr = await RideWrapper(worktree.path, worktree.compose_project_name).start()
-            if returncode != 0:
-                self.log.error(f"Start after create failed: {stderr or stdout}")
-                self.notify(f"Created {worktree.name}, but start failed", severity="warning")
-                self._release_operation_lock(expected_status=WorktreeStatus.STOPPED)
-            else:
-                self.notify(f"Created and started {worktree.name}", severity="information")
-                self._release_operation_lock(expected_status=WorktreeStatus.RUNNING)
-        else:
-            self.notify(f"Created {worktree.name}", severity="information")
+        self.notify(f"Created {worktree.name}", severity="information")
 
     def action_delete_worktree(self) -> None:
         """Handle Delete button."""

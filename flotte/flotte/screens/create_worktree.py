@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from textual.screen import ModalScreen
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Input, Select, Checkbox, Button, Static
+from textual.widgets import Input, Select, Checkbox, Button, Static, TabbedContent, TabPane
 from textual.app import ComposeResult
 
 from ..services import WorktreeManager
@@ -17,7 +17,6 @@ class CreateWorktreeParams:
     branch_name: str
     base_branch: str | None  # None if using existing branch
     clone_data: bool
-    start_after: bool
 
 
 @dataclass
@@ -46,25 +45,17 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
             yield Static("New Worktree", id="dialog-title")
             yield Static("", id="title-separator")
 
-            # Tab buttons instead of RadioSet
-            with Horizontal(id="mode-tabs"):
-                yield Button("New branch", id="tab-new", classes="tab-active")
-                yield Button("Existing branch", id="tab-existing")
+            with TabbedContent(id="branch-mode"):
+                with TabPane("New branch", id="tab-new"):
+                    yield Static("Branch name", classes="field-label")
+                    yield Input(placeholder="feature/my-feature", id="branch-input")
+                    yield Static("Base branch", classes="field-label")
+                    yield Select([], id="base-branch", prompt="")
+                with TabPane("Existing branch", id="tab-existing"):
+                    yield Static("Select branch", classes="field-label")
+                    yield Select([], id="existing-branch", prompt="")
 
-            # New branch mode
-            with Vertical(id="new-branch-fields"):
-                yield Static("Branch name", classes="field-label")
-                yield Input(placeholder="feature/my-feature", id="branch-input")
-                yield Static("Base branch", classes="field-label")
-                yield Select([], id="base-branch", prompt="Loading...")
-
-            # Existing branch mode
-            with Vertical(id="existing-branch-fields"):
-                yield Static("Select branch", classes="field-label")
-                yield Select([], id="existing-branch", prompt="Loading...")
-
-            yield Checkbox("Clone data from main", id="clone-data", value=True)
-            yield Checkbox("Start after creation", id="start-env", value=False)
+            yield Checkbox("Clone volumes from main", id="clone-data", value=True)
 
             # Status area (hidden initially)
             with Horizontal(id="status-area"):
@@ -76,8 +67,6 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                 yield Button("Create", id="create-btn")
 
     def on_mount(self) -> None:
-        # Hide existing branch fields initially (new branch mode is default)
-        self.query_one("#existing-branch-fields").display = False
         # Hide status area initially
         self.query_one("#status-area").display = False
         self.query_one("#branch-input", Input).focus()
@@ -119,8 +108,9 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
 
         # Populate base-branch select (all branches for new branch mode)
         base_select = self.query_one("#base-branch", Select)
-        base_select.set_options([(b, b) for b in branches])
         if branches:
+            base_select._allow_blank = False
+            base_select.set_options([(b, b) for b in branches])
             base_select.value = branches[0]
 
         # Populate existing-branch select (only branches without worktrees)
@@ -129,36 +119,15 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
         ]
         existing_select = self.query_one("#existing-branch", Select)
         if available_branches:
+            existing_select._allow_blank = False
             existing_select.set_options([(b, b) for b in available_branches])
             existing_select.value = available_branches[0]
         else:
-            existing_select.set_options([])
             existing_select.prompt = "No branches available"
 
-    def _switch_to_mode(self, new_branch_mode: bool) -> None:
-        """Switch between new branch and existing branch modes."""
-        self._is_new_branch_mode = new_branch_mode
-
-        # Update tab styles
-        tab_new = self.query_one("#tab-new", Button)
-        tab_existing = self.query_one("#tab-existing", Button)
-
-        if new_branch_mode:
-            tab_new.add_class("tab-active")
-            tab_existing.remove_class("tab-active")
-        else:
-            tab_new.remove_class("tab-active")
-            tab_existing.add_class("tab-active")
-
-        # Toggle field visibility
-        self.query_one("#new-branch-fields").display = new_branch_mode
-        self.query_one("#existing-branch-fields").display = not new_branch_mode
-
-        # Focus appropriate input
-        if new_branch_mode:
-            self.query_one("#branch-input", Input).focus()
-        else:
-            self.query_one("#existing-branch", Select).focus()
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Handle tab switch between new and existing branch modes."""
+        self._is_new_branch_mode = event.pane.id == "tab-new"
 
     def _validate_branch_name(self, value: str) -> bool:
         if not value or not value.strip():
@@ -169,21 +138,12 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         event.stop()  # Prevent bubbling to app
 
-        # Tab buttons
-        if event.button.id == "tab-new":
-            self._switch_to_mode(True)
-            return
-        if event.button.id == "tab-existing":
-            self._switch_to_mode(False)
-            return
-
         if event.button.id == "cancel-btn":
             self.dismiss(None)
             return
 
         if event.button.id == "create-btn":
             clone_checkbox = self.query_one("#clone-data", Checkbox)
-            start_checkbox = self.query_one("#start-env", Checkbox)
 
             if self._is_new_branch_mode:
                 # New branch mode - validate and create new branch
@@ -209,7 +169,6 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                     branch_name=branch_name,
                     base_branch=str(base_select.value),
                     clone_data=clone_checkbox.value,
-                    start_after=start_checkbox.value,
                 )
             else:
                 # Existing branch mode - use selected branch
@@ -224,7 +183,6 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                     branch_name=str(existing_select.value),
                     base_branch=None,  # None signals existing branch mode
                     clone_data=clone_checkbox.value,
-                    start_after=start_checkbox.value,
                 )
 
             self._show_creating_status()
@@ -237,11 +195,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
     def _show_creating_status(self) -> None:
         """Show creating status and disable controls."""
         # Hide form fields
-        self.query_one("#mode-tabs").display = False
-        self.query_one("#new-branch-fields").display = False
-        self.query_one("#existing-branch-fields").display = False
+        self.query_one("#branch-mode").display = False
         self.query_one("#clone-data").display = False
-        self.query_one("#start-env").display = False
         self.query_one("#dialog-buttons").display = False
         # Show status
         self.query_one("#status-area").display = True
