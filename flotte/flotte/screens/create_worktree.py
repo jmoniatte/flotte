@@ -220,7 +220,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
             # Clone volumes if requested
             if params.clone_data:
                 self._update_status("Cloning data volumes...")
-                main_env = self.worktree_manager._parse_env_local(
+                main_env = self.worktree_manager._parse_env(
                     self.worktree_manager.main_repo_path
                 )
                 source_project = main_env.get(

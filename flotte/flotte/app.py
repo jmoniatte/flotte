@@ -5,13 +5,14 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, Static, Select
-from textual.timer import Timer
 from textual import on, work
 
-from .config import load_config, Project
+from .config import load_config, Project as ConfigProject
 from .models import Worktree
+from .models.project import Project
 from .models.worktree import WorktreeStatus
-from .services import DockerManager, RideWrapper, WorktreeManager, TransientStateManager
+from .messages import WorktreeStatusChanged
+from .services import RideWrapper, WorktreeManager
 from .screens import (
     ConfirmDialog,
     CreateWorktreeScreen,
@@ -67,20 +68,25 @@ class FlotteApp(App):
 
         super().__init__()
 
-        # Central transient state manager (survives object replacement)
-        self._transient_manager = TransientStateManager()
-        Worktree.set_transient_manager(self._transient_manager)
-
-        # Initialize current project (may be None if no projects)
-        self.current_project: Project | None = None
+        # Current config project (for selector UI)
+        self.current_config_project: ConfigProject | None = None
         if self.config.projects:
-            self.current_project = self.config.projects[0]
+            self.current_config_project = self.config.projects[0]
 
-        # Only create WorktreeManager if we have a project
+        # Project model (owns worktrees and polling)
+        self.project: Project | None = None
+        if self.current_config_project:
+            self.project = Project(
+                self.current_config_project.name,
+                self.current_config_project.path,
+                self.current_config_project.ride_command,
+            )
+
+        # WorktreeManager for discovery and lifecycle operations
         self.worktree_manager: WorktreeManager | None = None
-        if self.current_project:
+        if self.current_config_project:
             self.worktree_manager = WorktreeManager(
-                main_repo_path=Path(self.current_project.path),
+                main_repo_path=Path(self.current_config_project.path),
             )
 
         self.selected_worktree: Worktree | None = None
@@ -89,7 +95,6 @@ class FlotteApp(App):
         self._operation_in_progress: bool = False
         self._operation_type: str | None = None  # "create", "delete", "start", "stop", "restart"
         self._operation_target: str | None = None  # worktree name
-        self._poll_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
         # Custom header with project selector
@@ -100,7 +105,7 @@ class FlotteApp(App):
             if self.config.projects:
                 yield Select(
                     options=[(p.name, p) for p in self.config.projects],
-                    value=self.current_project,
+                    value=self.current_config_project,
                     id="project-selector",
                     allow_blank=False,
                 )
@@ -172,23 +177,34 @@ class FlotteApp(App):
         if self._operation_in_progress:
             self.notify("Cannot switch project during operation", severity="warning")
             # Reset selector to current project
-            self.query_one("#project-selector", Select).value = self.current_project
+            self.query_one("#project-selector", Select).value = self.current_config_project
             return
 
-        new_project = event.value
-        if new_project and new_project != self.current_project:
-            self.switch_project(new_project)
+        new_config_project = event.value
+        if new_config_project and new_config_project != self.current_config_project:
+            self.switch_project(new_config_project)
 
-    def switch_project(self, project: Project) -> None:
+    def switch_project(self, config_project: ConfigProject) -> None:
         """Switch to a different project, resetting all state."""
-        self.current_project = project
+        # Stop polling on old project
+        if self.project:
+            self.project.stop_polling()
+
+        self.current_config_project = config_project
+
+        # Create new Project model
+        self.project = Project(
+            config_project.name,
+            config_project.path,
+            config_project.ride_command,
+        )
 
         # Reset selection
         self.selected_worktree = None
 
         # Create new WorktreeManager for new project
         self.worktree_manager = WorktreeManager(
-            main_repo_path=Path(project.path),
+            main_repo_path=Path(config_project.path),
         )
 
         # Clear UI state
@@ -197,6 +213,9 @@ class FlotteApp(App):
         # Discover worktrees for new project
         if self.config.auto_discover:
             self.run_worker(self.refresh_worktrees())
+
+        # Start polling for new project
+        self.project.start_polling(self, self.config.poll_interval)
 
     def _clear_ui_state(self) -> None:
         """Clear all UI widgets to blank state."""
@@ -241,84 +260,72 @@ class FlotteApp(App):
         if self.config.auto_discover:
             self.run_worker(self.refresh_worktrees())
 
-        self._poll_timer = self.set_interval(self.config.poll_interval, self.poll_container_status)
+        # Start project polling
+        if self.project:
+            self.project.start_polling(self, self.config.poll_interval)
 
         self.notify("Welcome!")
 
     async def refresh_worktrees(self) -> None:
         """Discover and display all worktrees."""
-        if not self.worktree_manager:
+        if not self.worktree_manager or not self.project:
             return  # No project selected
 
-        worktrees = await self.worktree_manager.discover_worktrees()
+        # Discover worktrees via WorktreeManager
+        discovered = await self.worktree_manager.discover_worktrees()
+
+        # Copy discovered worktrees to Project model
+        self.project.worktrees.clear()
+        for wt in discovered:
+            self.project.worktrees[wt.name] = wt
 
         # Pre-fetch volumes so they're cached for worktree creation
         await self.worktree_manager.get_volumes()
 
         # Update header dropdown
         header = self.query_one("#worktree-header", WorktreeHeader)
-        header.refresh_worktrees(worktrees)
+        header.refresh_worktrees(list(self.project.worktrees.values()))
 
         # Auto-select first worktree if none selected
-        if worktrees and self.selected_worktree is None:
-            self.selected_worktree = worktrees[0]
+        if self.project.worktrees and self.selected_worktree is None:
+            first_wt = list(self.project.worktrees.values())[0]
+            self.selected_worktree = first_wt
             header.select_worktree(self.selected_worktree)
             self.query_one("#containers-box").border_title = self.selected_worktree.name
             table = self.query_one("#container-table", ContainerTable)
             table.worktree = self.selected_worktree
 
-        # Immediately fetch container status (don't wait for poll interval)
-        self.poll_container_status()
+        # Poll once immediately to get initial status
+        if self.project:
+            await self.project.poll_once()
+            self._update_ui_after_status_change()
 
     def _sync_worktree_ui(self) -> None:
         """Update UI from existing worktrees (no discovery)."""
+        if not self.project:
+            return
         header = self.query_one("#worktree-header", WorktreeHeader)
-        header.refresh_worktrees(list(self.worktree_manager.worktrees.values()))
+        header.refresh_worktrees(list(self.project.worktrees.values()))
 
-    @work(exclusive=True, name="status-poller")
-    async def poll_container_status(self) -> None:
-        """Poll container status for all worktrees in parallel."""
-        if not self.worktree_manager or not self.current_project:
-            return  # No project selected
+    def on_worktree_status_changed(self, event: WorktreeStatusChanged) -> None:
+        """Handle worktree status change from polling."""
+        self._update_ui_after_status_change()
 
-        async def poll_single(worktree: Worktree) -> None:
-            """Poll a single worktree's container status."""
-            try:
-                docker_mgr = DockerManager(
-                    worktree.path,
-                    worktree.compose_project_name
-                )
-                container_data, all_services = await docker_mgr.get_container_data()
+    def _update_ui_after_status_change(self) -> None:
+        """Update UI elements after status change."""
+        if not self.project:
+            return
 
-                # Update worktree's containers in place
-                worktree.update_from_poll(container_data)
-                worktree.add_missing_services(all_services)
-
-            except Exception as e:
-                self.log.error(f"Error polling {worktree.name}: {e}")
-
-        # Poll all worktrees in parallel
-        await asyncio.gather(*[
-            poll_single(wt) for wt in self.worktree_manager.worktrees.values()
-        ])
-
-        # Update UI
-        self._update_ui_after_poll()
-
-    def _update_ui_after_poll(self) -> None:
-        """Update UI elements after status poll."""
         header = self.query_one("#worktree-header", WorktreeHeader)
-        header.refresh_worktrees(list(self.worktree_manager.worktrees.values()))
+        header.refresh_worktrees(list(self.project.worktrees.values()))
 
         if self.selected_worktree:
             wt_name = self.selected_worktree.name
-            fresh_wt = self.worktree_manager.worktrees.get(wt_name)
+            fresh_wt = self.project.worktrees.get(wt_name)
             if fresh_wt is None:
                 self.selected_worktree = None
             else:
-                # Update reference to fresh object (transient state is central now)
-                self.selected_worktree = fresh_wt
-
+                # Selected worktree is the same object (no replacement)
                 table = self.query_one("#container-table", ContainerTable)
                 table.worktree = self.selected_worktree
                 self.run_worker(self._fetch_git_status())
@@ -362,8 +369,10 @@ class FlotteApp(App):
 
     def on_worktree_changed(self, event: WorktreeChanged) -> None:
         """Handle worktree selection from dropdown."""
-        fresh_wt = self.worktree_manager.worktrees.get(event.worktree.name)
-        # Use fresh object if available (transient state is central now)
+        if not self.project:
+            return
+        fresh_wt = self.project.worktrees.get(event.worktree.name)
+        # Use fresh object if available
         self.selected_worktree = fresh_wt if fresh_wt else event.worktree
 
         self.run_worker(self._fetch_git_status())
@@ -399,7 +408,6 @@ class FlotteApp(App):
     def action_refresh(self) -> None:
         """Refresh worktree list and container status."""
         self.run_worker(self.refresh_worktrees())
-        self.poll_container_status()
 
     def action_start_environment(self) -> None:
         """Start Docker environment."""
@@ -564,8 +572,10 @@ class FlotteApp(App):
 
     async def _finish_create_worktree(self, worktree: Worktree) -> None:
         """Finish worktree creation after modal is done."""
-        # The manager already added the worktree in create_worktree_sync
-        # Just update UI and select it
+        if not self.project:
+            return
+        # Add the worktree to our project model
+        self.project.worktrees[worktree.name] = worktree
         self._sync_worktree_ui()
         self.selected_worktree = worktree
         self.query_one("#worktree-header", WorktreeHeader).select_worktree(worktree)
@@ -576,7 +586,7 @@ class FlotteApp(App):
         if self._operation_in_progress:
             self.notify("Operation in progress", severity="warning")
             return
-        if not self.selected_worktree:
+        if not self.selected_worktree or not self.project:
             return
         if self.selected_worktree.is_main:
             self.notify("Cannot delete main environment", severity="error")
@@ -584,8 +594,8 @@ class FlotteApp(App):
 
         wt = self.selected_worktree  # Capture NOW
 
-        # Validate worktree exists in manager
-        if wt.name not in self.worktree_manager.worktrees:
+        # Validate worktree exists in project
+        if wt.name not in self.project.worktrees:
             self.notify("Worktree no longer exists", severity="error")
             return
 
@@ -597,9 +607,12 @@ class FlotteApp(App):
 
         This is NOT a locked operation - just preparation.
         """
+        if not self.project:
+            return
+
         try:
             # Re-validate (could have been deleted during worker startup)
-            if wt.name not in self.worktree_manager.worktrees:
+            if wt.name not in self.project.worktrees:
                 self.notify("Worktree no longer exists", severity="error")
                 return
 
@@ -693,8 +706,11 @@ class FlotteApp(App):
             self.notify("Another operation started", severity="warning")
             return
 
+        if not self.project:
+            return
+
         # Re-validate worktree still exists
-        if wt.name not in self.worktree_manager.worktrees:
+        if wt.name not in self.project.worktrees:
             self.notify("Worktree no longer exists", severity="error")
             return
 
@@ -712,17 +728,22 @@ class FlotteApp(App):
         if result.success:
             self.notify(f"Deleted {result.worktree_name}", severity="information")
             # Refresh worktrees and select main
-            self.run_worker(self._post_delete_refresh())
+            self.run_worker(self._post_delete_refresh(result.worktree_name))
         else:
             # Error was already shown in modal
             pass
 
-    async def _post_delete_refresh(self) -> None:
+    async def _post_delete_refresh(self, deleted_name: str) -> None:
         """Refresh worktrees after deletion and select main."""
-        # Manager already removed worktree in remove_worktree_sync
+        if not self.project:
+            return
+
+        # Remove from project model
+        self.project.worktrees.pop(deleted_name, None)
+
         self._sync_worktree_ui()
         main_wt = next(
-            (w for w in self.worktree_manager.worktrees.values() if w.is_main),
+            (w for w in self.project.worktrees.values() if w.is_main),
             None
         )
         if main_wt:
@@ -742,7 +763,7 @@ class FlotteApp(App):
         if not self.selected_worktree:
             return
 
-        if not self.current_project or not self.current_project.ride_command:
+        if not self.current_config_project or not self.current_config_project.ride_command:
             self.notify("ride_command not configured for this project", severity="warning")
             return
 
@@ -753,48 +774,16 @@ class FlotteApp(App):
         }
         try:
             subprocess.Popen(
-                shlex.split(self.current_project.ride_command),
+                shlex.split(self.current_config_project.ride_command),
                 env=env,
                 start_new_session=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         except FileNotFoundError:
-            self.notify(f"Command not found: {self.current_project.ride_command}", severity="error")
+            self.notify(f"Command not found: {self.current_config_project.ride_command}", severity="error")
         except Exception as e:
             self.notify(f"Failed to run ride_command: {e}", severity="error")
-
-    def action_open_ssh(self) -> None:
-        """Open a shell in the Rails container in an external terminal."""
-        import subprocess
-        import shutil
-
-        if not self.selected_worktree:
-            return
-
-        docker_cmd = (
-            f"cd {self.selected_worktree.path} && "
-            f"docker compose exec rails bash"
-        )
-
-        terminals = [
-            ("alacritty", ["alacritty", "-e", "bash", "-c", docker_cmd]),
-            ("kitty", ["kitty", "bash", "-c", docker_cmd]),
-            ("wezterm", ["wezterm", "start", "--", "bash", "-c", docker_cmd]),
-            ("foot", ["foot", "bash", "-c", docker_cmd]),
-            ("gnome-terminal", ["gnome-terminal", "--", "bash", "-c", docker_cmd]),
-            ("konsole", ["konsole", "-e", "bash", "-c", docker_cmd]),
-            ("xfce4-terminal", ["xfce4-terminal", "-e", f"bash -c '{docker_cmd}'"]),
-            ("xterm", ["xterm", "-e", "bash", "-c", docker_cmd]),
-        ]
-
-        for name, cmd in terminals:
-            if shutil.which(name):
-                try:
-                    subprocess.Popen(cmd, start_new_session=True)
-                    return
-                except Exception:
-                    continue
 
     def action_deselect(self) -> None:
         """Clear selection and unfocus - Escape key."""
