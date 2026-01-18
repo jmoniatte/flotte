@@ -2,8 +2,6 @@ import asyncio
 import json
 from pathlib import Path
 
-from ..models import Container, ContainerState
-
 
 class DockerManager:
     """Direct Docker Compose interaction for status and service control."""
@@ -55,15 +53,16 @@ class DockerManager:
             proc.kill()
             return (-1, "", "Command timed out")
 
-    async def get_containers(self) -> list[Container]:
-        """
-        Get status of all containers/services for this project.
+    async def get_container_data(self) -> tuple[list[dict], list[str]]:
+        """Get raw container data and all service names.
 
         Returns:
-            List of Container objects for all services (including non-running)
+            Tuple of:
+            - List of dicts from docker compose ps (container data)
+            - List of all service names from docker compose config
         """
-        containers = []
-        services_with_containers = set()
+        container_data: list[dict] = []
+        all_services: list[str] = []
 
         # Get existing containers (running or stopped)
         returncode, stdout, stderr = await self._run_compose(
@@ -71,29 +70,17 @@ class DockerManager:
         )
 
         if returncode == 0 and stdout.strip():
-            # IMPORTANT: docker compose ps --format json outputs ONE JSON OBJECT
-            # PER LINE, not a JSON array!
+            # docker compose ps --format json outputs ONE JSON OBJECT PER LINE
             for line in stdout.strip().split("\n"):
                 if not line.strip():
                     continue
                 try:
                     data = json.loads(line)
-                    service_name = data.get("Service", "")
-                    services_with_containers.add(service_name)
-                    container = Container(
-                        id=data.get("ID", "")[:12],
-                        name=data.get("Name", ""),
-                        service=service_name,
-                        image=data.get("Image", ""),
-                        state=ContainerState.from_string(data.get("State", "")),
-                        status=data.get("Status", ""),
-                        ports=self._parse_ports(data.get("Ports", "")),
-                    )
-                    containers.append(container)
+                    container_data.append(data)
                 except json.JSONDecodeError:
                     continue
 
-        # Get all defined services and add placeholders for missing ones
+        # Get all defined services
         returncode, stdout, stderr = await self._run_compose(
             "config", "--services"
         )
@@ -101,53 +88,10 @@ class DockerManager:
         if returncode == 0 and stdout.strip():
             for service_name in stdout.strip().split("\n"):
                 service_name = service_name.strip()
-                if service_name and service_name not in services_with_containers:
-                    # Add placeholder for service without container
-                    container = Container(
-                        id="",
-                        name="-",
-                        service=service_name,
-                        image="",
-                        state=ContainerState.EXITED,
-                        status="-",
-                        ports=[],
-                    )
-                    containers.append(container)
+                if service_name:
+                    all_services.append(service_name)
 
-        # Sort by service name for consistent display
-        containers.sort(key=lambda c: c.service)
-        return containers
-
-    def _parse_ports(self, ports_str: str) -> list[str]:
-        """
-        Parse port mappings and extract exposed host ports.
-
-        Input examples:
-          - "3000/tcp" → not exposed, returns []
-          - "0.0.0.0:3406->3306/tcp" → exposed on 3406, returns ["3406"]
-          - "0.0.0.0:3406->3306/tcp, [::]:3406->3306/tcp" → returns ["3406"]
-
-        Returns:
-            List of unique exposed host port numbers
-        """
-        if not ports_str:
-            return []
-
-        exposed_ports = set()
-        for port_spec in ports_str.split(","):
-            port_spec = port_spec.strip()
-            # Look for host:port->container pattern
-            # Examples: "0.0.0.0:3406->3306/tcp", "[::]:3406->3306/tcp"
-            if "->" in port_spec:
-                # Extract the host:port part before ->
-                host_part = port_spec.split("->")[0]
-                # Extract just the port number (after the last colon)
-                if ":" in host_part:
-                    host_port = host_part.rsplit(":", 1)[1]
-                    exposed_ports.add(host_port)
-
-        # Return sorted for consistent display
-        return sorted(exposed_ports, key=lambda p: int(p) if p.isdigit() else 0)
+        return container_data, all_services
 
     async def start_service(self, service: str) -> bool:
         """

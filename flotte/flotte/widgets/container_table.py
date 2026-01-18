@@ -49,8 +49,8 @@ class ContainerTable(DataTable):
         if worktree is None:
             return
 
-        # Add rows for each container
-        for container in worktree.containers:
+        # Add rows for each container (container_list returns sorted list)
+        for container in worktree.container_list:
             self._add_container_row(container)
 
         # Force refresh to ensure display updates
@@ -105,9 +105,8 @@ class ContainerTable(DataTable):
             row_key = self.get_row_at(self.cursor_row)
             # Find container by service name in current worktree
             if self.worktree:
-                for c in self.worktree.containers:
-                    if c.service == row_key.value:
-                        return c
+                # containers is a dict keyed by service name
+                return self.worktree.containers.get(row_key.value)
         except Exception:
             pass
 

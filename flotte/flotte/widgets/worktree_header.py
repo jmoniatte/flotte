@@ -1,5 +1,3 @@
-from typing import Callable
-
 from textual.containers import Vertical
 from textual.widgets import DataTable
 from textual.reactive import reactive
@@ -36,7 +34,6 @@ class WorktreeTable(DataTable):
         super().__init__(**kwargs)
         self._worktrees: list[Worktree] = []
         self._git_statuses: dict[str, dict] = {}
-        self._status_fn: Callable[[str], WorktreeStatus] | None = None
 
     def on_mount(self) -> None:
         self.cursor_foreground_priority = "renderable"
@@ -48,14 +45,9 @@ class WorktreeTable(DataTable):
 
     def _format_status(self, wt: Worktree) -> Text:
         """Format status icon for a worktree."""
-        # Use status function if provided (consistent with StatusLine)
-        # Otherwise fall back to wt.status for backwards compatibility
-        if self._status_fn is not None:
-            status = self._status_fn(wt.name)
-        else:
-            status = wt.status
+        # wt.status now returns the effective status (transient or actual)
         icon, color = self.STATUS_ICONS.get(
-            status, self.STATUS_ICONS[WorktreeStatus.UNKNOWN]
+            wt.status, self.STATUS_ICONS[WorktreeStatus.UNKNOWN]
         )
         return Text(icon, style=color)
 
@@ -92,17 +84,11 @@ class WorktreeTable(DataTable):
 
         return text
 
-    def refresh_worktrees(
-        self,
-        worktrees: list[Worktree],
-        status_fn: Callable[[str], WorktreeStatus] | None = None
-    ) -> None:
+    def refresh_worktrees(self, worktrees: list[Worktree]) -> None:
         """Update table with worktrees.
 
         Args:
             worktrees: List of worktrees to display
-            status_fn: Function to compute status for a worktree by name.
-                       If None, falls back to wt.status (for backwards compatibility).
         """
         # Remember selection before updating list
         selected_name = None
@@ -110,7 +96,6 @@ class WorktreeTable(DataTable):
             selected_name = self._worktrees[self.cursor_row].name
 
         self._worktrees = sorted(worktrees, key=lambda w: (not w.is_main, w.name))
-        self._status_fn = status_fn
         self._rebuild_table(selected_name)
 
     def _rebuild_table(self, selected_name: str | None = None) -> None:
@@ -160,20 +145,14 @@ class WorktreeHeader(Vertical):
     def compose(self):
         yield WorktreeTable(id="worktree-table")
 
-    def refresh_worktrees(
-        self,
-        worktrees: list[Worktree],
-        status_fn: Callable[[str], WorktreeStatus] | None = None
-    ) -> None:
+    def refresh_worktrees(self, worktrees: list[Worktree]) -> None:
         """Update the table with worktrees.
 
         Args:
             worktrees: List of worktrees to display
-            status_fn: Function to compute status for a worktree by name.
-                       If None, falls back to wt.status (for backwards compatibility).
         """
         table = self.query_one("#worktree-table", WorktreeTable)
-        table.refresh_worktrees(worktrees, status_fn)
+        table.refresh_worktrees(worktrees)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle row selection (click/Enter)."""

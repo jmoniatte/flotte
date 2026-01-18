@@ -4,7 +4,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from ..models import Worktree, WorktreeStatus
+from ..models import Worktree
 
 PORT_OFFSET_INCREMENT = 100
 
@@ -90,9 +90,7 @@ class WorktreeManager:
                 path=path,
                 branch=branch,
                 compose_project_name=compose_project_name,
-                status=WorktreeStatus.UNKNOWN,
                 is_main=is_main,
-                containers=[],
             )
             worktrees.append(worktree)
             self.worktrees[name] = worktree
@@ -229,9 +227,7 @@ class WorktreeManager:
             path=worktree_path,
             branch=branch_name,
             compose_project_name=compose_project_name,
-            status=WorktreeStatus.STOPPED,
             is_main=False,
-            containers=[],
         )
         self.worktrees[sanitized_name] = worktree
         return worktree
