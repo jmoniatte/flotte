@@ -2,12 +2,8 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from .container import Container, ContainerState
-
-if TYPE_CHECKING:
-    from ..services.transient_state import TransientStateManager
 
 
 class WorktreeStatus(Enum):
@@ -28,18 +24,7 @@ class Worktree:
 
     Owns its containers (keyed by service name) and manages transient
     operation states for flash-free status display.
-
-    Transient state is stored centrally by name (not on object instances)
-    to survive object replacement during polling.
     """
-
-    # Class-level transient state manager (set by app on startup)
-    _transient_manager: TransientStateManager | None = None
-
-    @classmethod
-    def set_transient_manager(cls, manager: TransientStateManager) -> None:
-        """Set the class-level transient state manager."""
-        cls._transient_manager = manager
 
     def __init__(
         self,
@@ -66,6 +51,10 @@ class Worktree:
 
         # Containers keyed by service name (persist across polls)
         self.containers: dict[str, Container] = {}
+
+        # Simple transient state management (instance-level)
+        self._transient: WorktreeStatus | None = None
+        self._target: WorktreeStatus | None = None
 
     def get_or_create_container(self, service: str) -> Container:
         """Get existing container or create new one.
@@ -108,48 +97,41 @@ class Worktree:
     @property
     def status(self) -> WorktreeStatus:
         """Effective status: transient overrides actual."""
-        if self._transient_manager:
-            transient = self._transient_manager.get_transient(self.name)
-            if transient is not None:
-                return transient
+        if self._transient is not None:
+            return self._transient
         return self.actual_status
 
     def start_operation(
         self,
         transient: WorktreeStatus,
-        expected: WorktreeStatus | None = None,
+        target: WorktreeStatus | None = None,
     ) -> None:
         """Begin operation with transient status.
 
         Args:
             transient: Status to show during operation (STOPPING, STARTING, etc.)
-            expected: Status that clears the transient when reached (STOPPED, RUNNING).
-                      If None, transient must be cleared manually.
+            target: Status that clears the transient when reached (STOPPED, RUNNING).
+                    If None, transient must be cleared manually.
         """
-        if self._transient_manager:
-            self._transient_manager.start_operation(self.name, transient, expected)
+        self._transient = transient
+        self._target = target
 
     def clear_operation(self) -> None:
         """Clear transient status (operation completed or failed)."""
-        if self._transient_manager:
-            self._transient_manager.clear_operation(self.name)
+        self._transient = None
+        self._target = None
 
-    @property
-    def is_operation_pending(self) -> bool:
-        """True if an operation is in progress."""
-        if self._transient_manager:
-            return self._transient_manager.is_operation_pending(self.name)
-        return False
+    async def poll(self) -> None:
+        """Poll container status from Docker."""
+        from ..services.docker_manager import DockerManager
 
-    def update_from_poll(self, docker_data: list[dict]) -> None:
-        """Update containers from docker compose ps output.
+        docker_mgr = DockerManager(self.path, self.compose_project_name)
+        container_data, all_services = await docker_mgr.get_container_data()
 
-        Args:
-            docker_data: List of dicts from docker compose ps --format json
-        """
+        # Update containers from poll data
         seen_services: set[str] = set()
 
-        for data in docker_data:
+        for data in container_data:
             service = data.get("Service", "")
             if service:
                 container = self.get_or_create_container(service)
@@ -161,20 +143,15 @@ class Worktree:
             if service not in seen_services:
                 del self.containers[service]
 
-        # Auto-clear transient if expected status reached
-        if self._transient_manager:
-            self._transient_manager.check_and_clear(self.name, self.actual_status)
-
-    def add_missing_services(self, all_services: list[str]) -> None:
-        """Add placeholder containers for services without actual containers.
-
-        Args:
-            all_services: List of all service names from docker compose config
-        """
+        # Add placeholders for services without containers
         for service in all_services:
             if service not in self.containers:
                 container = self.get_or_create_container(service)
                 container.mark_exited()
+
+        # Auto-clear transient if target status reached
+        if self._target is not None and self.actual_status == self._target:
+            self.clear_operation()
 
     # Backwards compatibility: expose containers as list for widgets
     @property
