@@ -15,14 +15,13 @@ flotte
 ## Structure
 
 ```
-flotte/                 # project dir (run uv commands here)
+flotte/                 # git root + pyproject.toml (run uv commands here)
   flotte/               # Python package
     app.py              # Main Textual app
     config.py           # Config loading (~/.config/flotte/config.toml)
     services/           # WorktreeManager, DockerManager, RideWrapper
     widgets/            # Textual widgets
     screens/            # Textual screens
-  pyproject.toml
 ```
 
 ## Config
