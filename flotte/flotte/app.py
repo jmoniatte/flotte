@@ -1,5 +1,4 @@
 import asyncio
-import time
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -13,6 +12,7 @@ from .config import load_config, Project
 from .models import Worktree
 from .models.worktree import WorktreeStatus
 from .services import DockerManager, RideWrapper, WorktreeManager
+from .state import AppState
 from .screens import (
     ConfirmDialog,
     CreateWorktreeScreen,
@@ -53,9 +53,6 @@ class FlotteApp(App):
         Binding("escape", "deselect", show=False),
     ]
 
-    # Grace period for expected status after operation completes
-    OPERATION_GRACE_PERIOD = 2.0  # seconds
-
     def __init__(self):
         # Load config first to determine theme
         self.config = load_config()
@@ -85,16 +82,14 @@ class FlotteApp(App):
 
         self.selected_worktree: Worktree | None = None
 
-        # Operation state - single source of truth
+        # State management - centralized state machine for worktree statuses
+        self._state = AppState()
+
+        # Simple operation lock (prevents concurrent operations)
         self._operation_in_progress: bool = False
         self._operation_type: str | None = None  # "create", "delete", "start", "stop", "restart"
         self._operation_target: str | None = None  # worktree name
         self._poll_timer: Timer | None = None
-
-        # Grace period state - prevents status flash after operation completes
-        self._recent_operation_target: str | None = None
-        self._recent_operation_expected_status: WorktreeStatus | None = None
-        self._recent_operation_time: float | None = None
 
     def compose(self) -> ComposeResult:
         # Custom header with project selector
@@ -133,17 +128,10 @@ class FlotteApp(App):
         """Try to acquire operation lock. Returns True if acquired.
 
         MUST be called from sync context (action methods, callbacks).
-        Clears any stale grace period for this target.
         """
         if self._operation_in_progress:
             self.notify("Operation in progress", severity="warning")
             return False
-
-        # Clear any stale grace period for this target
-        if self._recent_operation_target == target:
-            self._recent_operation_target = None
-            self._recent_operation_expected_status = None
-            self._recent_operation_time = None
 
         self._operation_in_progress = True
         self._operation_type = op_type
@@ -152,33 +140,17 @@ class FlotteApp(App):
         self.log.info(f"Lock acquired: {op_type} on {target}")
         return True
 
-    def _release_operation_lock(self, expected_status: WorktreeStatus | None = None) -> None:
-        """Release operation lock and optionally set grace period for expected status.
-
-        Args:
-            expected_status: The status we expect after operation completes.
-                            If provided, this status will be returned by get_worktree_status()
-                            for OPERATION_GRACE_PERIOD seconds to prevent flashing wrong
-                            status before poll confirms the expected state.
+    def _release_operation_lock(self) -> None:
+        """Release operation lock.
 
         Safe to call even if lock not held (idempotent).
+        Note: State machine handles status transitions now - no grace period needed.
         """
         if not self._operation_in_progress:
             return  # Already released, nothing to do
 
         op_type = self._operation_type
         target = self._operation_target
-
-        # Set grace period if expected status provided
-        if expected_status is not None and target:
-            self._recent_operation_target = target
-            self._recent_operation_expected_status = expected_status
-            self._recent_operation_time = time.monotonic()
-        else:
-            # Clear grace period (operation failed or no expected status)
-            self._recent_operation_target = None
-            self._recent_operation_expected_status = None
-            self._recent_operation_time = None
 
         self._operation_in_progress = False
         self._operation_type = None
@@ -302,8 +274,10 @@ class FlotteApp(App):
     @work(exclusive=True, name="status-poller")
     async def poll_container_status(self) -> None:
         """Poll container status for all worktrees in parallel."""
-        if not self.worktree_manager:
+        if not self.worktree_manager or not self.current_project:
             return  # No project selected
+
+        project_name = self.current_project.name
 
         async def poll_single(worktree: Worktree) -> None:
             """Poll a single worktree's container status."""
@@ -315,17 +289,12 @@ class FlotteApp(App):
                 containers = await docker_mgr.get_containers()
                 worktree.containers = containers
 
-                # Calculate and store status (for backwards compatibility)
-                worktree.status = worktree.calculate_status()
+                # Update state machine with poll result
+                wt_state = self._state.get_worktree_state(project_name, worktree.name)
+                wt_state.update_from_poll(containers)
 
-                # Clear grace period early if poll confirms expected status
-                # This prevents showing stale expected status when containers have updated
-                if (self._recent_operation_target == worktree.name
-                    and self._recent_operation_expected_status is not None):
-                    if worktree.status == self._recent_operation_expected_status:
-                        self._recent_operation_target = None
-                        self._recent_operation_expected_status = None
-                        self._recent_operation_time = None
+                # Backward compat: set worktree.status from state machine
+                worktree.status = wt_state.status
             except Exception as e:
                 self.log.error(f"Error polling {worktree.name}: {e}")
 
@@ -376,41 +345,12 @@ class FlotteApp(App):
         return self.get_worktree_status(self.selected_worktree.name)
 
     def get_worktree_status(self, worktree_name: str) -> WorktreeStatus:
-        """Compute effective status for a worktree.
-
-        Single source of truth for status. Priority order:
-        1. Operation in progress → return operation status (STARTING, STOPPING, etc.)
-        2. Recent operation completed → return expected final status (grace period)
-        3. Default → compute from container states
-
-        The grace period prevents flashing wrong status between operation completion
-        and the next poll confirming the expected state.
-        """
-        # Priority 1: Operation in progress for this worktree
-        if self._operation_in_progress and self._operation_target == worktree_name:
-            status_map = {
-                "create": WorktreeStatus.CREATING,
-                "delete": WorktreeStatus.DELETING,
-                "start": WorktreeStatus.STARTING,
-                "stop": WorktreeStatus.STOPPING,
-                "restart": WorktreeStatus.STARTING,
-            }
-            return status_map.get(self._operation_type, WorktreeStatus.UNKNOWN)
-
-        # Priority 2: Recent operation grace period
-        if (self._recent_operation_target == worktree_name
-            and self._recent_operation_expected_status is not None
-            and self._recent_operation_time is not None):
-            elapsed = time.monotonic() - self._recent_operation_time
-            if elapsed < self.OPERATION_GRACE_PERIOD:
-                return self._recent_operation_expected_status
-
-        # Priority 3: Compute from container states
-        wt = self.worktree_manager.worktrees.get(worktree_name)
-        if wt:
-            return wt.calculate_status()
-
-        return WorktreeStatus.UNKNOWN
+        """Single source of truth: the state machine."""
+        if not self.current_project:
+            return WorktreeStatus.UNKNOWN
+        return self._state.get_worktree_state(
+            self.current_project.name, worktree_name
+        ).status
 
     def _update_container_view(self) -> None:
         """Show/hide container box widgets based on effective status."""
@@ -442,19 +382,9 @@ class FlotteApp(App):
         self._update_box_title()
 
     def _update_box_title(self) -> None:
-        """Update containers-box border title based on state."""
+        """Update containers-box border title to show selected worktree name."""
         box = self.query_one("#containers-box")
-        status = self._effective_status()
-
-        if status == WorktreeStatus.STARTING and self._operation_target:
-            box.border_title = f"Starting: {self._operation_target}"
-        elif status == WorktreeStatus.STOPPING and self._operation_target:
-            box.border_title = f"Stopping: {self._operation_target}"
-        elif status == WorktreeStatus.CREATING and self._operation_target:
-            box.border_title = f"Creating: {self._operation_target}"
-        elif status == WorktreeStatus.DELETING and self._operation_target:
-            box.border_title = f"Deleting: {self._operation_target}"
-        elif self.selected_worktree:
+        if self.selected_worktree:
             box.border_title = self.selected_worktree.name
         else:
             box.border_title = "Containers"
@@ -515,31 +445,33 @@ class FlotteApp(App):
 
     async def _perform_start(self, wt: Worktree) -> None:
         """Perform environment start. Lock must already be held."""
-        if not self._operation_in_progress:
-            self.log.error("_perform_start called without lock")
+        if not self._operation_in_progress or not self.current_project:
+            self.log.error("_perform_start called without lock or project")
             return
 
-        lock_released = False
+        wt_state = self._state.get_worktree_state(self.current_project.name, wt.name)
+        wt_state.start_operation(WorktreeStatus.STARTING, WorktreeStatus.RUNNING)
+        self._update_container_view()
+
         try:
             returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).start()
             if returncode != 0:
                 self.log.error(f"Start failed: {stderr or stdout}")
                 self.notify(f"Failed to start: {stderr or stdout}", severity="error")
-                self._release_operation_lock()
-                lock_released = True
+                wt_state.clear_operation()
             else:
                 self.notify(f"Started {wt.name}", severity="information")
-                self._release_operation_lock(expected_status=WorktreeStatus.RUNNING)
-                lock_released = True
+                # DON'T clear - poll will confirm when all services running
         except asyncio.CancelledError:
             self.log.warning(f"Start cancelled: {wt.name}")
+            wt_state.clear_operation()
             raise
         except Exception as e:
             self.log.error(f"Start failed: {e}")
             self.notify(f"Failed to start: {e}", severity="error")
+            wt_state.clear_operation()
         finally:
-            if not lock_released:
-                self._release_operation_lock()
+            self._release_operation_lock()
 
     def action_stop_environment(self) -> None:
         """Stop Docker environment."""
@@ -557,31 +489,33 @@ class FlotteApp(App):
 
     async def _perform_stop(self, wt: Worktree) -> None:
         """Perform environment stop. Lock must already be held."""
-        if not self._operation_in_progress:
-            self.log.error("_perform_stop called without lock")
+        if not self._operation_in_progress or not self.current_project:
+            self.log.error("_perform_stop called without lock or project")
             return
 
-        lock_released = False
+        wt_state = self._state.get_worktree_state(self.current_project.name, wt.name)
+        wt_state.start_operation(WorktreeStatus.STOPPING, WorktreeStatus.STOPPED)
+        self._update_container_view()
+
         try:
             returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).stop()
             if returncode != 0:
                 self.log.error(f"Stop failed: {stderr or stdout}")
                 self.notify(f"Failed to stop: {stderr or stdout}", severity="error")
-                self._release_operation_lock()
-                lock_released = True
+                wt_state.clear_operation()
             else:
                 self.notify(f"Stopped {wt.name}", severity="information")
-                self._release_operation_lock(expected_status=WorktreeStatus.STOPPED)
-                lock_released = True
+                # DON'T clear - poll will confirm when all services stopped
         except asyncio.CancelledError:
             self.log.warning(f"Stop cancelled: {wt.name}")
+            wt_state.clear_operation()
             raise
         except Exception as e:
             self.log.error(f"Stop failed: {e}")
             self.notify(f"Failed to stop: {e}", severity="error")
+            wt_state.clear_operation()
         finally:
-            if not lock_released:
-                self._release_operation_lock()
+            self._release_operation_lock()
 
     def action_restart_environment(self) -> None:
         """Restart Docker environment."""
@@ -599,31 +533,47 @@ class FlotteApp(App):
 
     async def _perform_restart(self, wt: Worktree) -> None:
         """Perform environment restart. Lock must already be held."""
-        if not self._operation_in_progress:
-            self.log.error("_perform_restart called without lock")
+        if not self._operation_in_progress or not self.current_project:
+            self.log.error("_perform_restart called without lock or project")
             return
 
-        lock_released = False
+        wt_state = self._state.get_worktree_state(self.current_project.name, wt.name)
+
         try:
-            returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).restart()
+            # Phase 1: Stop
+            wt_state.start_operation(WorktreeStatus.STOPPING, None)  # No auto-clear
+            self._update_container_view()
+
+            returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).stop()
             if returncode != 0:
-                self.log.error(f"Restart failed: {stderr or stdout}")
+                self.log.error(f"Restart (stop phase) failed: {stderr or stdout}")
                 self.notify(f"Failed to restart: {stderr or stdout}", severity="error")
-                self._release_operation_lock()
-                lock_released = True
+                wt_state.clear_operation()
+                return  # Don't proceed to start
+
+            # Phase 2: Start
+            wt_state.start_operation(WorktreeStatus.STARTING, WorktreeStatus.RUNNING)
+            self._update_container_view()
+
+            returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).start()
+            if returncode != 0:
+                self.log.error(f"Restart (start phase) failed: {stderr or stdout}")
+                self.notify(f"Failed to restart: {stderr or stdout}", severity="error")
+                wt_state.clear_operation()
             else:
                 self.notify(f"Restarted {wt.name}", severity="information")
-                self._release_operation_lock(expected_status=WorktreeStatus.RUNNING)
-                lock_released = True
+                # DON'T clear - poll will confirm when all containers running
+
         except asyncio.CancelledError:
             self.log.warning(f"Restart cancelled: {wt.name}")
+            wt_state.clear_operation()
             raise
         except Exception as e:
             self.log.error(f"Restart failed: {e}")
             self.notify(f"Failed to restart: {e}", severity="error")
+            wt_state.clear_operation()
         finally:
-            if not lock_released:
-                self._release_operation_lock()
+            self._release_operation_lock()
 
     def action_new_worktree(self) -> None:
         """Handle New button - opens dialog."""
@@ -794,6 +744,11 @@ class FlotteApp(App):
             return
 
         if result.success:
+            # Remove worktree state to prevent stale data
+            if self.current_project:
+                self._state.remove_worktree(
+                    self.current_project.name, result.worktree_name
+                )
             self.notify(f"Deleted {result.worktree_name}", severity="information")
             # Refresh worktrees and select main
             self.run_worker(self._post_delete_refresh())
