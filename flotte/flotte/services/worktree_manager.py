@@ -4,7 +4,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from ..models import PortConfig, Worktree, WorktreeStatus
+from ..models import Worktree, WorktreeStatus
 
 PORT_OFFSET_INCREMENT = 100
 
@@ -68,9 +68,8 @@ class WorktreeManager:
             path_str, branch = match.groups()
             path = Path(path_str)
 
-            # Read .env.local if exists
-            env_vars = self._parse_env_local(path)
-            offset = self._get_port_offset(env_vars)
+            # Read .env if exists
+            env_vars = self._parse_env(path)
 
             # Determine if this is the main repo
             is_main = path.resolve() == self.main_repo_path.resolve()
@@ -91,7 +90,6 @@ class WorktreeManager:
                 path=path,
                 branch=branch,
                 compose_project_name=compose_project_name,
-                port_config=PortConfig.from_offset(offset),
                 status=WorktreeStatus.UNKNOWN,
                 is_main=is_main,
                 containers=[],
@@ -101,12 +99,9 @@ class WorktreeManager:
 
         return worktrees
 
-    def _parse_env_local(self, path: Path) -> dict[str, str]:
-        """Parse .env or .env.local file into dict."""
-        # Check .env first (docker compose default), then .env.local
+    def _parse_env(self, path: Path) -> dict[str, str]:
+        """Parse .env file into dict."""
         env_file = path / ".env"
-        if not env_file.exists():
-            env_file = path / ".env.local"
         if not env_file.exists():
             return {}
 
@@ -128,48 +123,42 @@ class WorktreeManager:
 
     def get_compose_project_prefix(self) -> str:
         """Get COMPOSE_PROJECT_NAME from main's .env, fallback to directory name."""
-        main_env = self._parse_env_local(self.main_repo_path)
+        main_env = self._parse_env(self.main_repo_path)
         return main_env.get("COMPOSE_PROJECT_NAME", self.project_name)
 
     def _get_port_offset(self, env_vars: dict[str, str]) -> int:
-        """Calculate port offset from env vars."""
-        # Try to get NGINX_PORT and calculate offset
-        nginx_port = env_vars.get("NGINX_PORT")
-        if nginx_port:
-            try:
-                return int(nginx_port) - PortConfig.BASE_NGINX
-            except ValueError:
-                pass
+        """Calculate port offset by comparing a *_PORT variable to main's .env."""
+        main_env = self._parse_env(self.main_repo_path)
+
+        # Find first *_PORT variable that exists in both
+        for key, value in env_vars.items():
+            if key.endswith("_PORT") and key in main_env:
+                try:
+                    worktree_port = int(value)
+                    main_port = int(main_env[key])
+                    return worktree_port - main_port
+                except ValueError:
+                    continue
         return 0
 
     def find_next_port_offset(self) -> int:
         """
         Find the next available port offset.
 
-        Scans existing worktrees to find used offsets and returns
-        the first unused one (100, 200, 300, etc.).
+        Scans existing worktrees to find max offset and returns max + 100.
         """
-        used_offsets = set()
+        max_offset = 0
 
         # Scan all {project_name}-* directories
         if self.parent_dir.exists():
             for path in self.parent_dir.iterdir():
                 if path.is_dir() and path.name.startswith(f"{self.project_name}-"):
-                    env_vars = self._parse_env_local(path)
+                    env_vars = self._parse_env(path)
                     offset = self._get_port_offset(env_vars)
-                    if offset > 0:
-                        used_offsets.add(offset)
+                    if offset > max_offset:
+                        max_offset = offset
 
-        # Also check cached worktrees
-        for wt in self.worktrees.values():
-            if wt.port_config.offset > 0:
-                used_offsets.add(wt.port_config.offset)
-
-        # Find first unused offset
-        offset = PORT_OFFSET_INCREMENT
-        while offset in used_offsets:
-            offset += PORT_OFFSET_INCREMENT
-        return offset
+        return max_offset + PORT_OFFSET_INCREMENT
 
     def _sanitize_branch_name(self, branch_name: str) -> str:
         """Sanitize branch name for use in directory and project names."""
@@ -240,7 +229,6 @@ class WorktreeManager:
             path=worktree_path,
             branch=branch_name,
             compose_project_name=compose_project_name,
-            port_config=PortConfig.from_offset(offset),
             status=WorktreeStatus.STOPPED,
             is_main=False,
             containers=[],
@@ -273,21 +261,30 @@ class WorktreeManager:
     def _generate_env_local(
         self, worktree_path: Path, compose_project_name: str, offset: int
     ) -> None:
-        """Generate .env file with port configuration."""
-        pc = PortConfig.from_offset(offset)
-        content = f"""COMPOSE_PROJECT_NAME={compose_project_name}
-NGINX_PORT={pc.nginx_port}
-RAILS_PORT={pc.rails_port}
-MYSQL_PORT={pc.mysql_port}
-MONGO_PORT={pc.mongo_port}
-REDIS_PORT={pc.redis_port}
-ELASTICSEARCH_PORT={pc.elasticsearch_port}
-VITE_PORT={pc.vite_port}
-"""
+        """Generate .env file by reading main repo's .env and applying port offset."""
+        # Read main repo's .env
+        main_env = self._parse_env(self.main_repo_path)
+
+        # Build new .env content
+        lines = [f"COMPOSE_PROJECT_NAME={compose_project_name}"]
+
+        # Copy all variables from main, applying offset to *_PORT variables
+        for key, value in main_env.items():
+            if key == "COMPOSE_PROJECT_NAME":
+                continue  # Already added above
+            if key.endswith("_PORT"):
+                try:
+                    port = int(value)
+                    lines.append(f"{key}={port + offset}")
+                except ValueError:
+                    lines.append(f"{key}={value}")
+            else:
+                lines.append(f"{key}={value}")
+
         # Write to .env (docker compose reads this automatically)
         env_file = worktree_path / ".env"
         with open(env_file, "w") as f:
-            f.write(content)
+            f.write("\n".join(lines) + "\n")
 
     def get_volumes_sync(self) -> list[str]:
         """Get volume names from docker-compose.yml (synchronous)."""

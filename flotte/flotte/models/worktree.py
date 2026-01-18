@@ -19,58 +19,6 @@ class WorktreeStatus(Enum):
 
 
 @dataclass
-class PortConfig:
-    """Port configuration for a worktree based on offset from base ports."""
-
-    offset: int
-
-    # Base ports (offset 0 = main repo)
-    BASE_NGINX = 3000
-    BASE_RAILS = 3001
-    BASE_MYSQL = 3306
-    BASE_MONGO = 27017
-    BASE_REDIS = 6379
-    BASE_ELASTICSEARCH = 9200
-    BASE_VITE = 27182
-
-    @property
-    def nginx_port(self) -> int:
-        return self.BASE_NGINX + self.offset
-
-    @property
-    def rails_port(self) -> int:
-        return self.BASE_RAILS + self.offset
-
-    @property
-    def mysql_port(self) -> int:
-        return self.BASE_MYSQL + self.offset
-
-    @property
-    def mongo_port(self) -> int:
-        return self.BASE_MONGO + self.offset
-
-    @property
-    def redis_port(self) -> int:
-        return self.BASE_REDIS + self.offset
-
-    @property
-    def elasticsearch_port(self) -> int:
-        return self.BASE_ELASTICSEARCH + self.offset
-
-    @property
-    def vite_port(self) -> int:
-        return self.BASE_VITE + self.offset
-
-    @classmethod
-    def from_offset(cls, offset: int) -> "PortConfig":
-        return cls(offset=offset)
-
-    @classmethod
-    def default(cls) -> "PortConfig":
-        return cls(offset=0)
-
-
-@dataclass
 class Worktree:
     """Represents a git worktree with its Docker environment."""
 
@@ -78,10 +26,9 @@ class Worktree:
     path: Path  # Absolute path to worktree
     branch: str  # Git branch name
     compose_project_name: str  # Docker Compose project name
-    port_config: PortConfig
     # NOTE: The status field is deprecated for display purposes.
     # Use app.get_worktree_status(wt.name) instead, which handles
-    # operation state and grace period for flash-free status display.
+    # operation state for flash-free status display.
     # This field is kept for backwards compatibility and internal use.
     status: WorktreeStatus = WorktreeStatus.UNKNOWN
     is_main: bool = False  # True only for main repo (cannot delete)

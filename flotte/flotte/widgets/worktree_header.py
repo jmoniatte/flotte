@@ -1,11 +1,9 @@
-import webbrowser
 from typing import Callable
 
 from textual.containers import Vertical
 from textual.widgets import DataTable
 from textual.reactive import reactive
 from textual.message import Message
-from textual.events import Click
 from rich.text import Text
 
 from ..models import Worktree, WorktreeStatus
@@ -40,42 +38,13 @@ class WorktreeTable(DataTable):
         self._git_statuses: dict[str, dict] = {}
         self._status_fn: Callable[[str], WorktreeStatus] | None = None
 
-    # Column positions (cumulative widths including borders)
-    URL_COL_START = 3 + 20 + 2  # status + name + borders
-    URL_COL_END = URL_COL_START + 25
-
     def on_mount(self) -> None:
         self.cursor_foreground_priority = "renderable"
         self.add_column("", key="status", width=3)
         self.add_column("Name", key="name", width=20)
-        self.add_column("URL", key="url", width=25)
         self.add_column("Path", key="path", width=40)
         self.add_column("Git", key="git", width=20)
         self.cursor_type = "row"
-
-    def on_click(self, event: Click) -> None:
-        """Handle click - open URL if clicked on URL column."""
-        # Check if click is in URL column range
-        if not (self.URL_COL_START <= event.x < self.URL_COL_END):
-            return
-
-        # Get row from click position
-        row_idx = event.y - 1  # Subtract 1 for header row
-        if row_idx < 0 or row_idx >= len(self._worktrees):
-            return
-
-        wt = self._worktrees[row_idx]
-
-        # Get effective status
-        if self._status_fn is not None:
-            status = self._status_fn(wt.name)
-        else:
-            status = wt.status
-
-        # Only open if running
-        if status == WorktreeStatus.RUNNING:
-            url = f"http://localhost:{wt.port_config.nginx_port}"
-            webbrowser.open(url)
 
     def _format_status(self, wt: Worktree) -> Text:
         """Format status icon for a worktree."""
@@ -92,22 +61,6 @@ class WorktreeTable(DataTable):
 
     def _format_name(self, wt: Worktree) -> Text:
         return Text(wt.name, style="bold" if wt.is_main else "")
-
-    def _format_url(self, wt: Worktree) -> Text:
-        port = wt.port_config.nginx_port
-        url = f"http://localhost:{port}"
-
-        # Get effective status
-        if self._status_fn is not None:
-            status = self._status_fn(wt.name)
-        else:
-            status = wt.status
-
-        # Cyan when running, greyed out otherwise
-        if status == WorktreeStatus.RUNNING:
-            return Text(url, style="cyan")
-        else:
-            return Text(url, style="dim")
 
     def _format_path(self, wt: Worktree) -> Text:
         from pathlib import Path
@@ -168,7 +121,6 @@ class WorktreeTable(DataTable):
             self.add_row(
                 self._format_status(wt),
                 self._format_name(wt),
-                self._format_url(wt),
                 self._format_path(wt),
                 self._format_git(wt),
                 key=wt.name,

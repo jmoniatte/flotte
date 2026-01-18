@@ -1,10 +1,9 @@
 from .container import Container, ContainerState
-from .worktree import PortConfig, Worktree, WorktreeStatus
+from .worktree import Worktree, WorktreeStatus
 
 __all__ = [
     "Container",
     "ContainerState",
-    "PortConfig",
     "Worktree",
     "WorktreeStatus",
 ]
