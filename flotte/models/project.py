@@ -27,7 +27,6 @@ class Project:
         # Polling state
         self._app: App | None = None
         self._poll_task: asyncio.Task | None = None
-        self._poll_interval: float = 2.0
 
     def get_or_create_worktree(
         self,
@@ -63,15 +62,13 @@ class Project:
         """Remove worktree from project."""
         self.worktrees.pop(name, None)
 
-    def start_polling(self, app: App, interval: float = 2.0) -> None:
+    def start_polling(self, app: App) -> None:
         """Start the polling loop for container status.
 
         Args:
             app: The Textual app to post messages to.
-            interval: Seconds between polls.
         """
         self._app = app
-        self._poll_interval = interval
 
         if self._poll_task is not None:
             self._poll_task.cancel()
@@ -97,7 +94,9 @@ class Project:
                 if self._app:
                     self._app.log.error(f"Poll error: {e}")
 
-            await asyncio.sleep(self._poll_interval)
+            # Use fastest interval needed by any worktree
+            interval = self._get_poll_interval()
+            await asyncio.sleep(interval)
 
     async def _poll(self) -> None:
         """Poll all worktrees and refresh UI."""
@@ -110,6 +109,14 @@ class Project:
         if self._app:
             for wt in self.worktrees.values():
                 self._app.post_message(WorktreeStatusChanged(wt))
+
+    def _get_poll_interval(self) -> float:
+        """Get poll interval - fast if any worktree is transient."""
+        from .worktree import POLL_INTERVAL_NORMAL
+
+        if not self.worktrees:
+            return POLL_INTERVAL_NORMAL
+        return min(wt.poll_interval for wt in self.worktrees.values())
 
     async def poll_once(self) -> None:
         """Poll once immediately (for initial load)."""

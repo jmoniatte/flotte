@@ -215,7 +215,7 @@ class FlotteApp(App):
             self.run_worker(self.refresh_worktrees())
 
         # Start polling for new project
-        self.project.start_polling(self, self.config.poll_interval)
+        self.project.start_polling(self)
 
     def _clear_ui_state(self) -> None:
         """Clear all UI widgets to blank state."""
@@ -262,7 +262,7 @@ class FlotteApp(App):
 
         # Start project polling
         if self.project:
-            self.project.start_polling(self, self.config.poll_interval)
+            self.project.start_polling(self)
 
         self.notify("Welcome!")
 

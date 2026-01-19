@@ -5,6 +5,10 @@ from pathlib import Path
 
 from .container import Container, ContainerState
 
+# Polling intervals
+POLL_INTERVAL_NORMAL = 5.0  # seconds
+POLL_INTERVAL_FAST = 1.0  # seconds during transient operations
+
 
 class WorktreeStatus(Enum):
     """Aggregate status of all containers in a worktree."""
@@ -100,6 +104,13 @@ class Worktree:
         if self._transient is not None:
             return self._transient
         return self.actual_status
+
+    @property
+    def poll_interval(self) -> float:
+        """Return appropriate poll interval based on transient state."""
+        if self._transient is not None:
+            return POLL_INTERVAL_FAST
+        return POLL_INTERVAL_NORMAL
 
     def start_operation(
         self,
