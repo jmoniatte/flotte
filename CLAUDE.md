@@ -29,6 +29,5 @@ flotte/                 # git root + pyproject.toml (run uv commands here)
 `~/.config/flotte/config.toml` - requires at least one `[[projects]]` entry with `name` and `path`.
 
 Config structure:
-- `poll_interval`: seconds between status polls (global)
-- `auto_discover`: discover worktrees on startup (global)
+- `theme`: color theme - onedark or onelight (global)
 - `[[projects]]`: array of project configs (name, path, ride_command)

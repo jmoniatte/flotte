@@ -211,8 +211,7 @@ class FlotteApp(App):
         self._clear_ui_state()
 
         # Discover worktrees for new project
-        if self.config.auto_discover:
-            self.run_worker(self.refresh_worktrees())
+        self.run_worker(self.refresh_worktrees())
 
         # Start polling for new project
         self.project.start_polling(self)
@@ -257,8 +256,7 @@ class FlotteApp(App):
             self.notify("No projects configured in config.toml", severity="error")
             return  # Don't start polling or discovery
 
-        if self.config.auto_discover:
-            self.run_worker(self.refresh_worktrees())
+        self.run_worker(self.refresh_worktrees())
 
         # Start project polling
         if self.project:

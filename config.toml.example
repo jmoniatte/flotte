@@ -1,11 +1,8 @@
 # Flotte Configuration
 # Copy to ~/.config/flotte/config.toml
 
-# Polling interval in seconds
-poll_interval = 5
-
-# Discover worktrees on startup
-auto_discover = true
+# Color theme: onedark or onelight
+theme = "onedark"
 
 # Projects (at least one required)
 [[projects]]

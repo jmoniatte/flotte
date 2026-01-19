@@ -23,11 +23,7 @@ class Project:
 class Config:
     """Application configuration with sensible defaults."""
 
-    # Polling settings
-    poll_interval: int = 5  # Seconds between status polls
-
     # UI settings
-    auto_discover: bool = True  # Discover worktrees on startup
     theme: str = "onedark"  # "onedark" or "onelight" (or any .tcss in styles/themes/)
 
     # Projects list
@@ -53,10 +49,6 @@ def load_config() -> Config:
             data = tomllib.load(f)
 
         # Load global settings
-        if "poll_interval" in data and isinstance(data["poll_interval"], int):
-            config.poll_interval = data["poll_interval"]
-        if "auto_discover" in data and isinstance(data["auto_discover"], bool):
-            config.auto_discover = data["auto_discover"]
         if "theme" in data and isinstance(data["theme"], str):
             config.theme = data["theme"]
 
@@ -86,12 +78,6 @@ def save_config(config: Config) -> None:
 
     lines = [
         "# Flotte Configuration",
-        "",
-        "# Polling interval in seconds",
-        f"poll_interval = {config.poll_interval}",
-        "",
-        "# Discover worktrees on startup",
-        f"auto_discover = {'true' if config.auto_discover else 'false'}",
         "",
         "# Color theme: onedark, onelight (or any .tcss file in styles/themes/)",
         f'theme = "{config.theme}"',
