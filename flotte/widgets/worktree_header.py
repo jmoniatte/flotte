@@ -39,6 +39,7 @@ class WorktreeTable(DataTable):
         self.cursor_foreground_priority = "renderable"
         self.add_column("", key="status", width=3)
         self.add_column("Name", key="name", width=20)
+        self.add_column("URL", key="url", width=25)
         self.add_column("Path", key="path", width=40)
         self.add_column("Git", key="git", width=20)
         self.cursor_type = "row"
@@ -53,6 +54,13 @@ class WorktreeTable(DataTable):
 
     def _format_name(self, wt: Worktree) -> Text:
         return Text(wt.name, style="bold" if wt.is_main else "")
+
+    def _format_url(self, wt: Worktree) -> Text:
+        """Format URL for a worktree."""
+        url = wt.web_url
+        if url:
+            return Text.from_markup(f"[@click=app.open_url('{url}')]{url}[/]", style="cyan underline")
+        return Text("-", style="dim")
 
     def _format_path(self, wt: Worktree) -> Text:
         from pathlib import Path
@@ -106,6 +114,7 @@ class WorktreeTable(DataTable):
             self.add_row(
                 self._format_status(wt),
                 self._format_name(wt),
+                self._format_url(wt),
                 self._format_path(wt),
                 self._format_git(wt),
                 key=wt.name,

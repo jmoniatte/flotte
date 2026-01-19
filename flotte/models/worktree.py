@@ -164,6 +164,16 @@ class Worktree:
         if self._target is not None and self.actual_status == self._target:
             self.clear_operation()
 
+    @property
+    def web_url(self) -> str | None:
+        """Get URL for web server container if present."""
+        WEB_SERVERS = ("nginx", "apache", "caddy")
+        for container in self.containers.values():
+            if any(ws in container.service.lower() for ws in WEB_SERVERS):
+                if container.ports:
+                    return f"http://localhost:{container.ports[0]}"
+        return None
+
     # Backwards compatibility: expose containers as list for widgets
     @property
     def container_list(self) -> list[Container]:

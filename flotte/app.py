@@ -48,6 +48,7 @@ class FlotteApp(App):
         Binding("x", "stop_environment", show=False),
         Binding("r", "refresh", show=False),
         Binding("R", "ride", show=False),
+        Binding("o", "open_url", show=False),
         Binding("tab", "focus_next", show=False),
         Binding("shift+tab", "focus_previous", show=False),
         Binding("escape", "deselect", show=False),
@@ -782,6 +783,20 @@ class FlotteApp(App):
             self.notify(f"Command not found: {self.current_config_project.ride_command}", severity="error")
         except Exception as e:
             self.notify(f"Failed to run ride_command: {e}", severity="error")
+
+    def action_open_url(self, url: str = "") -> None:
+        """Open web URL in browser - 'o' key or click on URL."""
+        import webbrowser
+
+        if not url:
+            if not self.selected_worktree:
+                return
+            url = self.selected_worktree.web_url
+
+        if url:
+            webbrowser.open(url)
+        else:
+            self.notify("No web server URL available", severity="warning")
 
     def action_deselect(self) -> None:
         """Clear selection and unfocus - Escape key."""
