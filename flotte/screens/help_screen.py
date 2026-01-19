@@ -16,6 +16,7 @@ class HelpScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Static("Flotte", id="help-header")
+            yield Static("")
             yield Static("Manage docker-compose projects across git worktrees", id="help-tagline")
             yield Static("", id="tagline-separator")
             yield Static("Keyboard Shortcuts", id="dialog-title")
