@@ -1,6 +1,6 @@
 [project]
 name = "flotte"
-version = "0.1.0"
+dynamic = ["version"]
 description = "TUI for managing docker-compose projects across git worktrees"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ dependencies = [
 flotte = "flotte.__main__:main"
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -22,3 +22,5 @@ include = ["flotte*"]
 
 [tool.setuptools.package-data]
 flotte = ["styles/themes/*.tcss"]
+
+[tool.setuptools_scm]

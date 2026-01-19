@@ -30,6 +30,7 @@ from .widgets import (
     ErrorView,
     StatusLine,
 )
+from . import __version__
 
 
 class FlotteApp(App):
@@ -102,7 +103,7 @@ class FlotteApp(App):
         with Horizontal(id="app-header"):
             with Vertical(id="app-title-group"):
                 yield Static("Flotte", id="app-title")
-                yield Static("Manage docker-compose projects across git worktrees", id="app-subtitle")
+                yield Static(f"v{__version__}", id="app-subtitle")
             if self.config.projects:
                 yield Select(
                     options=[(p.name, p) for p in self.config.projects],

@@ -3,6 +3,8 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Static
 from textual.app import ComposeResult
 
+from .. import __version__
+
 
 class HelpScreen(ModalScreen):
     """Modal screen showing keyboard shortcuts."""
@@ -13,6 +15,9 @@ class HelpScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical():
+            yield Static("Flotte", id="help-header")
+            yield Static("Manage docker-compose projects across git worktrees", id="help-tagline")
+            yield Static("", id="tagline-separator")
             yield Static("Keyboard Shortcuts", id="dialog-title")
             yield Static("", id="title-separator")
 
@@ -44,7 +49,7 @@ class HelpScreen(ModalScreen):
                 yield Static("?", classes="shortcut-key")
                 yield Static("Show help", classes="shortcut-desc")
 
-            yield Static("Press any key to close", id="help-footer")
+            yield Static(f"v{__version__}", id="help-footer")
 
     def on_key(self, event) -> None:
         """Dismiss on any key press."""

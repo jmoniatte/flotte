@@ -381,6 +381,11 @@ HelpScreen Static {
     color: $fg;
 }
 
+HelpScreen #help-header {
+    text-style: bold;
+    color: $blue;
+}
+
 HelpScreen #dialog-title {
     text-style: bold;
     color: $blue;
@@ -416,6 +421,7 @@ HelpScreen .shortcut-desc {
 
 HelpScreen #help-footer {
     margin-top: 1;
+    text-align: right;
     color: $comment;
 }
 
