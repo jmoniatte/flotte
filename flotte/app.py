@@ -113,6 +113,7 @@ class FlotteApp(App):
                 )
             else:
                 yield Static("No projects configured", id="no-projects-label")
+            yield Static("", id="header-spacer")
 
         with Container(id="main-content"):
             with Container(id="worktrees-box"):

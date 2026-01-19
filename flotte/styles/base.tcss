@@ -24,6 +24,10 @@ Screen {
     height: auto;
 }
 
+#header-spacer {
+    width: 1fr;
+}
+
 #app-title {
     text-style: bold;
     color: $blue;
@@ -827,8 +831,9 @@ ErrorView #btn-error-dismiss:focus {
    ═══════════════════════════════════════════════════════════════════════ */
 
 ToastRack {
-    dock: bottom;
+    dock: top;
     align-horizontal: right;
+    margin-top: 0;
 }
 
 Toast {
