@@ -3,7 +3,7 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Center, Container, Horizontal, Vertical
 from textual.widgets import Button, Static, Select
 from textual import on, work
 
@@ -99,20 +99,40 @@ class FlotteApp(App):
         self._operation_target: str | None = None  # worktree name
 
     def compose(self) -> ComposeResult:
+        # Show no-config screen if no projects configured
+        if not self.config.projects:
+            from .config import CONFIG_FILE
+            with Center(id="no-config-center"):
+                with Vertical(id="no-config-dialog"):
+                    yield Static("No Projects Configured", id="dialog-title")
+                    with Vertical(id="no-config-content"):
+                        yield Static(
+                            "At least one project must be configured to use Flotte.",
+                            id="no-config-message"
+                        )
+                        yield Static(
+                            f"Configuration file: [bold]{CONFIG_FILE}[/bold]",
+                            id="no-config-path"
+                        )
+                        yield Static(
+                            "Add a [[projects]] entry with name and path.",
+                            id="no-config-help"
+                        )
+                    with Horizontal(id="dialog-buttons"):
+                        yield Button("Quit", id="quit-btn", variant="error")
+            return
+
         # Custom header with project selector
         with Horizontal(id="app-header"):
             with Vertical(id="app-title-group"):
                 yield Static("Flotte", id="app-title")
                 yield Static(f"v{__version__}", id="app-subtitle")
-            if self.config.projects:
-                yield Select(
-                    options=[(p.name, p) for p in self.config.projects],
-                    value=self.current_config_project,
-                    id="project-selector",
-                    allow_blank=False,
-                )
-            else:
-                yield Static("No projects configured", id="no-projects-label")
+            yield Select(
+                options=[(p.name, p) for p in self.config.projects],
+                value=self.current_config_project,
+                id="project-selector",
+                allow_blank=False,
+            )
             yield Static("", id="header-spacer")
 
         with Container(id="main-content"):
@@ -247,17 +267,17 @@ class FlotteApp(App):
 
     def on_mount(self) -> None:
         """Initialize app and start polling."""
+        # No-config mode: just focus the quit button
+        if not self.config.projects:
+            self.query_one("#quit-btn", Button).focus()
+            return
+
         self.query_one("#worktrees-box").border_title = "Worktrees"
         self.query_one("#containers-box").border_title = "Containers"
 
         # Set initial display states
         self.query_one("#progress-view").display = False
         self.query_one("#error-view").display = False
-
-        # Check for empty projects
-        if not self.config.projects:
-            self.notify("No projects configured in config.toml", severity="error")
-            return  # Don't start polling or discovery
 
         self.run_worker(self.refresh_worktrees())
 
@@ -390,6 +410,11 @@ class FlotteApp(App):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
+        # No-config mode quit button
+        if event.button.id == "quit-btn":
+            self.exit()
+            return
+
         button_actions = {
             "btn-new-worktree": self.action_new_worktree,
             "btn-refresh": self.action_refresh,
