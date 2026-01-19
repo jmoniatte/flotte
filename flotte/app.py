@@ -11,7 +11,7 @@ from .config import load_config, Project as ConfigProject
 from .models import Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
-from .messages import WorktreeStatusChanged
+from .messages import OperationCompleted, WorktreeStatusChanged
 from .services import RideWrapper, WorktreeManager
 from .screens import (
     ConfirmDialog,
@@ -311,6 +311,14 @@ class FlotteApp(App):
         """Handle worktree status change from polling."""
         self._update_ui_after_status_change()
 
+    def on_operation_completed(self, event: OperationCompleted) -> None:
+        """Handle operation completion - show notification."""
+        wt = event.worktree
+        if event.operation == WorktreeStatus.STARTING:
+            self.notify(f"Started {wt.name}", severity="information")
+        elif event.operation == WorktreeStatus.STOPPING:
+            self.notify(f"Stopped {wt.name}", severity="information")
+
     def _update_ui_after_status_change(self) -> None:
         """Update UI elements after status change."""
         if not self.project:
@@ -438,9 +446,7 @@ class FlotteApp(App):
                 self.log.error(f"Start failed: {stderr or stdout}")
                 self.notify(f"Failed to start: {stderr or stdout}", severity="error")
                 wt.clear_operation()
-            else:
-                self.notify(f"Started {wt.name}", severity="information")
-                # DON'T clear - poll will confirm when all services running
+            # Success: poll will confirm when all services running and post OperationCompleted
         except asyncio.CancelledError:
             self.log.warning(f"Start cancelled: {wt.name}")
             wt.clear_operation()
@@ -481,9 +487,7 @@ class FlotteApp(App):
                 self.log.error(f"Stop failed: {stderr or stdout}")
                 self.notify(f"Failed to stop: {stderr or stdout}", severity="error")
                 wt.clear_operation()
-            else:
-                self.notify(f"Stopped {wt.name}", severity="information")
-                # DON'T clear - poll will confirm when all services stopped
+            # Success: poll will confirm when all services stopped and post OperationCompleted
         except asyncio.CancelledError:
             self.log.warning(f"Stop cancelled: {wt.name}")
             wt.clear_operation()
@@ -536,9 +540,7 @@ class FlotteApp(App):
                 self.log.error(f"Restart (start phase) failed: {stderr or stdout}")
                 self.notify(f"Failed to restart: {stderr or stdout}", severity="error")
                 wt.clear_operation()
-            else:
-                self.notify(f"Restarted {wt.name}", severity="information")
-                # DON'T clear - poll will confirm when all containers running
+            # Success: poll will confirm when all containers running and post OperationCompleted
 
         except asyncio.CancelledError:
             self.log.warning(f"Restart cancelled: {wt.name}")

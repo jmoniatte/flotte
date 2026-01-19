@@ -100,15 +100,21 @@ class Project:
 
     async def _poll(self) -> None:
         """Poll all worktrees and refresh UI."""
-        from ..messages import WorktreeStatusChanged
+        from ..messages import OperationCompleted, WorktreeStatusChanged
 
-        # Poll all worktrees in parallel
-        await asyncio.gather(*[wt.poll() for wt in self.worktrees.values()])
+        # Poll all worktrees in parallel, collecting cleared transient statuses
+        worktree_list = list(self.worktrees.values())
+        cleared_statuses = await asyncio.gather(*[wt.poll() for wt in worktree_list])
 
         # Always refresh UI with current state
         if self._app:
-            for wt in self.worktrees.values():
+            for wt in worktree_list:
                 self._app.post_message(WorktreeStatusChanged(wt))
+
+            # Post OperationCompleted for any worktrees that reached their target
+            for wt, cleared in zip(worktree_list, cleared_statuses):
+                if cleared is not None:
+                    self._app.post_message(OperationCompleted(wt, cleared))
 
     def _get_poll_interval(self) -> float:
         """Get poll interval - fast if any worktree is transient."""

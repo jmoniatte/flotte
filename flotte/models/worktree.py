@@ -127,13 +127,24 @@ class Worktree:
         self._transient = transient
         self._target = target
 
-    def clear_operation(self) -> None:
-        """Clear transient status (operation completed or failed)."""
+    def clear_operation(self) -> WorktreeStatus | None:
+        """Clear transient status (operation completed or failed).
+
+        Returns:
+            The transient status that was cleared, or None if no transient was set.
+        """
+        cleared = self._transient
         self._transient = None
         self._target = None
+        return cleared
 
-    async def poll(self) -> None:
-        """Poll container status from Docker."""
+    async def poll(self) -> WorktreeStatus | None:
+        """Poll container status from Docker.
+
+        Returns:
+            The transient status that was cleared if target was reached,
+            or None if no transient was auto-cleared.
+        """
         from ..services.docker_manager import DockerManager
 
         docker_mgr = DockerManager(self.path, self.compose_project_name)
@@ -162,7 +173,8 @@ class Worktree:
 
         # Auto-clear transient if target status reached
         if self._target is not None and self.actual_status == self._target:
-            self.clear_operation()
+            return self.clear_operation()
+        return None
 
     @property
     def web_url(self) -> str | None:
