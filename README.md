@@ -4,16 +4,17 @@ Terminal-based interface for managing docker-compose projects across git worktre
 
 ## How It Works
 
-Given a main repo directory (e.g., `myproject/`), Flotte:
-- Creates worktrees as sibling directories: `myproject-feature/`, `myproject-bugfix/`
+Flotte manages git worktrees with isolated Docker environments:
+- Creates worktrees in a configurable directory with a configurable prefix
 - Each worktree gets isolated Docker volumes and offset ports
 - Volumes can be cloned from main to avoid re-seeding databases
 
 ```
 /path/to/
   myproject/              # main repo (port 3000)
-  myproject-feature-x/    # worktree (port 3100)
-  myproject-bugfix-y/     # worktree (port 3200)
+  myproject_worktrees/
+    feature-x/            # worktree (port 3100)
+    bugfix-y/             # worktree (port 3200)
 ```
 
 ## Prerequisites
@@ -60,20 +61,22 @@ Create `~/.config/flotte/config.toml`:
 theme = "onedark"
 
 [[projects]]
-name = "my-project"
-path = "/path/to/my-project"
+name = "My Project"
+path = "/var/www/my-project"
+worktree_path = "/var/www/"
+worktree_prefix = "my-project"
 ride_command = ""
 ```
 
-Global settings:
-- `theme`: Color theme (`onedark` or `onelight`)
+**Required fields:**
+- `name` - Project display name
+- `path` - Path to main git repo
+- `worktree_path` - Directory where new worktrees are created
+- `worktree_prefix` - Prefix for worktree directory names (use `""` for no prefix)
 
-Each `[[projects]]` entry defines a project:
-- `name`: Display name in dropdown
-- `path`: Path to main git repo (worktrees created as siblings)
-- `ride_command`: Optional command for "Go Ride" button (receives `PROJECT_PATH` and `PROJECT_NAME` env vars)
-
-The first project loads automatically on startup. Use the dropdown to switch between projects.
+**Optional fields:**
+- `theme` - Color theme: `onedark` (default) or `onelight`
+- `ride_command` - Command for "Go Ride" button (receives `PROJECT_PATH` and `PROJECT_NAME` env vars)
 
 ## Usage
 

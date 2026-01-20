@@ -4,14 +4,21 @@
 # Color theme: onedark or onelight
 theme = "onedark"
 
-# Projects (at least one required)
+# Projects
+# At least one project is required
+
+# Project configured for sibling worktrees
 [[projects]]
-name = "my-project"
-path = "/path/to/my-project"
+name = "My Project"
+path = "/var/www/my-project"
+worktree_path = "/var/www/"
+worktree_prefix = "my-project-"
 ride_command = ""
 
-# Add more projects:
-# [[projects]]
-# name = "another-project"
-# path = "/path/to/another"
-# ride_command = "my-workspace-script"
+# Project configured for a dedicated worktree directory
+[[projects]]
+name = "Another Project"
+path = "/var/www/another-project"
+worktree_path = "/var/www/another-project-worktrees"
+worktree_prefix = ""
+ride_command = "/path/to/my-workspace-script"

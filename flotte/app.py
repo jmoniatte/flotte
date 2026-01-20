@@ -89,6 +89,8 @@ class FlotteApp(App):
         if self.current_config_project:
             self.worktree_manager = WorktreeManager(
                 main_repo_path=Path(self.current_config_project.path),
+                worktree_parent=Path(self.current_config_project.worktree_path),
+                worktree_prefix=self.current_config_project.worktree_prefix,
             )
 
         self.selected_worktree: Worktree | None = None
@@ -228,6 +230,8 @@ class FlotteApp(App):
         # Create new WorktreeManager for new project
         self.worktree_manager = WorktreeManager(
             main_repo_path=Path(config_project.path),
+            worktree_parent=Path(config_project.worktree_path),
+            worktree_prefix=config_project.worktree_prefix,
         )
 
         # Clear UI state

@@ -12,10 +12,16 @@ PORT_OFFSET_INCREMENT = 100
 class WorktreeManager:
     """Git worktree discovery, port allocation, and lifecycle management."""
 
-    def __init__(self, main_repo_path: Path):
+    def __init__(
+        self,
+        main_repo_path: Path,
+        worktree_parent: Path,
+        worktree_prefix: str,
+    ):
         self.main_repo_path = main_repo_path.resolve()
-        self.parent_dir = self.main_repo_path.parent
+        self.parent_dir = worktree_parent.resolve()
         self.project_name = self.main_repo_path.name  # e.g., "ridewithgps"
+        self.worktree_prefix = worktree_prefix  # "" = no prefix
         self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
 
@@ -68,6 +74,10 @@ class WorktreeManager:
             path_str, branch = match.groups()
             path = Path(path_str)
 
+            # Skip worktrees whose directories no longer exist
+            if not path.exists():
+                continue
+
             # Read .env if exists
             env_vars = self._parse_env(path)
 
@@ -77,8 +87,10 @@ class WorktreeManager:
             # Sanitize name from path
             if is_main:
                 name = "main"
+            elif self.worktree_prefix:
+                name = path.name.removeprefix(self.worktree_prefix)
             else:
-                name = path.name.removeprefix(f"{self.project_name}-")
+                name = path.name
 
             # Get compose project name - default to directory name (what docker compose uses)
             compose_project_name = env_vars.get(
@@ -147,10 +159,10 @@ class WorktreeManager:
         """
         max_offset = 0
 
-        # Scan all {project_name}-* directories
-        if self.parent_dir.exists():
+        # Scan all {worktree_prefix}-* directories
+        if self.parent_dir.exists() and self.worktree_prefix:
             for path in self.parent_dir.iterdir():
-                if path.is_dir() and path.name.startswith(f"{self.project_name}-"):
+                if path.is_dir() and path.name.startswith(self.worktree_prefix):
                     env_vars = self._parse_env(path)
                     offset = self._get_port_offset(env_vars)
                     if offset > max_offset:
@@ -185,7 +197,13 @@ class WorktreeManager:
             RuntimeError: If worktree creation fails
         """
         sanitized_name = self._sanitize_branch_name(branch_name)
-        worktree_path = self.parent_dir / f"{self.project_name}-{sanitized_name}"
+        if self.worktree_prefix:
+            worktree_path = self.parent_dir / f"{self.worktree_prefix}{sanitized_name}"
+        else:
+            worktree_path = self.parent_dir / sanitized_name
+
+        # Ensure parent directory exists
+        self.parent_dir.mkdir(parents=True, exist_ok=True)
 
         # Create git worktree
         if base_branch is None:

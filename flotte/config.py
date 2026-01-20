@@ -16,6 +16,8 @@ class Project:
     """A configured project with its settings."""
     name: str
     path: str
+    worktree_path: str  # Directory where new worktrees are created
+    worktree_prefix: str  # Prefix for worktree dirs (use "" for no prefix)
     ride_command: str = ""
 
 
@@ -53,16 +55,23 @@ def load_config() -> Config:
             config.theme = data["theme"]
 
         # Load projects array
+        required_fields = ("name", "path", "worktree_path", "worktree_prefix")
         if "projects" in data and isinstance(data["projects"], list):
             for proj_data in data["projects"]:
-                if isinstance(proj_data, dict) and "name" in proj_data and "path" in proj_data:
-                    config.projects.append(Project(
-                        name=str(proj_data["name"]),
-                        path=str(proj_data["path"]),
-                        ride_command=str(proj_data.get("ride_command", "")),
-                    ))
-                else:
+                if not isinstance(proj_data, dict):
                     logger.warning(f"Skipping invalid project entry: {proj_data}")
+                    continue
+                missing = [f for f in required_fields if f not in proj_data]
+                if missing:
+                    logger.warning(f"Skipping project missing required fields {missing}: {proj_data}")
+                    continue
+                config.projects.append(Project(
+                    name=str(proj_data["name"]),
+                    path=str(proj_data["path"]),
+                    worktree_path=str(proj_data["worktree_path"]),
+                    worktree_prefix=str(proj_data["worktree_prefix"]),
+                    ride_command=str(proj_data.get("ride_command", "")),
+                ))
 
     except tomllib.TOMLDecodeError as e:
         logger.warning(f"Invalid config file: {e}")
@@ -89,6 +98,8 @@ def save_config(config: Config) -> None:
             "[[projects]]",
             f'name = "{project.name}"',
             f'path = "{project.path}"',
+            f'worktree_path = "{project.worktree_path}"',
+            f'worktree_prefix = "{project.worktree_prefix}"',
             f'ride_command = "{project.ride_command}"',
             "",
         ])
