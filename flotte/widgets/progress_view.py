@@ -2,27 +2,14 @@ from enum import Enum
 from textual.widgets import Static
 from textual.reactive import reactive
 
+from ..theme import get_status_style, DEFAULT_COLORS
+
 
 class StepStatus(Enum):
     PENDING = "pending"
     ACTIVE = "active"
     DONE = "done"
     ERROR = "error"
-
-
-STEP_ICONS = {
-    StepStatus.PENDING: "󰄱",  # nf-md-checkbox_blank_outline
-    StepStatus.ACTIVE: "󰄵",   # nf-md-checkbox_intermediate
-    StepStatus.DONE: "󰄲",     # nf-md-checkbox_marked
-    StepStatus.ERROR: "󰅖",    # nf-md-close_box
-}
-
-STEP_COLORS = {
-    StepStatus.PENDING: "dim",
-    StepStatus.ACTIVE: "cyan",
-    StepStatus.DONE: "green",
-    StepStatus.ERROR: "red",
-}
 
 
 class ProgressView(Static):
@@ -65,12 +52,17 @@ class ProgressView(Static):
         self.steps = ()
 
     def render(self) -> str:
+        # Guard: app may not be available during early renders
+        if hasattr(self, 'app') and self.app:
+            colors = self.app.theme_colors
+        else:
+            colors = DEFAULT_COLORS
+
         lines = []
         if self.title:
             lines.append(f"[bold]{self.title}[/bold]")
             lines.append("")
         for name, status in self.steps:
-            icon = STEP_ICONS[status]
-            color = STEP_COLORS[status]
+            icon, color = get_status_style(status.value, colors)
             lines.append(f"  [{color}]{icon}[/{color}] {name}")
         return "\n".join(lines) if lines else ""

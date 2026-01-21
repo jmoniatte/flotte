@@ -3,6 +3,7 @@ from textual.reactive import reactive
 from rich.text import Text
 
 from ..models import Worktree, Container, ContainerState
+from ..theme import get_status_style
 
 
 class ContainerTable(DataTable):
@@ -17,17 +18,6 @@ class ContainerTable(DataTable):
     """
 
     worktree: reactive[Worktree | None] = reactive(None, always_update=True)
-
-    # State color mapping (OneDark theme)
-    STATE_COLORS = {
-        ContainerState.RUNNING: "#98c379",     # green
-        ContainerState.EXITED: "#e06c75",      # red
-        ContainerState.PAUSED: "#e5c07b",      # yellow
-        ContainerState.RESTARTING: "#e5c07b",  # yellow
-        ContainerState.DEAD: "#e06c75",        # red
-        ContainerState.CREATED: "#5c6370",     # comment/dim
-        ContainerState.UNKNOWN: "#5c6370",     # comment/dim
-    }
 
     def on_mount(self) -> None:
         """Set up table columns and appearance."""
@@ -69,7 +59,7 @@ class ContainerTable(DataTable):
 
     def _format_state(self, state: ContainerState) -> Text:
         """Format state with color coding."""
-        color = self.STATE_COLORS.get(state, "dim")
+        _, color = get_status_style(state, self.app.theme_colors)
         return Text(state.value, style=color)
 
     def _truncate(self, text: str, max_len: int) -> str:

@@ -2,18 +2,7 @@ from textual.widgets import Static
 from textual.reactive import reactive
 
 from ..models.worktree import WorktreeStatus
-
-
-STATUS_TEXT = {
-    WorktreeStatus.STOPPED: ("○", "Services stopped", "red"),
-    WorktreeStatus.STARTING: ("◐", "Services starting...", "green"),
-    WorktreeStatus.RUNNING: ("●", "Services running", "green"),
-    WorktreeStatus.STOPPING: ("◐", "Services stopping...", "yellow"),
-    WorktreeStatus.CREATING: ("◐", "Services creating...", "cyan"),
-    WorktreeStatus.DELETING: ("◐", "Services deleting...", "red"),
-    WorktreeStatus.ERROR: ("✗", "Error", "red"),
-    WorktreeStatus.UNKNOWN: ("?", "Unknown", "dim"),
-}
+from ..theme import get_status_style, WORKTREE_STATUS_TEXT, DEFAULT_COLORS
 
 
 class StatusLine(Static):
@@ -23,7 +12,12 @@ class StatusLine(Static):
 
     def watch_status(self, value: WorktreeStatus) -> None:
         """Update display when status changes."""
-        icon, text, color = STATUS_TEXT.get(
-            value, STATUS_TEXT[WorktreeStatus.UNKNOWN]
-        )
+        # Guard: app may not be available during early reactive updates
+        if hasattr(self, 'app') and self.app:
+            colors = self.app.theme_colors
+        else:
+            colors = DEFAULT_COLORS
+
+        icon, color = get_status_style(value, colors)
+        text = WORKTREE_STATUS_TEXT.get(value, WORKTREE_STATUS_TEXT[WorktreeStatus.UNKNOWN])
         self.update(f"[{color}]{icon}[/{color}]  {text}")

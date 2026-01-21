@@ -83,7 +83,6 @@ Screen {
 
 #worktrees-box {
     height: auto;
-    max-height: 9;
     border: round $gutter;
     border-title-color: $yellow;
     border-title-style: bold;

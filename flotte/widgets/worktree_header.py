@@ -5,6 +5,7 @@ from textual.message import Message
 from rich.text import Text
 
 from ..models import Worktree, WorktreeStatus
+from ..theme import get_status_style
 
 
 class WorktreeChanged(Message):
@@ -17,18 +18,6 @@ class WorktreeChanged(Message):
 
 class WorktreeTable(DataTable):
     """DataTable for worktrees with status, name, URL, git status."""
-
-    # Status icons and colors (OneDark theme - using hex to prevent cursor override)
-    STATUS_ICONS = {
-        WorktreeStatus.RUNNING: ("●", "#98c379"),      # Green filled
-        WorktreeStatus.STARTING: ("◐", "#98c379"),     # Green half
-        WorktreeStatus.STOPPING: ("◐", "#d19a66"),     # Orange half
-        WorktreeStatus.STOPPED: ("○", "#e06c75"),      # Red outline
-        WorktreeStatus.CREATING: ("◐", "#61afef"),     # Blue half
-        WorktreeStatus.DELETING: ("◐", "#e06c75"),     # Red half
-        WorktreeStatus.ERROR: ("✗", "#e06c75"),        # Red X
-        WorktreeStatus.UNKNOWN: ("?", "#5c6370"),      # Dim
-    }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -46,10 +35,7 @@ class WorktreeTable(DataTable):
 
     def _format_status(self, wt: Worktree) -> Text:
         """Format status icon for a worktree."""
-        # wt.status now returns the effective status (transient or actual)
-        icon, color = self.STATUS_ICONS.get(
-            wt.status, self.STATUS_ICONS[WorktreeStatus.UNKNOWN]
-        )
+        icon, color = get_status_style(wt.status, self.app.theme_colors)
         return Text(icon, style=color)
 
     def _format_name(self, wt: Worktree) -> Text:
@@ -75,20 +61,21 @@ class WorktreeTable(DataTable):
         if not git_status:
             return Text("")
 
+        colors = self.app.theme_colors
         text = Text()
         if git_status["staged"]:
-            text.append(f"+{git_status['staged']} ", style="green")
+            text.append(f"+{git_status['staged']} ", style=colors.green)
         if git_status["modified"]:
-            text.append(f"~{git_status['modified']} ", style="yellow")
+            text.append(f"~{git_status['modified']} ", style=colors.yellow)
         if git_status["untracked"]:
-            text.append(f"?{git_status['untracked']} ", style="dim")
+            text.append(f"?{git_status['untracked']} ", style=colors.dim)
         if git_status["ahead"]:
-            text.append(f"↑{git_status['ahead']} ", style="cyan")
+            text.append(f"↑{git_status['ahead']} ", style=colors.cyan)
         if git_status["behind"]:
-            text.append(f"↓{git_status['behind']} ", style="red")
+            text.append(f"↓{git_status['behind']} ", style=colors.red)
 
         if not text.plain:
-            text = Text("clean", style="dim")
+            text = Text("clean", style=colors.dim)
 
         return text
 

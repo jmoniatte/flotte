@@ -8,6 +8,7 @@ from textual.widgets import Button, Static, Select
 from textual import on, work
 
 from .config import load_config, Project as ConfigProject
+from .theme import load_theme_colors
 from .models import Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
@@ -58,6 +59,9 @@ class FlotteApp(App):
     def __init__(self):
         # Load config first to determine theme
         self.config = load_config()
+
+        # Load theme colors for Python code (parsed from same TCSS file)
+        self.theme_colors = load_theme_colors(self.config.theme)
 
         # Load and combine CSS: theme (variables) + base (layout rules)
         styles_dir = Path(__file__).parent / "styles"
