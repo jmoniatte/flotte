@@ -328,6 +328,112 @@ class WorktreeManager:
         import asyncio
         return await asyncio.to_thread(self.get_volumes_sync)
 
+    def get_gitignored_bind_mounts_sync(self) -> list[str]:
+        """Get gitignored bind mount paths from docker-compose.yml (synchronous).
+
+        Returns relative paths like 'files' or 'config/local.yml' (without ./ prefix).
+        Includes both files and directories. Follows symlinks (copies target contents).
+
+        Returns empty list if docker compose config fails (e.g., Docker not running,
+        no docker-compose.yml, invalid config) - this is intentional to allow
+        worktree creation to proceed without bind mount cloning.
+        """
+        returncode, stdout, stderr = self._run_command(
+            "docker", "compose", "config", "--format", "json",
+            cwd=self.main_repo_path,
+            timeout=30.0,
+        )
+        if returncode != 0:
+            return []
+
+        try:
+            config = json.loads(stdout)
+        except json.JSONDecodeError:
+            return []
+
+        # Extract bind mount paths from all services
+        bind_mounts = set()
+        for service in config.get("services", {}).values():
+            for volume in service.get("volumes", []):
+                # docker compose config --format json outputs long-form:
+                # {"type": "bind", "source": "/absolute/path", "target": "/container/path"}
+                if isinstance(volume, dict) and volume.get("type") == "bind":
+                    source = volume.get("source", "")
+                    # Convert absolute path to relative if within repo
+                    try:
+                        rel_path = Path(source).relative_to(self.main_repo_path)
+                        # Skip repo root mount (.)
+                        if str(rel_path) != ".":
+                            bind_mounts.add(str(rel_path))
+                    except ValueError:
+                        # Path is outside repo, skip
+                        pass
+
+        if not bind_mounts:
+            return []
+
+        # Filter to only gitignored paths
+        returncode, stdout, stderr = self._run_command(
+            "git", "check-ignore", *bind_mounts,
+            cwd=self.main_repo_path,
+        )
+        # git check-ignore returns ignored paths (exit 0) or nothing (exit 1)
+        if stdout.strip():
+            return stdout.strip().split("\n")
+        return []
+
+    async def get_gitignored_bind_mounts(self) -> list[str]:
+        """Get gitignored bind mount paths from docker-compose.yml (async wrapper)."""
+        import asyncio
+        return await asyncio.to_thread(self.get_gitignored_bind_mounts_sync)
+
+    def _clone_bind_mount_sync(
+        self,
+        source: Path,
+        target: Path,
+    ) -> tuple[bool, str]:
+        """
+        Clone a single bind mount (file or directory) using Docker/Alpine.
+
+        Follows symlinks (copies the target contents, not the symlink itself).
+        Uses cp -a to preserve permissions, ownership, and timestamps.
+
+        Args:
+            source: Absolute path to source file/directory in main worktree
+            target: Absolute path to target file/directory in new worktree
+
+        Returns:
+            (success, error_message) - error_message is empty string on success
+        """
+        # Pre-create parent directory as current user (not root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        if source.is_dir():
+            # Create target directory as current user before Docker mounts it
+            target.mkdir(exist_ok=True)
+            # Copy directory contents
+            returncode, stdout, stderr = self._run_command(
+                "docker", "run", "--rm",
+                "-v", f"{source}:/source:ro",
+                "-v", f"{target}:/dest",
+                "alpine", "sh", "-c", "cp -a /source/. /dest/",
+                timeout=300.0,
+            )
+        else:
+            # Copy single file - mount file directly, use cp without shell
+            # to avoid shell injection issues with special characters in filenames
+            returncode, stdout, stderr = self._run_command(
+                "docker", "run", "--rm",
+                "-v", f"{source}:/source/file:ro",
+                "-v", f"{target.parent}:/dest",
+                "alpine", "cp", "-a", "/source/file", f"/dest/{target.name}",
+                timeout=60.0,
+            )
+
+        if returncode != 0:
+            return False, stderr.strip() or f"Docker copy failed with code {returncode}"
+        return True, ""
+
     async def clone_volumes(
         self,
         source_project: str,

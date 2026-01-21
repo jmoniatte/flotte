@@ -55,7 +55,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                     yield Static("Select branch", classes="field-label")
                     yield Select([], id="existing-branch", prompt="")
 
-            yield Checkbox("Clone volumes from main", id="clone-data", value=True)
+            yield Checkbox("Clone volumes and bind mounts from main", id="clone-data", value=True)
 
             # Status area (hidden initially)
             with Horizontal(id="status-area"):
@@ -244,6 +244,39 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         "alpine", "sh", "-c", "cp -a /source/. /dest/",
                         timeout=300.0,
                     )
+
+                # Clone gitignored bind mounts
+                bind_mounts = await self.worktree_manager.get_gitignored_bind_mounts()
+                existing_mounts = [
+                    bm for bm in bind_mounts
+                    if (self.worktree_manager.main_repo_path / bm).exists()
+                ]
+
+                if existing_mounts:
+                    failed_mounts = []
+
+                    for i, rel_path in enumerate(existing_mounts):
+                        self._update_status(
+                            f"Cloning bind mount {i+1}/{len(existing_mounts)}: {rel_path}..."
+                        )
+                        source = self.worktree_manager.main_repo_path / rel_path
+                        target = worktree.path / rel_path
+
+                        success, error = await asyncio.to_thread(
+                            self.worktree_manager._clone_bind_mount_sync,
+                            source,
+                            target,
+                        )
+
+                        if not success:
+                            failed_mounts.append((rel_path, error))
+
+                    # Show warning for any failures (but don't abort)
+                    for rel_path, error in failed_mounts:
+                        self.notify(
+                            f"Failed to clone {rel_path}: {error}",
+                            severity="warning",
+                        )
 
             # Dismiss with result
             self.dismiss(CreateWorktreeResult(worktree=worktree, params=params))
