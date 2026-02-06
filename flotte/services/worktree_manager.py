@@ -155,11 +155,12 @@ class WorktreeManager:
 
     def find_next_port_offset(self) -> int:
         """
-        Find the next available port offset.
+        Find the lowest available port offset.
 
-        Scans existing worktrees to find max offset and returns max + 100.
+        Scans existing worktrees to collect used offsets, then returns the
+        first multiple of PORT_OFFSET_INCREMENT not already in use.
         """
-        max_offset = 0
+        used_offsets: set[int] = set()
 
         # Scan all {worktree_prefix}-* directories
         if self.parent_dir.exists() and self.worktree_prefix:
@@ -167,10 +168,13 @@ class WorktreeManager:
                 if path.is_dir() and path.name.startswith(self.worktree_prefix):
                     env_vars = self._parse_env(path)
                     offset = self._get_port_offset(env_vars)
-                    if offset > max_offset:
-                        max_offset = offset
+                    if offset > 0:
+                        used_offsets.add(offset)
 
-        return max_offset + PORT_OFFSET_INCREMENT
+        candidate = PORT_OFFSET_INCREMENT
+        while candidate in used_offsets:
+            candidate += PORT_OFFSET_INCREMENT
+        return candidate
 
     def _sanitize_branch_name(self, branch_name: str) -> str:
         """Sanitize branch name for use in directory and project names."""
