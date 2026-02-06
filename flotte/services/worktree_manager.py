@@ -17,11 +17,13 @@ class WorktreeManager:
         main_repo_path: Path,
         worktree_parent: Path,
         worktree_prefix: str,
+        clone_paths: dict[str, list[str]] | None = None,
     ):
         self.main_repo_path = main_repo_path.resolve()
         self.parent_dir = worktree_parent.resolve()
         self.project_name = self.main_repo_path.name  # e.g., "ridewithgps"
         self.worktree_prefix = worktree_prefix  # "" = no prefix
+        self.clone_paths = clone_paths or {}
         self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
 
@@ -386,6 +388,20 @@ class WorktreeManager:
         """Get gitignored bind mount paths from docker-compose.yml (async wrapper)."""
         import asyncio
         return await asyncio.to_thread(self.get_gitignored_bind_mounts_sync)
+
+    def get_all_clone_paths(self) -> list[str]:
+        """Flatten all clone_paths service entries into a deduplicated list.
+
+        Only includes paths that exist in the main repo.
+        """
+        seen: set[str] = set()
+        result: list[str] = []
+        for paths in self.clone_paths.values():
+            for p in paths:
+                if p not in seen and (self.main_repo_path / p).exists():
+                    seen.add(p)
+                    result.append(p)
+        return result
 
     def _clone_bind_mount_sync(
         self,

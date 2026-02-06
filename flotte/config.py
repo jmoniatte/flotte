@@ -19,6 +19,7 @@ class Project:
     worktree_path: str  # Directory where new worktrees are created
     worktree_prefix: str  # Prefix for worktree dirs (use "" for no prefix)
     ride_command: str = ""
+    clone_paths: dict[str, list[str]] = field(default_factory=dict)  # service -> [repo-relative paths]
 
 
 @dataclass
@@ -65,12 +66,21 @@ def load_config() -> Config:
                 if missing:
                     logger.warning(f"Skipping project missing required fields {missing}: {proj_data}")
                     continue
+                # Parse clone_paths: dict of service -> list of paths
+                raw_clone_paths = proj_data.get("clone_paths", {})
+                clone_paths: dict[str, list[str]] = {}
+                if isinstance(raw_clone_paths, dict):
+                    for service, paths in raw_clone_paths.items():
+                        if isinstance(paths, list):
+                            clone_paths[str(service)] = [str(p) for p in paths]
+
                 config.projects.append(Project(
                     name=str(proj_data["name"]),
                     path=str(proj_data["path"]),
                     worktree_path=str(proj_data["worktree_path"]),
                     worktree_prefix=str(proj_data["worktree_prefix"]),
                     ride_command=str(proj_data.get("ride_command", "")),
+                    clone_paths=clone_paths,
                 ))
 
     except tomllib.TOMLDecodeError as e:
@@ -101,8 +111,14 @@ def save_config(config: Config) -> None:
             f'worktree_path = "{project.worktree_path}"',
             f'worktree_prefix = "{project.worktree_prefix}"',
             f'ride_command = "{project.ride_command}"',
-            "",
         ])
+        if project.clone_paths:
+            lines.append("")
+            lines.append("[projects.clone_paths]")
+            for service, paths in project.clone_paths.items():
+                toml_array = ", ".join(f'"{p}"' for p in paths)
+                lines.append(f'{service} = [{toml_array}]')
+        lines.append("")
 
     with open(CONFIG_FILE, "w") as f:
         f.write("\n".join(lines))

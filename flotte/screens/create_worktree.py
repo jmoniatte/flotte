@@ -278,6 +278,32 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                             severity="warning",
                         )
 
+                # Copy extra clone_paths from config
+                clone_paths = self.worktree_manager.get_all_clone_paths()
+                if clone_paths:
+                    failed_clones = []
+                    for i, rel_path in enumerate(clone_paths):
+                        self._update_status(
+                            f"Copying extra path {i+1}/{len(clone_paths)}: {rel_path}..."
+                        )
+                        source = self.worktree_manager.main_repo_path / rel_path
+                        target = worktree.path / rel_path
+
+                        success, error = await asyncio.to_thread(
+                            self.worktree_manager._clone_bind_mount_sync,
+                            source,
+                            target,
+                        )
+
+                        if not success:
+                            failed_clones.append((rel_path, error))
+
+                    for rel_path, error in failed_clones:
+                        self.notify(
+                            f"Failed to copy {rel_path}: {error}",
+                            severity="warning",
+                        )
+
             # Dismiss with result
             self.dismiss(CreateWorktreeResult(worktree=worktree, params=params))
 
