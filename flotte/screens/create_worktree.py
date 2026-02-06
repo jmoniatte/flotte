@@ -245,6 +245,24 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         timeout=300.0,
                     )
 
+                # Tag built images so docker compose up doesn't rebuild
+                self._update_status("Tagging Docker images...")
+                built_services = await asyncio.to_thread(
+                    self.worktree_manager.get_built_services_sync
+                )
+                if built_services:
+                    failures = await asyncio.to_thread(
+                        self.worktree_manager.tag_images_sync,
+                        source_project,
+                        worktree.compose_project_name,
+                        built_services,
+                    )
+                    for service, error in failures:
+                        self.notify(
+                            f"Failed to tag image for {service}: {error}",
+                            severity="warning",
+                        )
+
                 # Clone gitignored bind mounts
                 bind_mounts = await self.worktree_manager.get_gitignored_bind_mounts()
                 existing_mounts = [

@@ -17,13 +17,13 @@ class WorktreeManager:
         main_repo_path: Path,
         worktree_parent: Path,
         worktree_prefix: str,
-        clone_paths: dict[str, list[str]] | None = None,
+        clone_paths: tuple[tuple[str, tuple[str, ...]], ...] = (),
     ):
         self.main_repo_path = main_repo_path.resolve()
         self.parent_dir = worktree_parent.resolve()
         self.project_name = self.main_repo_path.name  # e.g., "ridewithgps"
         self.worktree_prefix = worktree_prefix  # "" = no prefix
-        self.clone_paths = clone_paths or {}
+        self.clone_paths = clone_paths
         self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
 
@@ -330,6 +330,42 @@ class WorktreeManager:
         import asyncio
         return await asyncio.to_thread(self.get_volumes_sync)
 
+    def get_built_services_sync(self) -> list[str]:
+        """Get service names that have a build directive in docker-compose.yml."""
+        returncode, stdout, stderr = self._run_command(
+            "docker", "compose", "config", "--format", "json",
+            cwd=self.main_repo_path,
+            timeout=30.0,
+        )
+        if returncode != 0:
+            return []
+        try:
+            config = json.loads(stdout)
+            return [
+                name for name, svc in config.get("services", {}).items()
+                if "build" in svc
+            ]
+        except json.JSONDecodeError:
+            return []
+
+    def tag_images_sync(
+        self, source_project: str, target_project: str, services: list[str]
+    ) -> list[tuple[str, str]]:
+        """Tag source project images for target project.
+
+        Returns list of (service, error) for failures.
+        """
+        failures = []
+        for service in services:
+            source_image = f"{source_project}-{service}:latest"
+            target_image = f"{target_project}-{service}:latest"
+            returncode, _, stderr = self._run_command(
+                "docker", "tag", source_image, target_image
+            )
+            if returncode != 0:
+                failures.append((service, stderr.strip()))
+        return failures
+
     def get_gitignored_bind_mounts_sync(self) -> list[str]:
         """Get gitignored bind mount paths from docker-compose.yml (synchronous).
 
@@ -396,7 +432,7 @@ class WorktreeManager:
         """
         seen: set[str] = set()
         result: list[str] = []
-        for paths in self.clone_paths.values():
+        for _, paths in self.clone_paths:
             for p in paths:
                 if p not in seen and (self.main_repo_path / p).exists():
                     seen.add(p)
@@ -424,25 +460,29 @@ class WorktreeManager:
         # Pre-create parent directory as current user (not root)
         target.parent.mkdir(parents=True, exist_ok=True)
 
+        uid = os.getuid()
+        gid = os.getgid()
+
         if source.is_dir():
             # Create target directory as current user before Docker mounts it
             target.mkdir(exist_ok=True)
-            # Copy directory contents
+            # Copy directory contents, then chown to current user
             returncode, stdout, stderr = self._run_command(
                 "docker", "run", "--rm",
                 "-v", f"{source}:/source:ro",
                 "-v", f"{target}:/dest",
-                "alpine", "sh", "-c", "cp -a /source/. /dest/",
+                "alpine", "sh", "-c",
+                f"cp -a /source/. /dest/ && chown -R {uid}:{gid} /dest/",
                 timeout=300.0,
             )
         else:
-            # Copy single file - mount file directly, use cp without shell
-            # to avoid shell injection issues with special characters in filenames
+            # Copy single file, then chown to current user
             returncode, stdout, stderr = self._run_command(
                 "docker", "run", "--rm",
                 "-v", f"{source}:/source/file:ro",
                 "-v", f"{target.parent}:/dest",
-                "alpine", "cp", "-a", "/source/file", f"/dest/{target.name}",
+                "alpine", "sh", "-c",
+                f"cp -a /source/file /dest/{target.name} && chown {uid}:{gid} /dest/{target.name}",
                 timeout=60.0,
             )
 
@@ -543,6 +583,12 @@ class WorktreeManager:
             self._run_command(
                 "docker", "volume", "rm", "-f", full_volume_name
             )
+
+        # Remove tagged images for built services
+        built_services = self.get_built_services_sync()
+        for service in built_services:
+            image_name = f"{worktree.compose_project_name}-{service}"
+            self._run_command("docker", "rmi", image_name)
 
         return True
 
