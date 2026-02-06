@@ -1,0 +1,23 @@
+# Flotte Configuration
+# Copy to ~/.config/flotte/config.yaml
+
+# Color theme: onedark or onelight
+theme: onedark
+
+# Projects
+# At least one project is required
+
+projects:
+  # Project configured for sibling worktrees
+  - name: My Project
+    path: /var/www/my-project
+    worktree_path: /var/www/
+    worktree_prefix: "my-project-"
+    ride_command: ""
+
+  # Project configured for a dedicated worktree directory
+  - name: Another Project
+    path: /var/www/another-project
+    worktree_path: /var/www/another-project-worktrees
+    worktree_prefix: ""
+    ride_command: /path/to/my-workspace-script

@@ -18,7 +18,7 @@ flotte
 flotte/                 # git root + pyproject.toml (run uv commands here)
   flotte/               # Python package
     app.py              # Main Textual app
-    config.py           # Config loading (~/.config/flotte/config.toml)
+    config.py           # Config loading (~/.config/flotte/config.yaml)
     services/           # WorktreeManager, DockerManager, RideWrapper
     widgets/            # Textual widgets
     screens/            # Textual screens
@@ -26,8 +26,8 @@ flotte/                 # git root + pyproject.toml (run uv commands here)
 
 ## Config
 
-`~/.config/flotte/config.toml` - requires at least one `[[projects]]` entry with `name` and `path`.
+`~/.config/flotte/config.yaml` - requires at least one project entry with `name` and `path`.
 
 Config structure:
 - `theme`: color theme - onedark or onelight (global)
-- `[[projects]]`: array of project configs (name, path, ride_command)
+- `projects`: list of project configs (name, path, ride_command)

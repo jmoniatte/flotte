@@ -55,17 +55,17 @@ Or:
 
 ## Configuration
 
-Create `~/.config/flotte/config.toml`:
+Create `~/.config/flotte/config.yaml`:
 
-```toml
-theme = "onedark"
+```yaml
+theme: onedark
 
-[[projects]]
-name = "My Project"
-path = "/var/www/my-project"
-worktree_path = "/var/www/"
-worktree_prefix = "my-project"
-ride_command = ""
+projects:
+  - name: My Project
+    path: /var/www/my-project
+    worktree_path: /var/www/
+    worktree_prefix: "my-project"
+    ride_command: ""
 ```
 
 **Required fields:**

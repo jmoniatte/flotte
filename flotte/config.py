@@ -1,4 +1,4 @@
-import tomllib
+import yaml
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration paths
 CONFIG_DIR = Path.home() / ".config" / "flotte"
-CONFIG_FILE = CONFIG_DIR / "config.toml"
+CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
 @dataclass(frozen=True)
@@ -48,8 +48,11 @@ def load_config() -> Config:
         return config
 
     try:
-        with open(CONFIG_FILE, "rb") as f:
-            data = tomllib.load(f)
+        with open(CONFIG_FILE, "r") as f:
+            data = yaml.safe_load(f)
+
+        if not isinstance(data, dict):
+            return config
 
         # Load global settings
         if "theme" in data and isinstance(data["theme"], str):
@@ -83,7 +86,7 @@ def load_config() -> Config:
                     clone_paths=tuple(clone_paths_list),
                 ))
 
-    except tomllib.TOMLDecodeError as e:
+    except yaml.YAMLError as e:
         logger.warning(f"Invalid config file: {e}")
     except Exception as e:
         logger.warning(f"Error loading config: {e}")
@@ -92,33 +95,27 @@ def load_config() -> Config:
 
 
 def save_config(config: Config) -> None:
-    """Save configuration to file in TOML format."""
+    """Save configuration to file in YAML format."""
     ensure_config_dir()
 
-    lines = [
-        "# Flotte Configuration",
-        "",
-        "# Color theme: onedark, onelight (or any .tcss file in styles/themes/)",
-        f'theme = "{config.theme}"',
-        "",
-    ]
+    data: dict = {"theme": config.theme}
 
-    for project in config.projects:
-        lines.extend([
-            "[[projects]]",
-            f'name = "{project.name}"',
-            f'path = "{project.path}"',
-            f'worktree_path = "{project.worktree_path}"',
-            f'worktree_prefix = "{project.worktree_prefix}"',
-            f'ride_command = "{project.ride_command}"',
-        ])
-        if project.clone_paths:
-            lines.append("")
-            lines.append("[projects.clone_paths]")
-            for service, paths in project.clone_paths:
-                toml_array = ", ".join(f'"{p}"' for p in paths)
-                lines.append(f'{service} = [{toml_array}]')
-        lines.append("")
+    if config.projects:
+        projects_list = []
+        for project in config.projects:
+            proj_dict: dict = {
+                "name": project.name,
+                "path": project.path,
+                "worktree_path": project.worktree_path,
+                "worktree_prefix": project.worktree_prefix,
+                "ride_command": project.ride_command,
+            }
+            if project.clone_paths:
+                proj_dict["clone_paths"] = {
+                    service: list(paths) for service, paths in project.clone_paths
+                }
+            projects_list.append(proj_dict)
+        data["projects"] = projects_list
 
     with open(CONFIG_FILE, "w") as f:
-        f.write("\n".join(lines))
+        yaml.dump(data, f, default_flow_style=False)
