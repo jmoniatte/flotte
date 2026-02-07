@@ -53,7 +53,7 @@ class FlotteApp(App):
         Binding("o", "open_url", show=False),
         Binding("tab", "focus_next", show=False),
         Binding("shift+tab", "focus_previous", show=False),
-        Binding("escape", "deselect", show=False),
+        Binding("escape", "quit", show=False),
     ]
 
     def __init__(self):
@@ -837,8 +837,3 @@ class FlotteApp(App):
         else:
             self.notify("No web server URL available", severity="warning")
 
-    def action_deselect(self) -> None:
-        """Clear selection and unfocus - Escape key."""
-        self.selected_worktree = None
-        self.query_one("#worktree-header", WorktreeHeader).clear()
-        self.query_one("#container-table", ContainerTable).worktree = None
