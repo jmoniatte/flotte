@@ -19,7 +19,7 @@ class Project:
     worktree_path: str  # Directory where new worktrees are created
     worktree_prefix: str  # Prefix for worktree dirs (use "" for no prefix)
     ride_command: str = ""
-    clone_paths: tuple[tuple[str, tuple[str, ...]], ...] = ()  # ((service, (paths...)), ...)
+    clone_paths: tuple[str, ...] = ()
 
 
 @dataclass
@@ -69,13 +69,10 @@ def load_config() -> Config:
                 if missing:
                     logger.warning(f"Skipping project missing required fields {missing}: {proj_data}")
                     continue
-                # Parse clone_paths: tuple of (service, paths) pairs
-                raw_clone_paths = proj_data.get("clone_paths", {})
-                clone_paths_list: list[tuple[str, tuple[str, ...]]] = []
-                if isinstance(raw_clone_paths, dict):
-                    for service, paths in raw_clone_paths.items():
-                        if isinstance(paths, list):
-                            clone_paths_list.append((str(service), tuple(str(p) for p in paths)))
+                raw_clone_paths = proj_data.get("clone_paths", [])
+                clone_paths_list: list[str] = []
+                if isinstance(raw_clone_paths, list):
+                    clone_paths_list = [str(p) for p in raw_clone_paths]
 
                 config.projects.append(Project(
                     name=str(proj_data["name"]),
@@ -83,7 +80,7 @@ def load_config() -> Config:
                     worktree_path=str(proj_data["worktree_path"]),
                     worktree_prefix=str(proj_data["worktree_prefix"]),
                     ride_command=str(proj_data.get("ride_command", "")),
-                    clone_paths=tuple(clone_paths_list),
+                    clone_paths=tuple(clone_paths_list),  # flat list of relative paths
                 ))
 
     except yaml.YAMLError as e:
@@ -111,9 +108,7 @@ def save_config(config: Config) -> None:
                 "ride_command": project.ride_command,
             }
             if project.clone_paths:
-                proj_dict["clone_paths"] = {
-                    service: list(paths) for service, paths in project.clone_paths
-                }
+                proj_dict["clone_paths"] = list(project.clone_paths)
             projects_list.append(proj_dict)
         data["projects"] = projects_list
 
