@@ -4,8 +4,10 @@ set -euo pipefail
 PROJECT_PATH="${PROJECT_PATH:?PROJECT_PATH required}"
 PROJECT_NAME="${PROJECT_NAME:?PROJECT_NAME required}"
 
-# Expand tilde
 PROJECT_PATH="${PROJECT_PATH/#\~/$HOME}"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LAYOUT="$SCRIPT_DIR/workspace_layout.json"
 
 # Check if workspace exists
 find_workspace() {
@@ -24,16 +26,6 @@ next_workspace_num() {
   echo 15
 }
 
-spawn_terminal() {
-  local cmd="${1:-}"
-  i3-msg "exec alacritty --working-directory $PROJECT_PATH"
-  sleep 1
-  if [[ -n "$cmd" ]]; then
-    xdotool type --delay 50 "$cmd"
-    xdotool key Return
-  fi
-}
-
 # Main
 existing=$(find_workspace)
 
@@ -42,11 +34,9 @@ if [[ -n "$existing" ]]; then
 else
   num=$(next_workspace_num)
   i3-msg "workspace $num:$PROJECT_NAME"
+  i3-msg "append_layout $LAYOUT"
 
-  spawn_terminal "claude --dangerously-skip-permissions"  # Pane 1 (top-left)
-  i3-msg 'split h'
-  spawn_terminal "./ride.rb logs"    # Pane 3 (right)
-  i3-msg 'focus left'
-  i3-msg 'split v'
-  spawn_terminal "vim" # Pane 2 (bottom-left)
+  alacritty --class Alacritty,ride_claude --working-directory "$PROJECT_PATH" -e bash -lic 'claude --dangerously-skip-permissions; exec bash' &
+  alacritty --class Alacritty,ride_editor --working-directory "$PROJECT_PATH" -e bash -lic 'nvim; exec bash' &
+  alacritty --class Alacritty,ride_logs --working-directory "$PROJECT_PATH" -e bash -lic 'trap "" INT; ./ride.rb logs; exec bash' &
 fi

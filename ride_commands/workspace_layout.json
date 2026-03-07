@@ -1,0 +1,41 @@
+{
+    "layout": "splith",
+    "percent": 1.0,
+    "type": "con",
+    "nodes": [
+        {
+            "layout": "splitv",
+            "percent": 0.5,
+            "type": "con",
+            "nodes": [
+                {
+                    "type": "con",
+                    "percent": 0.5,
+                    "swallows": [
+                        {
+                            "instance": "^ride_claude$"
+                        }
+                    ]
+                },
+                {
+                    "type": "con",
+                    "percent": 0.5,
+                    "swallows": [
+                        {
+                            "instance": "^ride_editor$"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "con",
+            "percent": 0.5,
+            "swallows": [
+                {
+                    "instance": "^ride_logs$"
+                }
+            ]
+        }
+    ]
+}
