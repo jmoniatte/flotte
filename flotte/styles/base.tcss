@@ -103,6 +103,7 @@ WorktreeHeader #worktree-table {
     height: auto;
     background: transparent;
     border: none;
+    scrollbar-size: 0 0;
 }
 
 WorktreeHeader #worktree-table > .datatable--header {
