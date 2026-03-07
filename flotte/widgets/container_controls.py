@@ -68,7 +68,7 @@ class ContainerControls(Horizontal):
             start_btn.disabled = False
             stop_btn.disabled = True
             restart_btn.disabled = True
-            ride_btn.disabled = True
+            ride_btn.disabled = False
             delete_btn.disabled = self.is_main
         elif status == WorktreeStatus.RUNNING:
             start_btn.disabled = False
@@ -88,5 +88,5 @@ class ContainerControls(Horizontal):
             start_btn.disabled = False
             stop_btn.disabled = True
             restart_btn.disabled = True
-            ride_btn.disabled = True
+            ride_btn.disabled = False
             delete_btn.disabled = True
