@@ -112,24 +112,28 @@ class WorktreeManager:
         return worktrees
 
     def _parse_env(self, path: Path) -> dict[str, str]:
-        """Parse .env file into dict."""
-        env_file = path / ".env"
-        if not env_file.exists():
-            return {}
+        """Parse env files into dict.
 
-        env_vars = {}
-        try:
-            with open(env_file) as f:
-                for line in f:
-                    line = line.strip()
-                    # Skip comments and blank lines
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" in line:
-                        key, value = line.split("=", 1)
-                        env_vars[key.strip()] = value.strip()
-        except (OSError, IOError):
-            pass
+        Reads .env then .env.local, with .env.local overriding .env
+        (matching the dotenv convention used by Rails, Vite, etc.).
+        """
+        env_vars: dict[str, str] = {}
+        for name in (".env", ".env.local"):
+            env_file = path / name
+            if not env_file.exists():
+                continue
+            try:
+                with open(env_file) as f:
+                    for line in f:
+                        line = line.strip()
+                        # Skip comments and blank lines
+                        if not line or line.startswith("#"):
+                            continue
+                        if "=" in line:
+                            key, value = line.split("=", 1)
+                            env_vars[key.strip()] = value.strip()
+            except (OSError, IOError):
+                pass
 
         return env_vars
 
