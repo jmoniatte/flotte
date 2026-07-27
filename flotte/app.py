@@ -271,6 +271,7 @@ class FlotteApp(App):
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = WorktreeStatus.UNKNOWN
         controls.is_main = False
+        controls.operation_active = False
 
         # Reset container box title
         self.query_one("#containers-box").border_title = "Containers"
@@ -395,6 +396,9 @@ class FlotteApp(App):
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = status
         controls.is_main = self.selected_worktree.is_main if self.selected_worktree else False
+        # Only a running command locks the buttons - a worktree left half-up after
+        # the command returns must stay actionable
+        controls.operation_active = self._operation_in_progress
 
         self._update_box_title()
 
