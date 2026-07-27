@@ -250,6 +250,12 @@ ContainerControls #btn-container-start:hover {
     background: $green 50%;
 }
 
+ContainerControls #btn-container-start:focus {
+    background: $green;
+    color: $bg-dark;
+    text-style: bold;
+}
+
 ContainerControls #btn-container-stop {
     background: $red 30%;
     color: $red;
@@ -259,6 +265,12 @@ ContainerControls #btn-container-stop:hover {
     background: $red 50%;
 }
 
+ContainerControls #btn-container-stop:focus {
+    background: $red;
+    color: $bg-dark;
+    text-style: bold;
+}
+
 ContainerControls #btn-container-restart {
     background: $yellow 30%;
     color: $yellow;
@@ -266,6 +278,12 @@ ContainerControls #btn-container-restart {
 
 ContainerControls #btn-container-restart:hover {
     background: $yellow 50%;
+}
+
+ContainerControls #btn-container-restart:focus {
+    background: $yellow;
+    color: $bg-dark;
+    text-style: bold;
 }
 
 ContainerControls #btn-ride {
