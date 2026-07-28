@@ -29,6 +29,7 @@ class ContainerControls(Horizontal):
 
     status: reactive[WorktreeStatus] = reactive(WorktreeStatus.UNKNOWN)
     is_main: reactive[bool] = reactive(False)
+    operation_active: reactive[bool] = reactive(False)
 
     def compose(self):
         yield Button("Start", id="btn-container-start", variant="success")
@@ -51,6 +52,10 @@ class ContainerControls(Horizontal):
             pass
         self._update_button_states()
 
+    def watch_operation_active(self, value: bool) -> None:
+        """Lock buttons while an operation is running."""
+        self._update_button_states()
+
     def _update_button_states(self) -> None:
         """Update all button states based on status and is_main."""
         try:
@@ -64,21 +69,29 @@ class ContainerControls(Horizontal):
 
         status = self.status
 
-        if status == WorktreeStatus.STOPPED:
+        # An in-flight operation locks everything until it settles
+        if self.operation_active:
+            start_btn.disabled = True
+            stop_btn.disabled = True
+            restart_btn.disabled = True
+            ride_btn.disabled = True
+            delete_btn.disabled = True
+        elif status == WorktreeStatus.STOPPED:
             start_btn.disabled = False
             stop_btn.disabled = True
             restart_btn.disabled = True
             ride_btn.disabled = False
             delete_btn.disabled = self.is_main
-        elif status == WorktreeStatus.RUNNING:
+        elif status in (WorktreeStatus.RUNNING, WorktreeStatus.STARTING,
+                        WorktreeStatus.STOPPING, WorktreeStatus.ERROR):
+            # STARTING/STOPPING here means containers are stuck part-way with no
+            # operation running - the user needs the controls to recover
             start_btn.disabled = False
             stop_btn.disabled = False
             restart_btn.disabled = False
             ride_btn.disabled = False
             delete_btn.disabled = True
-        elif status in (WorktreeStatus.STARTING, WorktreeStatus.STOPPING,
-                       WorktreeStatus.CREATING, WorktreeStatus.DELETING,
-                       WorktreeStatus.ERROR):
+        elif status in (WorktreeStatus.CREATING, WorktreeStatus.DELETING):
             start_btn.disabled = True
             stop_btn.disabled = True
             restart_btn.disabled = True
