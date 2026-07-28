@@ -96,6 +96,7 @@ class FlotteApp(App):
                 worktree_parent=Path(self.current_config_project.worktree_path),
                 worktree_prefix=self.current_config_project.worktree_prefix,
                 clone_paths=self.current_config_project.clone_paths,
+                env_file=self.current_config_project.env_file,
             )
 
         self.selected_worktree: Worktree | None = None
@@ -238,6 +239,7 @@ class FlotteApp(App):
             worktree_parent=Path(config_project.worktree_path),
             worktree_prefix=config_project.worktree_prefix,
             clone_paths=config_project.clone_paths,
+            env_file=config_project.env_file,
         )
 
         # Clear UI state

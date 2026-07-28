@@ -19,6 +19,9 @@ class Project:
     worktree_path: str  # Directory where new worktrees are created
     worktree_prefix: str  # Prefix for worktree dirs (use "" for no prefix)
     ride_command: str = ""
+    # Env file flotte reads and writes per worktree, relative to the worktree root.
+    # Only ".env" is auto-loaded by docker compose; other values need --env-file.
+    env_file: str = ".env"
     clone_paths: tuple[str, ...] = ()
 
 
@@ -80,6 +83,7 @@ def load_config() -> Config:
                     worktree_path=str(proj_data["worktree_path"]),
                     worktree_prefix=str(proj_data["worktree_prefix"]),
                     ride_command=str(proj_data.get("ride_command", "")),
+                    env_file=str(proj_data.get("env_file") or ".env"),
                     clone_paths=tuple(clone_paths_list),  # flat list of relative paths
                 ))
 
@@ -106,6 +110,7 @@ def save_config(config: Config) -> None:
                 "worktree_path": project.worktree_path,
                 "worktree_prefix": project.worktree_prefix,
                 "ride_command": project.ride_command,
+                "env_file": project.env_file,
             }
             if project.clone_paths:
                 proj_dict["clone_paths"] = list(project.clone_paths)
