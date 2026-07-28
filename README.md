@@ -34,6 +34,11 @@ The main repo must have:
 
 The `COMPOSE_PROJECT_NAME` determines Docker volume naming and is used when cloning data to new worktrees.
 
+If your project keeps this configuration somewhere other than `.env`, set `env_file` on the
+project (see `config.yaml.example`). Flotte both reads and writes that file, so it must be the
+same file your containers are actually started with — docker compose only auto-loads `.env`,
+so any other value has to be passed with `--env-file` by whatever launches your stack.
+
 ## Installation
 
 ```bash

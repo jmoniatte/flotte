@@ -14,6 +14,10 @@ projects:
     worktree_path: /var/www/
     worktree_prefix: "my-project-"
     ride_command: ""
+    # Env file flotte reads and writes per worktree (default: .env).
+    # Docker compose only auto-loads .env; anything else must be passed
+    # to compose with --env-file by your own tooling.
+    env_file: .env
 
   # Project configured for a dedicated worktree directory
   - name: Another Project
@@ -21,3 +25,4 @@ projects:
     worktree_path: /var/www/another-project-worktrees
     worktree_prefix: ""
     ride_command: /path/to/my-workspace-script
+    env_file: .env.local

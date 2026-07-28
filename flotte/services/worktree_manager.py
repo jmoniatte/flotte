@@ -18,12 +18,14 @@ class WorktreeManager:
         worktree_parent: Path,
         worktree_prefix: str,
         clone_paths: tuple[str, ...] = (),
+        env_file: str = ".env",
     ):
         self.main_repo_path = main_repo_path.resolve()
         self.parent_dir = worktree_parent.resolve()
         self.project_name = self.main_repo_path.name  # e.g., "ridewithgps"
         self.worktree_prefix = worktree_prefix  # "" = no prefix
         self.clone_paths = clone_paths
+        self.env_file = env_file
         self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
 
@@ -112,8 +114,8 @@ class WorktreeManager:
         return worktrees
 
     def _parse_env(self, path: Path) -> dict[str, str]:
-        """Parse .env file into dict."""
-        env_file = path / ".env"
+        """Parse the project's env file into dict."""
+        env_file = path / self.env_file
         if not env_file.exists():
             return {}
 
@@ -134,12 +136,12 @@ class WorktreeManager:
         return env_vars
 
     def get_compose_project_prefix(self) -> str:
-        """Get COMPOSE_PROJECT_NAME from main's .env, fallback to directory name."""
+        """Get COMPOSE_PROJECT_NAME from main's env file, fallback to directory name."""
         main_env = self._parse_env(self.main_repo_path)
         return main_env.get("COMPOSE_PROJECT_NAME", self.project_name)
 
     def _get_port_offset(self, env_vars: dict[str, str]) -> int:
-        """Calculate port offset by comparing a *_PORT variable to main's .env."""
+        """Calculate port offset by comparing a *_PORT variable to main's env file."""
         main_env = self._parse_env(self.main_repo_path)
 
         # Find first *_PORT variable that exists in both
@@ -240,10 +242,10 @@ class WorktreeManager:
         if returncode != 0:
             raise RuntimeError(f"Failed to create worktree: {stderr}")
 
-        # Get next port offset and generate .env
+        # Get next port offset and generate the env file
         offset = self.find_next_port_offset()
         compose_project_name = f"{self.get_compose_project_prefix()}-{sanitized_name}"
-        self._generate_env_local(worktree_path, compose_project_name, offset)
+        self._generate_env_file(worktree_path, compose_project_name, offset)
 
         # Create and cache worktree object
         worktree = Worktree(
@@ -278,14 +280,13 @@ class WorktreeManager:
             self.create_worktree_sync, branch_name, base_branch
         )
 
-    def _generate_env_local(
+    def _generate_env_file(
         self, worktree_path: Path, compose_project_name: str, offset: int
     ) -> None:
-        """Generate .env file by reading main repo's .env and applying port offset."""
-        # Read main repo's .env
+        """Generate the worktree's env file from main's, applying port offset."""
         main_env = self._parse_env(self.main_repo_path)
 
-        # Build new .env content
+        # Build new env file content
         lines = [f"COMPOSE_PROJECT_NAME={compose_project_name}"]
 
         # Copy all variables from main, applying offset to *_PORT variables
@@ -301,8 +302,9 @@ class WorktreeManager:
             else:
                 lines.append(f"{key}={value}")
 
-        # Write to .env (docker compose reads this automatically)
-        env_file = worktree_path / ".env"
+        # Must match what _parse_env reads, or flotte cannot resolve its own worktrees
+        env_file = worktree_path / self.env_file
+        env_file.parent.mkdir(parents=True, exist_ok=True)
         with open(env_file, "w") as f:
             f.write("\n".join(lines) + "\n")
 
