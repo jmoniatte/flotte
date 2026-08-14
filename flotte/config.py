@@ -18,6 +18,7 @@ class Project:
     path: str
     worktree_path: str  # Directory where new worktrees are created
     worktree_prefix: str  # Prefix for worktree dirs (use "" for no prefix)
+    post_create_commands: tuple[str, ...] = ()  # Setup commands run once in each new worktree
     ride_command: str = ""
     # Env file flotte reads and writes per worktree, relative to the worktree root.
     # Only ".env" is auto-loaded by docker compose; other values need --env-file.
@@ -77,11 +78,19 @@ def load_config() -> Config:
                 if isinstance(raw_clone_paths, list):
                     clone_paths_list = [str(p) for p in raw_clone_paths]
 
+                raw_post_create_commands = proj_data.get("post_create_commands", [])
+                if isinstance(raw_post_create_commands, str):
+                    raw_post_create_commands = [raw_post_create_commands]
+                post_create_commands_list: list[str] = []
+                if isinstance(raw_post_create_commands, list):
+                    post_create_commands_list = [str(c) for c in raw_post_create_commands if str(c).strip()]
+
                 config.projects.append(Project(
                     name=str(proj_data["name"]),
                     path=str(proj_data["path"]),
                     worktree_path=str(proj_data["worktree_path"]),
                     worktree_prefix=str(proj_data["worktree_prefix"]),
+                    post_create_commands=tuple(post_create_commands_list),
                     ride_command=str(proj_data.get("ride_command", "")),
                     env_file=str(proj_data.get("env_file") or ".env"),
                     clone_paths=tuple(clone_paths_list),  # flat list of relative paths
@@ -112,6 +121,8 @@ def save_config(config: Config) -> None:
                 "ride_command": project.ride_command,
                 "env_file": project.env_file,
             }
+            if project.post_create_commands:
+                proj_dict["post_create_commands"] = list(project.post_create_commands)
             if project.clone_paths:
                 proj_dict["clone_paths"] = list(project.clone_paths)
             projects_list.append(proj_dict)

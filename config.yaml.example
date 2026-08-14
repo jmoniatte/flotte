@@ -13,6 +13,10 @@ projects:
     path: /var/www/my-project
     worktree_path: /var/www/
     worktree_prefix: "my-project-"
+    # Setup commands run once, in order, via sh -c, after a worktree is created
+    post_create_commands:
+      - mise trust
+      - bundle install
     ride_command: ""
     # Env file flotte reads and writes per worktree (default: .env).
     # Docker compose only auto-loads .env; anything else must be passed
@@ -24,5 +28,6 @@ projects:
     path: /var/www/another-project
     worktree_path: /var/www/another-project-worktrees
     worktree_prefix: ""
+    post_create_commands: mise trust
     ride_command: /path/to/my-workspace-script
     env_file: .env.local

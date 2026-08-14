@@ -10,6 +10,9 @@ from textual.app import ComposeResult
 from ..services import WorktreeManager
 from ..models import Worktree
 
+# Failures scroll by while the user watches creation, so they outlast the 5s default
+FAILURE_TOAST_TIMEOUT = 20.0
+
 
 @dataclass
 class CreateWorktreeParams:
@@ -207,6 +210,16 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
         """Update status message."""
         self.query_one("#status-text", Static).update(message)
 
+    def _notify_failure(self, message: str, severity: str = "warning") -> None:
+        """Toast a failure that carries interpolated command output."""
+        # markup=False: stderr and shell syntax contain [brackets] that break Textual markup
+        self.notify(
+            message,
+            severity=severity,
+            timeout=FAILURE_TOAST_TIMEOUT,
+            markup=False,
+        )
+
     async def _do_create(self, params: CreateWorktreeParams) -> None:
         """Perform the actual worktree creation."""
         try:
@@ -258,9 +271,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         built_services,
                     )
                     for service, error in failures:
-                        self.notify(
-                            f"Failed to tag image for {service}: {error}",
-                            severity="warning",
+                        self._notify_failure(
+                            f"Failed to tag image for {service}: {error}"
                         )
 
                 # Clone gitignored bind mounts
@@ -291,10 +303,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
 
                     # Show warning for any failures (but don't abort)
                     for rel_path, error in failed_mounts:
-                        self.notify(
-                            f"Failed to clone {rel_path}: {error}",
-                            severity="warning",
-                        )
+                        self._notify_failure(f"Failed to clone {rel_path}: {error}")
 
                 # Copy extra clone_paths from config
                 clone_paths = self.worktree_manager.get_all_clone_paths()
@@ -317,14 +326,22 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                             failed_clones.append((rel_path, error))
 
                     for rel_path, error in failed_clones:
-                        self.notify(
-                            f"Failed to copy {rel_path}: {error}",
-                            severity="warning",
-                        )
+                        self._notify_failure(f"Failed to copy {rel_path}: {error}")
+
+            commands = self.worktree_manager.post_create_commands
+            for i, command in enumerate(commands):
+                self._update_status(f"Running command {i+1}/{len(commands)}: {command}...")
+                success, error = await asyncio.to_thread(
+                    self.worktree_manager.run_post_create_command_sync,
+                    command,
+                    worktree,
+                )
+                if not success:
+                    self._notify_failure(f"Command failed: {command}: {error}")
 
             # Dismiss with result
             self.dismiss(CreateWorktreeResult(worktree=worktree, params=params))
 
         except Exception as e:
-            self.notify(f"Creation failed: {e}", severity="error")
+            self._notify_failure(f"Creation failed: {e}", severity="error")
             self.dismiss(None)

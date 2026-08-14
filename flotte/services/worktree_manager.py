@@ -19,6 +19,7 @@ class WorktreeManager:
         worktree_prefix: str,
         clone_paths: tuple[str, ...] = (),
         env_file: str = ".env",
+        post_create_commands: tuple[str, ...] = (),
     ):
         self.main_repo_path = main_repo_path.resolve()
         self.parent_dir = worktree_parent.resolve()
@@ -26,6 +27,7 @@ class WorktreeManager:
         self.worktree_prefix = worktree_prefix  # "" = no prefix
         self.clone_paths = clone_paths
         self.env_file = env_file
+        self.post_create_commands = post_create_commands
         self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
 
@@ -430,6 +432,49 @@ class WorktreeManager:
         """Get gitignored bind mount paths from docker-compose.yml (async wrapper)."""
         import asyncio
         return await asyncio.to_thread(self.get_gitignored_bind_mounts_sync)
+
+    def run_post_create_command_sync(
+        self,
+        command: str,
+        worktree: Worktree,
+        timeout: float = 300.0,
+    ) -> tuple[bool, str]:
+        """
+        Run a configured setup command inside a newly created worktree.
+
+        The command goes through `sh -c`, so shell operators, globs and variable
+        expansion work. It runs with the worktree as cwd and receives the same
+        PROJECT_PATH / PROJECT_NAME env vars as ride_command, plus MAIN_REPO_PATH
+        so commands can copy files out of the main repo.
+
+        Returns:
+            (success, error_message) - error_message is empty string on success
+        """
+        env = {
+            **os.environ,
+            "PROJECT_PATH": str(worktree.path),
+            "PROJECT_NAME": worktree.name,
+            "MAIN_REPO_PATH": str(self.main_repo_path),
+        }
+        try:
+            result = subprocess.run(
+                ["sh", "-c", command],
+                cwd=worktree.path,
+                env=env,
+                capture_output=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return (False, "Command timed out")
+        except Exception as e:
+            return (False, str(e))
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip()
+            if len(stderr) > 300:
+                stderr = "..." + stderr[-300:]  # tail: build tools put the real error last
+            return (False, stderr or f"exited with code {result.returncode}")
+        return (True, "")
 
     def get_all_clone_paths(self) -> list[str]:
         """Return clone_paths that exist in the main repo."""

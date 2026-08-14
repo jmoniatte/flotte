@@ -30,4 +30,4 @@ flotte/                 # git root + pyproject.toml (run uv commands here)
 
 Config structure:
 - `theme`: color theme - onedark or onelight (global)
-- `projects`: list of project configs (name, path, ride_command)
+- `projects`: list of project configs (name, path, ride_command, post_create_commands)

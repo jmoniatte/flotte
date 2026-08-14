@@ -70,6 +70,9 @@ projects:
     path: /var/www/my-project
     worktree_path: /var/www/
     worktree_prefix: "my-project"
+    post_create_commands:
+      - mise trust
+      - bundle install
     ride_command: ""
 ```
 
@@ -81,7 +84,35 @@ projects:
 
 **Optional fields:**
 - `theme` - Color theme: `onedark` (default) or `onelight`
+- `post_create_commands` - Setup commands run once, in order, after a new worktree is created
 - `ride_command` - Command for "Go Ride" button (receives `PROJECT_PATH` and `PROJECT_NAME` env vars)
+- `env_file` - Env file flotte reads and writes per worktree (default: `.env`). Docker compose only
+  auto-loads `.env`; anything else must be passed to compose with `--env-file` by your own tooling
+- `clone_paths` - Extra files or directories, relative to the repo root, copied from the main repo
+  into a new worktree. Only applied when "Clone volumes and bind mounts from main" is checked;
+  paths that don't exist in the main repo are skipped
+
+### post_create_commands
+
+Each entry runs through `sh -c` with the new worktree as working directory, so `&&`, pipes, globs
+and `$VARS` work. They run last, once the worktree, its volumes and its copied files are all in
+place, and receive three env vars:
+
+- `PROJECT_PATH` - the new worktree's directory (same as the working directory)
+- `PROJECT_NAME` - the new worktree's name, as shown in the UI
+- `MAIN_REPO_PATH` - the main repo, for pulling in files git doesn't carry over:
+
+```yaml
+    post_create_commands:
+      - cp "$MAIN_REPO_PATH/dev/bruno/.env" dev/bruno/.env
+```
+
+A failing command shows a warning and the remaining commands still run. Each command is given 5
+minutes before it is killed. A single command can be written as a plain string instead of a list:
+
+```yaml
+    post_create_commands: mise trust
+```
 
 ## Usage
 
