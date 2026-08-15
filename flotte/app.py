@@ -347,6 +347,21 @@ class FlotteApp(App):
         header = self.query_one("#worktree-header", WorktreeHeader)
         header.refresh_worktrees(list(self.project.worktrees.values()))
 
+    async def on_unmount(self) -> None:
+        """Stop polling and the docker events watcher on app shutdown."""
+        if self.project:
+            await self.project.shutdown()
+
+    def on_app_focus(self) -> None:
+        """Terminal gained focus - resume normal reconciliation cadence."""
+        if self.project:
+            self.project.set_focused(True)
+
+    def on_app_blur(self) -> None:
+        """Terminal lost focus - slow down reconciliation polling."""
+        if self.project:
+            self.project.set_focused(False)
+
     def on_worktree_status_changed(self, event: WorktreeStatusChanged) -> None:
         """Handle worktree status change from polling."""
         self._update_ui_after_status_change(changed_worktree=event.worktree)

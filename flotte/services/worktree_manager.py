@@ -66,8 +66,8 @@ class WorktreeManager:
             return []
 
         worktrees = []
-        # Parse format: '/path/to/worktree  hash [branch]'
-        pattern = re.compile(r"^(\S+)\s+\w+\s+\[(.+?)\]")
+        # Parse '/path/to/worktree  hash [branch]' or '... (detached HEAD)'
+        pattern = re.compile(r"^(\S+)\s+\w+\s+(\[.+?\]|\(.+?\))")
 
         for line in stdout.strip().split("\n"):
             if not line.strip():
@@ -77,7 +77,8 @@ class WorktreeManager:
             if not match:
                 continue
 
-            path_str, branch = match.groups()
+            path_str, ref = match.groups()
+            branch = ref[1:-1] if ref.startswith("[") else ""
             path = Path(path_str)
 
             # Skip worktrees whose directories no longer exist

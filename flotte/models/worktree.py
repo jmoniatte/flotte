@@ -6,10 +6,7 @@ from pathlib import Path
 
 from .container import Container, ContainerState
 
-# Polling intervals
-POLL_INTERVAL_NORMAL = 5.0  # seconds
-POLL_INTERVAL_FAST = 1.0  # seconds during transient operations
-POLL_FAST_MAX_SECONDS = 60.0
+TRANSIENT_POLL_MAX_SECONDS = 60.0
 
 
 class WorktreeStatus(Enum):
@@ -112,16 +109,14 @@ class Worktree:
         return self.actual_status
 
     @property
-    def poll_interval(self) -> float:
-        """Return appropriate poll interval based on transient state."""
+    def in_transient_operation(self) -> bool:
+        """True while an operation still deserves fast reconciliation polling."""
         # A crash-looping container never reaches its target; don't fast-poll forever
-        if (
+        return (
             self._transient is not None
             and self._transient_since is not None
-            and time.monotonic() - self._transient_since < POLL_FAST_MAX_SECONDS
-        ):
-            return POLL_INTERVAL_FAST
-        return POLL_INTERVAL_NORMAL
+            and time.monotonic() - self._transient_since < TRANSIENT_POLL_MAX_SECONDS
+        )
 
     def start_operation(
         self,
