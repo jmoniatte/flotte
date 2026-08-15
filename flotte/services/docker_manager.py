@@ -2,6 +2,72 @@ import asyncio
 import json
 from pathlib import Path
 
+COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
+COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
+
+
+def _parse_labels(labels_str: str) -> dict[str, str]:
+    labels = {}
+    for part in labels_str.split(","):
+        if "=" in part:
+            key, value = part.split("=", 1)
+            labels[key] = value
+    return labels
+
+
+async def get_all_containers_by_project() -> dict[str, list[dict]]:
+    """List every compose container on the host with a single docker ps call.
+
+    Returns:
+        Dict mapping compose project name to container dicts shaped like
+        docker compose ps output (Service, ID, Name, Image, State, Status, Ports).
+    """
+    proc = await asyncio.create_subprocess_exec(
+        "docker",
+        "ps",
+        "-a",
+        "--filter",
+        f"label={COMPOSE_PROJECT_LABEL}",
+        "--format",
+        "{{json .}}",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+    except asyncio.TimeoutError:
+        proc.kill()
+        return {}
+
+    if proc.returncode != 0:
+        return {}
+
+    by_project: dict[str, list[dict]] = {}
+    for line in stdout.decode("utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        labels = _parse_labels(data.get("Labels", ""))
+        project = labels.get(COMPOSE_PROJECT_LABEL)
+        service = labels.get(COMPOSE_SERVICE_LABEL)
+        if not project or not service:
+            continue
+        by_project.setdefault(project, []).append(
+            {
+                "Service": service,
+                "ID": data.get("ID", ""),
+                "Name": data.get("Names", ""),
+                "Image": data.get("Image", ""),
+                "State": data.get("State", ""),
+                "Status": data.get("Status", ""),
+                "Ports": data.get("Ports", ""),
+            }
+        )
+    return by_project
+
 
 class DockerManager:
     """Direct Docker Compose interaction for status and service control."""
@@ -53,45 +119,12 @@ class DockerManager:
             proc.kill()
             return (-1, "", "Command timed out")
 
-    async def get_container_data(self) -> tuple[list[dict], list[str]]:
-        """Get raw container data and all service names.
-
-        Returns:
-            Tuple of:
-            - List of dicts from docker compose ps (container data)
-            - List of all service names from docker compose config
-        """
-        container_data: list[dict] = []
-        all_services: list[str] = []
-
-        # Get existing containers (running or stopped)
-        returncode, stdout, stderr = await self._run_compose(
-            "ps", "-a", "--format", "json"
-        )
-
-        if returncode == 0 and stdout.strip():
-            # docker compose ps --format json outputs ONE JSON OBJECT PER LINE
-            for line in stdout.strip().split("\n"):
-                if not line.strip():
-                    continue
-                try:
-                    data = json.loads(line)
-                    container_data.append(data)
-                except json.JSONDecodeError:
-                    continue
-
-        # Get all defined services
-        returncode, stdout, stderr = await self._run_compose(
-            "config", "--services"
-        )
-
-        if returncode == 0 and stdout.strip():
-            for service_name in stdout.strip().split("\n"):
-                service_name = service_name.strip()
-                if service_name:
-                    all_services.append(service_name)
-
-        return container_data, all_services
+    async def get_services(self) -> list[str]:
+        """Get all service names defined in the compose file."""
+        returncode, stdout, stderr = await self._run_compose("config", "--services")
+        if returncode != 0:
+            return []
+        return [line.strip() for line in stdout.strip().split("\n") if line.strip()]
 
     async def start_service(self, service: str) -> bool:
         """

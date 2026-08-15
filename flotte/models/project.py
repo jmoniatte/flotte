@@ -83,8 +83,6 @@ class Project:
 
     async def _poll_loop(self) -> None:
         """Polling loop that runs until cancelled."""
-        from ..messages import WorktreeStatusChanged
-
         while True:
             try:
                 await self._poll()
@@ -99,20 +97,27 @@ class Project:
             await asyncio.sleep(interval)
 
     async def _poll(self) -> None:
-        """Poll all worktrees and refresh UI."""
+        """Poll all worktrees and notify UI of changes."""
         from ..messages import OperationCompleted, WorktreeStatusChanged
+        from ..services.docker_manager import get_all_containers_by_project
 
-        # Poll all worktrees in parallel, collecting cleared transient statuses
         worktree_list = list(self.worktrees.values())
-        cleared_statuses = await asyncio.gather(*[wt.poll() for wt in worktree_list])
+        if not worktree_list:
+            return
 
-        # Always refresh UI with current state
+        # One docker ps call covers every worktree
+        by_project = await get_all_containers_by_project()
+        results = await asyncio.gather(
+            *[
+                wt.poll(by_project.get(wt.compose_project_name, []))
+                for wt in worktree_list
+            ]
+        )
+
         if self._app:
-            for wt in worktree_list:
-                self._app.post_message(WorktreeStatusChanged(wt))
-
-            # Post OperationCompleted for any worktrees that reached their target
-            for wt, cleared in zip(worktree_list, cleared_statuses):
+            for wt, (changed, cleared) in zip(worktree_list, results):
+                if changed:
+                    self._app.post_message(WorktreeStatusChanged(wt))
                 if cleared is not None:
                     self._app.post_message(OperationCompleted(wt, cleared))
 

@@ -102,6 +102,10 @@ class FlotteApp(App):
 
         self.selected_worktree: Worktree | None = None
 
+        # Git status fetch state (serializes fetches, one subprocess at a time)
+        self._git_fetch_running: bool = False
+        self._git_fetch_queued: bool = False
+
         # Simple operation lock (prevents concurrent operations)
         self._operation_in_progress: bool = False
         self._operation_type: str | None = None  # "create", "delete", "start", "stop", "restart"
@@ -345,7 +349,7 @@ class FlotteApp(App):
 
     def on_worktree_status_changed(self, event: WorktreeStatusChanged) -> None:
         """Handle worktree status change from polling."""
-        self._update_ui_after_status_change()
+        self._update_ui_after_status_change(changed_worktree=event.worktree)
 
     def on_operation_completed(self, event: OperationCompleted) -> None:
         """Handle operation completion - show notification."""
@@ -355,8 +359,15 @@ class FlotteApp(App):
         elif event.operation == WorktreeStatus.STOPPING:
             self.notify(f"Stopped {wt.name}", severity="information")
 
-    def _update_ui_after_status_change(self) -> None:
-        """Update UI elements after status change."""
+    def _update_ui_after_status_change(
+        self, changed_worktree: Worktree | None = None
+    ) -> None:
+        """Update UI elements after status change.
+
+        Args:
+            changed_worktree: The worktree that changed, or None for a
+                global refresh (fetches git status regardless).
+        """
         if not self.project:
             return
 
@@ -372,7 +383,8 @@ class FlotteApp(App):
                 # Selected worktree is the same object (no replacement)
                 table = self.query_one("#container-table", ContainerTable)
                 table.worktree = self.selected_worktree
-                self.run_worker(self._fetch_git_status())
+                if changed_worktree is None or changed_worktree.name == wt_name:
+                    self.run_worker(self._fetch_git_status())
 
         self._update_container_view()
 
@@ -448,12 +460,31 @@ class FlotteApp(App):
             action()
 
     async def _fetch_git_status(self) -> None:
-        """Fetch git status asynchronously and update display."""
-        if not self.selected_worktree:
+        """Fetch git status for the selected worktree and update display.
+
+        Runs one git subprocess at a time; overlapping requests queue a
+        single re-fetch so the result always matches the current selection.
+        """
+        if self._git_fetch_running:
+            self._git_fetch_queued = True
             return
-        git_status = await self.worktree_manager.get_git_status(self.selected_worktree)
-        header = self.query_one("#worktree-header", WorktreeHeader)
-        header.update_git_status(git_status)
+
+        self._git_fetch_running = True
+        try:
+            while True:
+                self._git_fetch_queued = False
+                wt = self.selected_worktree
+                if wt is None:
+                    return
+                git_status = await self.worktree_manager.get_git_status(wt)
+                if self._git_fetch_queued:
+                    continue
+                if self.selected_worktree and self.selected_worktree.name == wt.name:
+                    header = self.query_one("#worktree-header", WorktreeHeader)
+                    header.update_git_status(git_status)
+                return
+        finally:
+            self._git_fetch_running = False
 
     # Action methods
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from enum import Enum
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from .container import Container, ContainerState
 # Polling intervals
 POLL_INTERVAL_NORMAL = 5.0  # seconds
 POLL_INTERVAL_FAST = 1.0  # seconds during transient operations
+POLL_FAST_MAX_SECONDS = 60.0
 
 
 class WorktreeStatus(Enum):
@@ -59,6 +61,10 @@ class Worktree:
         # Simple transient state management (instance-level)
         self._transient: WorktreeStatus | None = None
         self._target: WorktreeStatus | None = None
+        self._transient_since: float | None = None
+
+        self._services: list[str] = []
+        self._services_mtime: float | None = None
 
     def get_or_create_container(self, service: str) -> Container:
         """Get existing container or create new one.
@@ -108,7 +114,12 @@ class Worktree:
     @property
     def poll_interval(self) -> float:
         """Return appropriate poll interval based on transient state."""
-        if self._transient is not None:
+        # A crash-looping container never reaches its target; don't fast-poll forever
+        if (
+            self._transient is not None
+            and self._transient_since is not None
+            and time.monotonic() - self._transient_since < POLL_FAST_MAX_SECONDS
+        ):
             return POLL_INTERVAL_FAST
         return POLL_INTERVAL_NORMAL
 
@@ -126,6 +137,7 @@ class Worktree:
         """
         self._transient = transient
         self._target = target
+        self._transient_since = time.monotonic()
 
     def clear_operation(self) -> WorktreeStatus | None:
         """Clear transient status (operation completed or failed).
@@ -136,19 +148,24 @@ class Worktree:
         cleared = self._transient
         self._transient = None
         self._target = None
+        self._transient_since = None
         return cleared
 
-    async def poll(self) -> WorktreeStatus | None:
-        """Poll container status from Docker.
+    async def poll(
+        self, container_data: list[dict]
+    ) -> tuple[bool, WorktreeStatus | None]:
+        """Update container state from a docker ps snapshot.
+
+        Args:
+            container_data: This worktree's container dicts from the shared
+                docker ps call (see get_all_containers_by_project).
 
         Returns:
-            The transient status that was cleared if target was reached,
-            or None if no transient was auto-cleared.
+            Tuple of:
+            - True if visible state changed since the last poll
+            - The transient status that was cleared if target was reached
         """
-        from ..services.docker_manager import DockerManager
-
-        docker_mgr = DockerManager(self.path, self.compose_project_name)
-        container_data, all_services = await docker_mgr.get_container_data()
+        before = self._snapshot()
 
         # Update containers from poll data
         seen_services: set[str] = set()
@@ -166,15 +183,47 @@ class Worktree:
                 del self.containers[service]
 
         # Add placeholders for services without containers
-        for service in all_services:
+        for service in await self._get_services():
             if service not in self.containers:
                 container = self.get_or_create_container(service)
                 container.mark_exited()
 
         # Auto-clear transient if target status reached
+        cleared = None
         if self._target is not None and self.actual_status == self._target:
-            return self.clear_operation()
-        return None
+            cleared = self.clear_operation()
+
+        return (self._snapshot() != before, cleared)
+
+    def _snapshot(self) -> tuple:
+        return (
+            self.status,
+            tuple(
+                (c.service, c.state, c.status, tuple(c.ports))
+                for c in self.container_list
+            ),
+        )
+
+    async def _get_services(self) -> list[str]:
+        """Service names from the compose file, cached until the file changes."""
+        from ..services.docker_manager import DockerManager
+
+        compose_file = self.path / "docker-compose.yml"
+        try:
+            mtime = compose_file.stat().st_mtime
+        except OSError:
+            self._services = []
+            self._services_mtime = None
+            return self._services
+
+        if mtime != self._services_mtime:
+            docker_mgr = DockerManager(self.path, self.compose_project_name)
+            services = await docker_mgr.get_services()
+            # Failure also returns [] - retry next poll rather than caching it
+            if services:
+                self._services = services
+                self._services_mtime = mtime
+        return self._services
 
     @property
     def web_url(self) -> str | None:

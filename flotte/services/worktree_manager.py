@@ -51,9 +51,9 @@ class WorktreeManager:
         except subprocess.TimeoutExpired:
             return (-1, "", "Command timed out")
 
-    async def discover_worktrees(self) -> list[Worktree]:
+    def discover_worktrees_sync(self) -> list[Worktree]:
         """
-        Discover all git worktrees and their configurations.
+        Discover all git worktrees and their configurations (synchronous).
 
         Returns:
             List of Worktree objects
@@ -114,6 +114,11 @@ class WorktreeManager:
             self.worktrees[name] = worktree
 
         return worktrees
+
+    async def discover_worktrees(self) -> list[Worktree]:
+        """Discover all git worktrees and their configurations (async wrapper)."""
+        import asyncio
+        return await asyncio.to_thread(self.discover_worktrees_sync)
 
     def _parse_env(self, path: Path) -> dict[str, str]:
         """Parse the project's env file into dict."""
@@ -651,9 +656,9 @@ class WorktreeManager:
         import asyncio
         return await asyncio.to_thread(self.cleanup_docker_sync, worktree)
 
-    async def commit_all_changes(self, worktree: Worktree, message: str) -> bool:
+    def commit_all_changes_sync(self, worktree: Worktree, message: str) -> bool:
         """
-        Commit all changes in a worktree (staged, modified, and untracked).
+        Commit all changes in a worktree (synchronous).
 
         Args:
             worktree: The worktree to commit in
@@ -682,6 +687,11 @@ class WorktreeManager:
             raise RuntimeError(f"git commit failed: {stderr}")
 
         return True
+
+    async def commit_all_changes(self, worktree: Worktree, message: str) -> bool:
+        """Commit all changes in a worktree (async wrapper)."""
+        import asyncio
+        return await asyncio.to_thread(self.commit_all_changes_sync, worktree, message)
 
     def remove_worktree_sync(self, worktree: Worktree) -> bool:
         """
@@ -740,9 +750,9 @@ class WorktreeManager:
         import asyncio
         return await asyncio.to_thread(self.remove_worktree_sync, worktree)
 
-    async def get_git_status(self, worktree: Worktree) -> dict:
+    def get_git_status_sync(self, worktree: Worktree) -> dict:
         """
-        Get git status for a worktree.
+        Get git status for a worktree (synchronous).
 
         Returns dict with:
             - modified: number of modified files
@@ -788,3 +798,8 @@ class WorktreeManager:
                 result["ahead"] = int(parts[1])
 
         return result
+
+    async def get_git_status(self, worktree: Worktree) -> dict:
+        """Get git status for a worktree (async wrapper)."""
+        import asyncio
+        return await asyncio.to_thread(self.get_git_status_sync, worktree)
