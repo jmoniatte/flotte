@@ -15,8 +15,3 @@ dist/
 .*.swo
 Session.vim
 .netrwhist
-
-# Claude and Beads
-.claude/
-.beads/
-AGENTS.md
