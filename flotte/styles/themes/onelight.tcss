@@ -37,14 +37,6 @@ ContainerTable {
     color: $fg;
 }
 
-ContainerTable > .datatable--even-row {
-    background: $bg;
-}
-
-ContainerTable > .datatable--odd-row {
-    background: #f0f0f0;
-}
-
 ContainerTable > .datatable--cursor {
     color: $fg;
 }

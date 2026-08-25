@@ -5,6 +5,7 @@ from enum import Enum
 from pathlib import Path
 
 from .container import Container, ContainerState
+from .linked_worktree import LinkedWorktree
 
 TRANSIENT_POLL_MAX_SECONDS = 60.0
 
@@ -51,6 +52,7 @@ class Worktree:
         self.branch = branch
         self.compose_project_name = compose_project_name
         self.is_main = is_main
+        self.linked_worktrees: list[LinkedWorktree] = []
 
         # Containers keyed by service name (persist across polls)
         self.containers: dict[str, Container] = {}

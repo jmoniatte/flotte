@@ -7,6 +7,7 @@ from textual.widgets import Button, Static
 from textual.app import ComposeResult
 
 from ..services import WorktreeManager
+from ..services import LinkedWorktreeManager
 from ..models import Worktree
 
 
@@ -24,10 +25,16 @@ class DeleteWorktreeScreen(ModalScreen[DeleteWorktreeResult | None]):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, worktree: Worktree, worktree_manager: WorktreeManager):
+    def __init__(
+        self,
+        worktree: Worktree,
+        worktree_manager: WorktreeManager,
+        linked_worktree_manager: LinkedWorktreeManager | None = None,
+    ):
         super().__init__()
         self.worktree = worktree
         self.worktree_manager = worktree_manager
+        self.linked_worktree_manager = linked_worktree_manager
         self._is_deleting = False
 
     def compose(self) -> ComposeResult:
@@ -97,6 +104,10 @@ class DeleteWorktreeScreen(ModalScreen[DeleteWorktreeResult | None]):
                 self.worktree_manager.cleanup_docker_sync,
                 self.worktree
             )
+
+            if self.linked_worktree_manager:
+                self._update_status("Removing linked worktrees...")
+                await self.linked_worktree_manager.remove_links(self.worktree)
 
             # Remove worktree directory
             self._update_status("Removing worktree...")

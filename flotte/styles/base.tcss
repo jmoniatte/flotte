@@ -88,7 +88,6 @@ Screen {
     border-title-style: bold;
     padding: 0 1;
     margin: 0 1 1 1;
-    overflow-y: auto;
 }
 
 #worktrees-box:focus-within {
@@ -107,6 +106,11 @@ WorktreeHeader #worktree-table {
 }
 
 WorktreeHeader #worktree-table > .datatable--header {
+    background: transparent;
+    color: $comment;
+}
+
+WorktreeHeader #worktree-table > .datatable--header-hover {
     background: transparent;
     color: $comment;
 }
@@ -218,9 +222,8 @@ WorktreeHeader #worktree-table > .datatable--hover {
 
 ContainerControls {
     height: 3;
-    padding: 0 1;
+    padding: 0 2 0 3;
     background: transparent;
-    border-top: solid $gutter;
 }
 
 ContainerControls Button {
@@ -309,18 +312,26 @@ ContainerTable {
     height: auto;
     background: transparent;
     border: none;
-    margin: 0;
+    margin: 0 1 0 2;
     scrollbar-size: 0 0;
 }
 
 ContainerTable > .datatable--header {
     background: transparent;
-    color: $blue;
-    text-style: bold;
+    color: $comment;
+    text-style: none;
+}
+
+ContainerTable > .datatable--header-hover {
+    background: transparent;
+    color: $comment;
+    text-style: none;
 }
 
 ContainerTable > .datatable--cursor {
-    background: $bg-light;
+    background: transparent;
+    color: auto;
+    text-style: none;
 }
 
 ContainerTable > .datatable--hover {
@@ -332,6 +343,7 @@ ContainerTable > .datatable--hover {
    ═══════════════════════════════════════════════════════════════════════ */
 
 * {
+    scrollbar-size: 0 0;
     scrollbar-background: $bg;
     scrollbar-color: $gutter;
     scrollbar-color-hover: $comment;
@@ -794,9 +806,165 @@ DeleteWorktreeScreen #status-text {
 
 StatusLine {
     height: auto;
+    margin-top: 1;
     padding: 0 1;
-    border-bottom: solid $gutter;
-    color: $fg;
+    color: $blue;
+}
+
+StatusLine .containers-title {
+    width: auto;
+    color: $blue;
+    text-style: bold;
+}
+
+StatusLine .spacer {
+    width: 1fr;
+}
+
+StatusLine #btn-delete-worktree {
+    width: 12;
+    min-width: 12;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: $yellow 30%;
+    color: $yellow;
+}
+
+StatusLine #btn-delete-worktree:hover {
+    background: $yellow 50%;
+}
+
+StatusLine #btn-delete-worktree:focus {
+    background: $yellow;
+    color: $bg-dark;
+    text-style: bold;
+}
+
+LinkedRepositories {
+    height: auto;
+    padding: 0 1 1 1;
+    color: $comment;
+}
+
+.linked-repository-row {
+    height: auto;
+}
+
+.linked-repository-title {
+    width: auto;
+    color: $blue;
+    text-style: bold;
+}
+
+.linked-repository-heading {
+    height: 1;
+    margin-bottom: 1;
+}
+
+.linked-repository-git-status {
+    width: auto;
+    margin-left: 1;
+}
+
+.linked-repository-details {
+    height: 1;
+    margin-left: 2;
+}
+
+.linked-repository-url {
+    width: 1fr;
+    color: $blue;
+    text-style: underline;
+    link-color: $blue;
+    link-style: underline;
+}
+
+.linked-repository-lifecycle {
+    width: 37;
+}
+
+.linked-repository-lifecycle Button {
+    min-width: 10;
+    margin: 0 1 0 0;
+    padding: 0 2;
+    border: none;
+    background: $purple 30%;
+    color: $purple;
+}
+
+.linked-repository-lifecycle Button:hover {
+    background: $purple 50%;
+}
+
+.linked-repository-lifecycle Button:focus {
+    background: $purple;
+    color: $bg-dark;
+    text-style: bold;
+}
+
+.linked-repository-lifecycle .linked-start-button {
+    background: $green 30%;
+    color: $green;
+}
+
+.linked-repository-lifecycle .linked-start-button:hover {
+    background: $green 50%;
+}
+
+.linked-repository-lifecycle .linked-start-button:focus {
+    background: $green;
+    color: $bg-dark;
+    text-style: bold;
+}
+
+.linked-repository-lifecycle .linked-stop-button,
+.linked-unlink-button {
+    background: $red 30%;
+    color: $red;
+}
+
+.linked-repository-lifecycle .linked-stop-button:hover {
+    background: $red 50%;
+}
+
+.linked-repository-lifecycle .linked-stop-button:focus {
+    background: $red;
+    color: $bg-dark;
+    text-style: bold;
+}
+
+.linked-repository-lifecycle .linked-restart-button {
+    background: $yellow 30%;
+    color: $yellow;
+}
+
+.linked-repository-lifecycle .linked-restart-button:hover {
+    background: $yellow 50%;
+}
+
+.linked-repository-lifecycle .linked-restart-button:focus {
+    background: $yellow;
+    color: $bg-dark;
+    text-style: bold;
+}
+
+.linked-unlink-button {
+    width: 12;
+    min-width: 12;
+    margin: 0 1 0 0;
+    padding: 0;
+    border: none;
+}
+
+.linked-unlink-button:hover {
+    background: $red 50%;
+}
+
+.linked-unlink-button:focus {
+    background: $red;
+    color: $bg-dark;
+    text-style: bold;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -943,4 +1111,36 @@ Toast.-error {
     background: $red;
     color: white;
     text-style: bold;
+}
+
+/* Disabled controls are neutral and never adopt an action hover/focus color. */
+Button:disabled {
+    background: $comment 30%;
+    color: $comment;
+    text-style: none;
+}
+
+/* These selectors override the more-specific action hover and focus rules above. */
+#btn-new-worktree:disabled,
+#btn-refresh:disabled,
+#btn-help:disabled,
+ContainerControls #btn-container-start:disabled,
+ContainerControls #btn-container-stop:disabled,
+ContainerControls #btn-container-restart:disabled,
+ContainerControls #btn-ride:disabled,
+StatusLine #btn-delete-worktree:disabled,
+.linked-repository-lifecycle Button:disabled,
+.linked-repository-lifecycle .linked-start-button:disabled,
+.linked-repository-lifecycle .linked-stop-button:disabled,
+.linked-repository-lifecycle .linked-restart-button:disabled,
+.linked-unlink-button:disabled,
+ModalScreen #cancel-btn:disabled,
+ModalScreen #confirm-btn:disabled,
+ModalScreen #create-btn:disabled,
+ModalScreen #delete-btn:disabled,
+ErrorView #btn-error-dismiss:disabled,
+#no-config-dialog #quit-btn:disabled {
+    background: $comment 30%;
+    color: $comment;
+    text-style: none;
 }
