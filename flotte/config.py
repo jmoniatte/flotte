@@ -12,6 +12,32 @@ CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
 @dataclass(frozen=True)
+class PortRange:
+    """A named inclusive range from which linked worktrees receive a port."""
+    name: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class LinkedRepository:
+    """A repository whose worktrees are paired with a primary project."""
+    name: str
+    path: str
+    worktree_path: str
+    worktree_prefix: str
+    ports: tuple[PortRange, ...] = ()
+    post_create_commands: tuple[str, ...] = ()
+    post_delete_commands: tuple[str, ...] = ()
+    pre_start_commands: tuple[str, ...] = ()
+    start_command: str = ""
+    status_port_env: str = ""
+    status_port_file: str = ".env.local"
+    status_port_label: str = "Port"
+    open_url_path: str = ""
+
+
+@dataclass(frozen=True)
 class Project:
     """A configured project with its settings."""
     name: str
@@ -24,6 +50,7 @@ class Project:
     # Only ".env" is auto-loaded by docker compose; other values need --env-file.
     env_file: str = ".env"
     clone_paths: tuple[str, ...] = ()
+    linked_repositories: tuple[LinkedRepository, ...] = ()
 
 
 @dataclass
@@ -40,6 +67,64 @@ class Config:
 def ensure_config_dir() -> None:
     """Create config directory if it doesn't exist."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _commands(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return ()
+    return tuple(str(command) for command in value if str(command).strip())
+
+
+def _linked_repositories(value: object) -> tuple[LinkedRepository, ...]:
+    if not isinstance(value, list):
+        return ()
+
+    repositories: list[LinkedRepository] = []
+    required = ("name", "path", "worktree_path", "worktree_prefix")
+    for item in value:
+        if not isinstance(item, dict):
+            logger.warning("Skipping invalid linked repository entry: %s", item)
+            continue
+        missing = [field for field in required if field not in item]
+        if missing:
+            logger.warning("Skipping linked repository missing fields %s: %s", missing, item)
+            continue
+
+        ports: list[PortRange] = []
+        raw_ports = item.get("ports", {})
+        if isinstance(raw_ports, dict):
+            for name, port_range in raw_ports.items():
+                if not isinstance(port_range, str) or "-" not in port_range:
+                    logger.warning("Skipping invalid port range for %s: %s", name, port_range)
+                    continue
+                try:
+                    start, end = (int(part.strip()) for part in port_range.split("-", 1))
+                except ValueError:
+                    logger.warning("Skipping invalid port range for %s: %s", name, port_range)
+                    continue
+                if not 1 <= start <= end <= 65535:
+                    logger.warning("Skipping out-of-range ports for %s: %s", name, port_range)
+                    continue
+                ports.append(PortRange(str(name), start, end))
+
+        repositories.append(LinkedRepository(
+            name=str(item["name"]),
+            path=str(item["path"]),
+            worktree_path=str(item["worktree_path"]),
+            worktree_prefix=str(item["worktree_prefix"]),
+            ports=tuple(ports),
+            post_create_commands=_commands(item.get("post_create_commands", [])),
+            post_delete_commands=_commands(item.get("post_delete_commands", [])),
+            pre_start_commands=_commands(item.get("pre_start_commands", [])),
+            start_command=str(item.get("start_command", "")).strip(),
+            status_port_env=str(item.get("status_port_env", "")),
+            status_port_file=str(item.get("status_port_file", ".env.local")),
+            status_port_label=str(item.get("status_port_label", "Port")),
+            open_url_path=str(item.get("open_url_path", "")).strip(),
+        ))
+    return tuple(repositories)
 
 
 def load_config() -> Config:
@@ -78,22 +163,16 @@ def load_config() -> Config:
                 if isinstance(raw_clone_paths, list):
                     clone_paths_list = [str(p) for p in raw_clone_paths]
 
-                raw_post_create_commands = proj_data.get("post_create_commands", [])
-                if isinstance(raw_post_create_commands, str):
-                    raw_post_create_commands = [raw_post_create_commands]
-                post_create_commands_list: list[str] = []
-                if isinstance(raw_post_create_commands, list):
-                    post_create_commands_list = [str(c) for c in raw_post_create_commands if str(c).strip()]
-
                 config.projects.append(Project(
                     name=str(proj_data["name"]),
                     path=str(proj_data["path"]),
                     worktree_path=str(proj_data["worktree_path"]),
                     worktree_prefix=str(proj_data["worktree_prefix"]),
-                    post_create_commands=tuple(post_create_commands_list),
+                    post_create_commands=_commands(proj_data.get("post_create_commands", [])),
                     ride_command=str(proj_data.get("ride_command", "")),
                     env_file=str(proj_data.get("env_file") or ".env"),
                     clone_paths=tuple(clone_paths_list),  # flat list of relative paths
+                    linked_repositories=_linked_repositories(proj_data.get("linked_repositories", [])),
                 ))
 
     except yaml.YAMLError as e:
@@ -125,6 +204,28 @@ def save_config(config: Config) -> None:
                 proj_dict["post_create_commands"] = list(project.post_create_commands)
             if project.clone_paths:
                 proj_dict["clone_paths"] = list(project.clone_paths)
+            if project.linked_repositories:
+                proj_dict["linked_repositories"] = [
+                    {
+                        "name": linked.name,
+                        "path": linked.path,
+                        "worktree_path": linked.worktree_path,
+                        "worktree_prefix": linked.worktree_prefix,
+                        "ports": {
+                            port.name: f"{port.start}-{port.end}"
+                            for port in linked.ports
+                        },
+                        "post_create_commands": list(linked.post_create_commands),
+                        "post_delete_commands": list(linked.post_delete_commands),
+                        "pre_start_commands": list(linked.pre_start_commands),
+                        "start_command": linked.start_command,
+                        "status_port_env": linked.status_port_env,
+                        "status_port_file": linked.status_port_file,
+                        "status_port_label": linked.status_port_label,
+                        "open_url_path": linked.open_url_path,
+                    }
+                    for linked in project.linked_repositories
+                ]
             projects_list.append(proj_dict)
         data["projects"] = projects_list
 

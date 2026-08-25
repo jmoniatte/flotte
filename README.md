@@ -91,6 +91,64 @@ projects:
 - `clone_paths` - Extra files or directories, relative to the repo root, copied from the main repo
   into a new worktree. Only applied when "Clone volumes and bind mounts from main" is checked;
   paths that don't exist in the main repo are skipped
+- `linked_repositories` - Optional repositories whose worktrees can be created on demand from a
+  primary worktree. Each entry needs `name`, `path`, `worktree_path`, and `worktree_prefix`.
+
+### Linked Repositories
+
+Linked Repositories are useful for a React frontend, or any repository that should share a branch
+and lifecycle with the Docker project without itself running in Docker. Select a worktree and use
+the **Link** button to create its companion worktree with the same branch name. Flotte records the
+pairing in local state; **Unlink** removes the companion worktree. A linked worktree is also
+removed when its primary worktree is deleted. Linked worktrees must be clean before deletion.
+
+```yaml
+    linked_repositories:
+      - name: Frontend
+        path: /var/www/my-project-frontend
+        worktree_path: /var/www/
+        worktree_prefix: "my-project-frontend-"
+        ports:
+          dev_server: "5100-5199"
+        # Read the assigned frontend port after the setup command writes this file.
+        status_port_env: VITE_PORT
+        status_port_file: .env.local
+        status_port_label: Vite
+        # Open this route in the selected Docker worktree while the frontend is running.
+        open_url_path: /?hot=v:{port}
+        post_create_commands:
+          - /var/www/scripts/configure-project-link
+        # Run before every Start, including a managed primary checkout.
+        pre_start_commands:
+          - /var/www/scripts/configure-project-link
+        # Keep the server in the foreground so Flotte can stop and restart it.
+        start_command: pnpm dev
+        post_delete_commands:
+          - /var/www/scripts/remove-project-link
+```
+
+`ports` maps a name to an inclusive local port range. Flotte chooses an available port and retains
+the assignment in `~/.local/state/flotte/linked-worktrees.yaml`. Link commands run from the linked
+worktree and receive `FLOTTE_PRIMARY_PATH`, `FLOTTE_LINKED_PATH`, `FLOTTE_WORKTREE_NAME`,
+`FLOTTE_BRANCH`, and one `FLOTTE_PORT_<NAME>` variable per allocated port. The same variables are
+available to `post_delete_commands`, which can remove or reset primary-repository configuration
+such as a frontend URL. Commands should be idempotent so a failed setup can safely be retried.
+Set `start_command` to launch a linked repository's long-running development process after setup.
+Flotte records and stops that process when the linked worktree is removed. It shows **Start** when
+the process is stopped, and **Stop** and **Restart** while it is running. The linked URL is shown
+only while that process is running. The command must keep its server in the foreground; commands
+that daemonize or background their server are externally managed and cannot be safely stopped or
+restarted by Flotte.
+
+Set `pre_start_commands` for idempotent commands that must run immediately before every managed
+process start. This is useful for a primary checkout, which has no linked-worktree creation hook.
+
+Set `status_port_env` to display a port read from the linked worktree's env file. Use
+`status_port_file` to select that file (default: `.env.local`) and `status_port_label` to name the
+port in the UI. This is useful when a setup hook writes the frontend's local env file. Set
+`open_url_path` to the path and optional query string to open in the selected Docker worktree. Use
+`{port}` to substitute the configured status port. For example, `/?hot=v:{port}` produces
+`http://localhost:PORT?hot=v:27882` when the frontend's status port is `27882`.
 
 ### post_create_commands
 

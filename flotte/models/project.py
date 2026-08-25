@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -168,6 +169,8 @@ class Project:
                     line = await proc.stdout.readline()
                     if not line:
                         break
+                    if not self._is_project_event(line):
+                        continue
                     await self._wait_out_burst(proc.stdout)
                     self._wake.set()
             except asyncio.CancelledError:
@@ -184,6 +187,18 @@ class Project:
 
             # Docker daemon may be down or restarting
             await asyncio.sleep(10.0)
+
+    def _is_project_event(self, line: bytes) -> bool:
+        """Return whether a Docker event belongs to one of this project's worktrees."""
+        try:
+            event = json.loads(line)
+            attributes = event.get("Actor", {}).get("Attributes", {})
+            compose_project = attributes.get("com.docker.compose.project")
+        except (json.JSONDecodeError, AttributeError):
+            return False
+        return compose_project in {
+            worktree.compose_project_name for worktree in self.worktrees.values()
+        }
 
     @staticmethod
     async def _wait_out_burst(stdout: asyncio.StreamReader) -> None:

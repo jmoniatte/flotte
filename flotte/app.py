@@ -1,4 +1,5 @@
 import asyncio
+from functools import partial
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -13,7 +14,7 @@ from .models import Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
 from .messages import OperationCompleted, WorktreeStatusChanged
-from .services import RideWrapper, WorktreeManager
+from .services import LinkedWorktreeManager, RideWrapper, WorktreeManager
 from .screens import (
     ConfirmDialog,
     CreateWorktreeScreen,
@@ -29,6 +30,8 @@ from .widgets import (
     WorktreeChanged,
     ProgressView,
     ErrorView,
+    LinkedRepositories,
+    LinkedRepositoryAction,
     StatusLine,
 )
 from . import __version__
@@ -90,6 +93,7 @@ class FlotteApp(App):
 
         # WorktreeManager for discovery and lifecycle operations
         self.worktree_manager: WorktreeManager | None = None
+        self.linked_worktree_manager: LinkedWorktreeManager | None = None
         if self.current_config_project:
             self.worktree_manager = WorktreeManager(
                 main_repo_path=Path(self.current_config_project.path),
@@ -99,6 +103,10 @@ class FlotteApp(App):
                 env_file=self.current_config_project.env_file,
                 post_create_commands=self.current_config_project.post_create_commands,
             )
+            if self.current_config_project.linked_repositories:
+                self.linked_worktree_manager = LinkedWorktreeManager(
+                    self.current_config_project.linked_repositories
+                )
 
         self.selected_worktree: Worktree | None = None
 
@@ -162,6 +170,7 @@ class FlotteApp(App):
                 yield ProgressView(id="progress-view")
                 yield ErrorView(id="error-view")
                 yield ContainerControls(id="container-controls")
+                yield LinkedRepositories(id="linked-repositories")
 
     # Operation lock helpers
 
@@ -247,6 +256,10 @@ class FlotteApp(App):
             env_file=config_project.env_file,
             post_create_commands=config_project.post_create_commands,
         )
+        self.linked_worktree_manager = (
+            LinkedWorktreeManager(config_project.linked_repositories)
+            if config_project.linked_repositories else None
+        )
 
         # Clear UI state
         self._clear_ui_state()
@@ -278,8 +291,10 @@ class FlotteApp(App):
         # Reset controls
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = WorktreeStatus.UNKNOWN
-        controls.is_main = False
         controls.operation_active = False
+        delete_button = self.query_one("#btn-delete-worktree", Button)
+        delete_button.display = False
+        delete_button.disabled = True
 
         # Reset container box title
         self.query_one("#containers-box").border_title = "Containers"
@@ -314,6 +329,10 @@ class FlotteApp(App):
         # Discover worktrees via WorktreeManager
         discovered = await self.worktree_manager.discover_worktrees()
 
+        if self.linked_worktree_manager:
+            for worktree in discovered:
+                self.linked_worktree_manager.attach(worktree)
+
         # Copy discovered worktrees to Project model
         self.project.worktrees.clear()
         for wt in discovered:
@@ -331,9 +350,8 @@ class FlotteApp(App):
             first_wt = list(self.project.worktrees.values())[0]
             self.selected_worktree = first_wt
             header.select_worktree(self.selected_worktree)
-            self.query_one("#containers-box").border_title = self.selected_worktree.name
-            table = self.query_one("#container-table", ContainerTable)
-            table.worktree = self.selected_worktree
+            self.query_one("#container-table", ContainerTable).worktree = self.selected_worktree
+            self._update_container_view(refresh_linked_repositories=True)
 
         # Poll once immediately to get initial status
         if self.project:
@@ -387,18 +405,20 @@ class FlotteApp(App):
             return
 
         header = self.query_one("#worktree-header", WorktreeHeader)
-        header.refresh_worktrees(list(self.project.worktrees.values()))
+        if changed_worktree is None:
+            header.refresh_worktrees(list(self.project.worktrees.values()))
+        else:
+            header.update_worktree_status(changed_worktree)
 
         if self.selected_worktree:
             wt_name = self.selected_worktree.name
             fresh_wt = self.project.worktrees.get(wt_name)
             if fresh_wt is None:
                 self.selected_worktree = None
-            else:
-                # Selected worktree is the same object (no replacement)
-                table = self.query_one("#container-table", ContainerTable)
-                table.worktree = self.selected_worktree
-                if changed_worktree is None or changed_worktree.name == wt_name:
+            elif changed_worktree is None or changed_worktree.name == wt_name:
+                self.query_one("#container-table", ContainerTable).sync_worktree(fresh_wt)
+                self._refresh_linked_repositories()
+                if changed_worktree is None:
                     self.run_worker(self._fetch_git_status())
 
         self._update_container_view()
@@ -409,7 +429,7 @@ class FlotteApp(App):
             return WorktreeStatus.UNKNOWN
         return self.selected_worktree.status
 
-    def _update_container_view(self) -> None:
+    def _update_container_view(self, *, refresh_linked_repositories: bool = False) -> None:
         """Show/hide container box widgets based on effective status."""
         status = self._effective_status()
 
@@ -426,12 +446,27 @@ class FlotteApp(App):
 
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = status
-        controls.is_main = self.selected_worktree.is_main if self.selected_worktree else False
         # Only a running command locks the buttons - a worktree left half-up after
         # the command returns must stay actionable
         controls.operation_active = self._operation_in_progress
 
+        delete_button = self.query_one("#btn-delete-worktree", Button)
+        can_delete = (
+            self.selected_worktree is not None
+            and not self.selected_worktree.is_main
+            and status == WorktreeStatus.STOPPED
+            and all(
+                link.path is None or not link.can_start or link.process_status == "stopped"
+                for link in self.selected_worktree.linked_worktrees
+            )
+            and not self._operation_in_progress
+        )
+        delete_button.display = can_delete
+        delete_button.disabled = False
+
         self._update_box_title()
+        if refresh_linked_repositories:
+            self._refresh_linked_repositories()
 
     def _update_box_title(self) -> None:
         """Update containers-box border title to show selected worktree name."""
@@ -441,17 +476,43 @@ class FlotteApp(App):
         else:
             box.border_title = "Containers"
 
+    def _refresh_linked_repositories(self) -> None:
+        widget = self.query_one("#linked-repositories", LinkedRepositories)
+        if not widget.update_worktree(self.selected_worktree):
+            self._mount_linked_repositories()
+
+    @work(group="linked-repositories", exclusive=True)
+    async def _mount_linked_repositories(self) -> None:
+        await self.query_one("#linked-repositories", LinkedRepositories).show_worktree(
+            self.selected_worktree
+        )
+
+    def on_linked_repository_action(self, event: LinkedRepositoryAction) -> None:
+        handlers = {
+            "link": self._request_create_link,
+            "start": partial(self._request_link_lifecycle, "start"),
+            "stop": partial(self._request_link_lifecycle, "stop"),
+            "restart": partial(self._request_link_lifecycle, "restart"),
+            "unlink": self._request_delete_link,
+        }
+        handler = handlers.get(event.action)
+        if handler:
+            handler(event.repository_name)
+
     def on_worktree_changed(self, event: WorktreeChanged) -> None:
-        """Handle worktree selection from dropdown."""
+        """Handle worktree selection from the worktree table."""
         if not self.project:
             return
+        if (
+            self.selected_worktree is not None
+            and self.selected_worktree.name == event.worktree.name
+        ):
+            return
         fresh_wt = self.project.worktrees.get(event.worktree.name)
-        # Use fresh object if available
         self.selected_worktree = fresh_wt if fresh_wt else event.worktree
-
-        self.run_worker(self._fetch_git_status())
         self.query_one("#container-table", ContainerTable).worktree = self.selected_worktree
-        self._update_container_view()
+        self._update_container_view(refresh_linked_repositories=True)
+        self.run_worker(self._fetch_git_status())
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -491,15 +552,25 @@ class FlotteApp(App):
                 wt = self.selected_worktree
                 if wt is None:
                     return
-                git_status = await self.worktree_manager.get_git_status(wt)
+                git_status, linked_statuses = await asyncio.gather(
+                    self.worktree_manager.get_git_status(wt),
+                    self.linked_worktree_manager.linked_statuses(wt)
+                    if self.linked_worktree_manager else self._empty_linked_statuses(),
+                )
                 if self._git_fetch_queued:
                     continue
                 if self.selected_worktree and self.selected_worktree.name == wt.name:
                     header = self.query_one("#worktree-header", WorktreeHeader)
-                    header.update_git_status(git_status)
+                    header.update_git_status(wt.name, git_status)
+                    for linked in wt.linked_worktrees:
+                        linked.git_status = linked_statuses.get(linked.repository_name)
+                    self._refresh_linked_repositories()
                 return
         finally:
             self._git_fetch_running = False
+
+    async def _empty_linked_statuses(self) -> dict[str, dict]:
+        return {}
 
     # Action methods
 
@@ -694,6 +765,105 @@ class FlotteApp(App):
         # Start lightweight worker to check git status
         self.run_worker(self._prepare_delete(wt))
 
+    def _request_create_link(self, repository_name: str) -> None:
+        if not self.selected_worktree or not self.linked_worktree_manager:
+            return
+        if not self._acquire_operation_lock("link", self.selected_worktree.name):
+            return
+        self.run_worker(
+            self._create_link(self.selected_worktree, repository_name),
+            name="op-link",
+            exclusive=False,
+        )
+
+    async def _create_link(self, worktree: Worktree, repository_name: str) -> None:
+        try:
+            result = await self.linked_worktree_manager.create_link(worktree, repository_name)
+            if result.state == "error":
+                self.notify(f"Link setup failed: {result.error}", severity="error")
+            else:
+                self.notify(f"Linked {repository_name}", severity="information")
+            self._update_container_view(refresh_linked_repositories=True)
+        finally:
+            self._release_operation_lock()
+
+    def _request_link_lifecycle(self, action: str, repository_name: str) -> None:
+        if not self.selected_worktree or not self.linked_worktree_manager:
+            return
+        if not self._acquire_operation_lock(f"{action}-linked", self.selected_worktree.name):
+            return
+        self.run_worker(
+            self._run_link_lifecycle(self.selected_worktree, repository_name, action),
+            name=f"op-{action}-linked",
+            exclusive=False,
+        )
+
+    async def _run_link_lifecycle(
+        self,
+        worktree: Worktree,
+        repository_name: str,
+        action: str,
+    ) -> None:
+        operations = {
+            "start": self.linked_worktree_manager.start_link,
+            "stop": self.linked_worktree_manager.stop_link,
+            "restart": self.linked_worktree_manager.restart_link,
+        }
+        messages = {
+            "start": ("Started", "Failed to start"),
+            "stop": ("Stopped", "Failed to stop"),
+            "restart": ("Restarted", "Failed to restart"),
+        }
+        try:
+            await operations[action](worktree, repository_name)
+            self._update_container_view(refresh_linked_repositories=True)
+            self.notify(f"{messages[action][0]} {repository_name}", severity="information")
+        except Exception as error:
+            self.notify(f"{messages[action][1]} {repository_name}: {error}", severity="error")
+        finally:
+            self._release_operation_lock()
+
+    def _request_delete_link(self, repository_name: str) -> None:
+        if not self.selected_worktree or not self.linked_worktree_manager:
+            return
+        self.run_worker(self._prepare_delete_link(self.selected_worktree, repository_name))
+
+    async def _prepare_delete_link(self, worktree: Worktree, repository_name: str) -> None:
+        status = (await self.linked_worktree_manager.linked_statuses(worktree)).get(repository_name)
+        if status and any(status[key] for key in ("modified", "staged", "untracked")):
+            self.notify(f"Clean {repository_name} before deleting", severity="warning")
+            return
+        self._clear_action_focus()
+        self.push_screen(
+            ConfirmDialog(
+                f"Delete the linked {repository_name} worktree?",
+                title="Delete Linked Worktree",
+                confirm_label="Delete",
+                cancel_label="Cancel",
+            ),
+            callback=lambda confirmed, wt=worktree, name=repository_name: self._on_delete_link_confirmed(wt, name, confirmed),
+        )
+
+    def _on_delete_link_confirmed(self, worktree: Worktree, repository_name: str, confirmed: bool) -> None:
+        if not confirmed:
+            self._update_container_view(refresh_linked_repositories=True)
+            return
+        if not self._acquire_operation_lock("unlink", worktree.name):
+            self._update_container_view(refresh_linked_repositories=True)
+            return
+        self.run_worker(self._delete_link(worktree, repository_name), name="op-unlink", exclusive=False)
+
+    async def _delete_link(self, worktree: Worktree, repository_name: str) -> None:
+        try:
+            await self.linked_worktree_manager.remove_link(worktree, repository_name)
+            self.linked_worktree_manager.attach(worktree)
+            self._update_container_view(refresh_linked_repositories=True)
+            self.notify(f"Unlinked {repository_name}", severity="information")
+        except Exception as error:
+            self.notify(f"Failed to unlink {repository_name}: {error}", severity="error")
+        finally:
+            self._release_operation_lock()
+
     async def _prepare_delete(self, wt: Worktree) -> None:
         """Check git status and initiate delete dialog chain.
 
@@ -714,11 +884,30 @@ class FlotteApp(App):
                 return
 
             git_status = await self.worktree_manager.get_git_status(wt)
+            linked_statuses = {}
+            if self.linked_worktree_manager:
+                linked_statuses = await self.linked_worktree_manager.linked_statuses(wt)
             has_changes = (
                 git_status["modified"] > 0 or
                 git_status["staged"] > 0 or
                 git_status["untracked"] > 0
             )
+
+            dirty_links = []
+            for repository_name, linked_status in linked_statuses.items():
+                changed = sum(
+                    linked_status[key]
+                    for key in ("modified", "staged", "untracked")
+                )
+                if changed:
+                    dirty_links.append(f"{repository_name} ({changed} changes)")
+
+            if dirty_links:
+                self.notify(
+                    "Clean linked worktrees before deleting: " + ", ".join(dirty_links),
+                    severity="warning",
+                )
+                return
 
             # Check again after async call
             if self._operation_in_progress:
@@ -806,15 +995,20 @@ class FlotteApp(App):
             self.notify("Worktree no longer exists", severity="error")
             return
 
+        self._clear_action_focus()
         self.push_screen(
-            DeleteWorktreeScreen(wt, self.worktree_manager),
+            DeleteWorktreeScreen(wt, self.worktree_manager, self.linked_worktree_manager),
             callback=lambda result: self._on_delete_result(result)
         )
+
+    def _clear_action_focus(self) -> None:
+        """Avoid leaving an action button visually focused behind a modal."""
+        self.screen.set_focus(None)
 
     def _on_delete_result(self, result: DeleteWorktreeResult | None) -> None:
         """Handle delete modal result."""
         if result is None:
-            # User cancelled
+            self._update_container_view()
             return
 
         if result.success:
@@ -822,8 +1016,7 @@ class FlotteApp(App):
             # Refresh worktrees and select main
             self.run_worker(self._post_delete_refresh(result.worktree_name))
         else:
-            # Error was already shown in modal
-            pass
+            self._update_container_view()
 
     async def _post_delete_refresh(self, deleted_name: str) -> None:
         """Refresh worktrees after deletion and select main."""
@@ -890,4 +1083,3 @@ class FlotteApp(App):
             webbrowser.open(url)
         else:
             self.notify("No web server URL available", severity="warning")
-

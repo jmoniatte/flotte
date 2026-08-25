@@ -22,6 +22,31 @@ projects:
     # Docker compose only auto-loads .env; anything else must be passed
     # to compose with --env-file by your own tooling.
     env_file: .env
+    # Optional worktrees created on demand from a primary worktree.
+    # Commands receive FLOTTE_PRIMARY_PATH, FLOTTE_LINKED_PATH,
+    # FLOTTE_WORKTREE_NAME, FLOTTE_BRANCH, and FLOTTE_PORT_<NAME>.
+    linked_repositories:
+      - name: Frontend
+        path: /var/www/my-project-frontend
+        worktree_path: /var/www/
+        worktree_prefix: "my-project-frontend-"
+        ports:
+          dev_server: "5100-5199"
+        # Optional port shown with the linked worktree status.
+        status_port_env: VITE_PORT
+        status_port_file: .env.local
+        status_port_label: Vite
+        # Optional path added to the primary project's URL when opening this link.
+        open_url_path: /?hot=v:{port}
+        post_create_commands:
+          - /var/www/scripts/configure-project-link
+        # Optional long-running development command started after linking.
+        # Commands that must also configure the main checkout go here.
+        pre_start_commands:
+          - /var/www/scripts/configure-project-link
+        start_command: pnpm dev
+        post_delete_commands:
+          - /var/www/scripts/remove-project-link
 
   # Project configured for a dedicated worktree directory
   - name: Another Project

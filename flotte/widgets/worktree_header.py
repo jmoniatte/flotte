@@ -1,10 +1,13 @@
 from textual.containers import Vertical
+from textual import events
 from textual.widgets import DataTable
+from textual.widgets._data_table import CellDoesNotExist
 from textual.reactive import reactive
 from textual.message import Message
+from rich.style import Style
 from rich.text import Text
 
-from ..models import Worktree, WorktreeStatus
+from ..models import Worktree
 from ..theme import get_status_style
 
 
@@ -27,11 +30,26 @@ class WorktreeTable(DataTable):
     def on_mount(self) -> None:
         self.cursor_foreground_priority = "renderable"
         self.add_column("", key="status", width=3)
-        self.add_column("Name", key="name", width=20)
-        self.add_column("URL", key="url", width=25)
-        self.add_column("Path", key="path", width=40)
+        self.add_column("Name", key="name", width=30)
+        self.add_column("URL", key="url", width=50)
         self.add_column("Git", key="git", width=20)
         self.cursor_type = "row"
+        self.call_after_refresh(self._fit_columns)
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Keep the useful worktree columns balanced across the available width."""
+        self._fit_columns()
+
+    def _fit_columns(self) -> None:
+        padding = self.cell_padding * 2 * len(self.columns)
+        available = max(self.size.width - padding - 3, 69)
+        name = max(28, int(available * 0.40))
+        git = max(12, int(available * 0.15))
+        url = max(30, available - name - git)
+
+        self.columns["name"].width = name
+        self.columns["url"].width = url
+        self.columns["git"].width = git
 
     def _format_status(self, wt: Worktree) -> Text:
         """Format status icon for a worktree."""
@@ -45,16 +63,14 @@ class WorktreeTable(DataTable):
         """Format URL for a worktree."""
         url = wt.web_url
         if url:
-            return Text.from_markup(f"[@click=app.open_url('{url}')]{url}[/]", style="cyan underline")
+            text = Text(self._display_url(url), style="cyan underline")
+            text.stylize(Style(meta={"@click": f"app.open_url({url!r})"}))
+            return text
         return Text("-", style="dim")
 
-    def _format_path(self, wt: Worktree) -> Text:
-        from pathlib import Path
-        home = str(Path.home())
-        path_str = str(wt.path)
-        if path_str.startswith(home):
-            path_str = "~" + path_str[len(home):]
-        return Text(path_str, style="dim")
+    @staticmethod
+    def _display_url(url: str) -> str:
+        return url.removeprefix("http://").removeprefix("https://")
 
     def _format_git(self, wt: Worktree) -> Text:
         git_status = self._git_statuses.get(wt.name)
@@ -102,7 +118,6 @@ class WorktreeTable(DataTable):
                 self._format_status(wt),
                 self._format_name(wt),
                 self._format_url(wt),
-                self._format_path(wt),
                 self._format_git(wt),
                 key=wt.name,
             )
@@ -117,11 +132,19 @@ class WorktreeTable(DataTable):
     def update_git_status(self, worktree_name: str, git_status: dict) -> None:
         """Update git status for a worktree."""
         self._git_statuses[worktree_name] = git_status
-        # Remember selection before rebuilding
-        selected_name = None
-        if self.cursor_row is not None and 0 <= self.cursor_row < len(self._worktrees):
-            selected_name = self._worktrees[self.cursor_row].name
-        self._rebuild_table(selected_name)
+        worktree = next((item for item in self._worktrees if item.name == worktree_name), None)
+        if worktree is not None:
+            try:
+                self.update_cell(worktree_name, "git", self._format_git(worktree))
+            except CellDoesNotExist:
+                pass
+
+    def update_worktree_status(self, worktree: Worktree) -> None:
+        """Update one status cell without rebuilding the worktree table."""
+        try:
+            self.update_cell(worktree.name, "status", self._format_status(worktree))
+        except CellDoesNotExist:
+            pass
 
     def get_selected_worktree(self) -> Worktree | None:
         """Get currently selected worktree."""
@@ -162,7 +185,7 @@ class WorktreeHeader(Vertical):
         """Select the worktree at the current cursor position."""
         table = self.query_one("#worktree-table", WorktreeTable)
         wt = table.get_selected_worktree()
-        if wt and wt != self.selected_worktree:
+        if wt:
             self.selected_worktree = wt
             self.post_message(WorktreeChanged(wt))
 
@@ -175,11 +198,14 @@ class WorktreeHeader(Vertical):
                 table.move_cursor(row=i)
                 break
 
-    def update_git_status(self, git_status: dict | None) -> None:
-        """Update git status for selected worktree."""
-        if self.selected_worktree and git_status:
+    def update_git_status(self, worktree_name: str, git_status: dict | None) -> None:
+        """Update git status for one worktree."""
+        if git_status:
             table = self.query_one("#worktree-table", WorktreeTable)
-            table.update_git_status(self.selected_worktree.name, git_status)
+            table.update_git_status(worktree_name, git_status)
+
+    def update_worktree_status(self, worktree: Worktree) -> None:
+        self.query_one("#worktree-table", WorktreeTable).update_worktree_status(worktree)
 
     def clear(self) -> None:
         """Clear the display."""

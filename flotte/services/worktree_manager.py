@@ -20,6 +20,7 @@ class WorktreeManager:
         clone_paths: tuple[str, ...] = (),
         env_file: str = ".env",
         post_create_commands: tuple[str, ...] = (),
+        manage_environment: bool = True,
     ):
         self.main_repo_path = main_repo_path.resolve()
         self.parent_dir = worktree_parent.resolve()
@@ -28,6 +29,7 @@ class WorktreeManager:
         self.clone_paths = clone_paths
         self.env_file = env_file
         self.post_create_commands = post_create_commands
+        self.manage_environment = manage_environment
         self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
 
@@ -250,10 +252,11 @@ class WorktreeManager:
         if returncode != 0:
             raise RuntimeError(f"Failed to create worktree: {stderr}")
 
-        # Get next port offset and generate the env file
-        offset = self.find_next_port_offset()
-        compose_project_name = f"{self.get_compose_project_prefix()}-{sanitized_name}"
-        self._generate_env_file(worktree_path, compose_project_name, offset)
+        compose_project_name = ""
+        if self.manage_environment:
+            offset = self.find_next_port_offset()
+            compose_project_name = f"{self.get_compose_project_prefix()}-{sanitized_name}"
+            self._generate_env_file(worktree_path, compose_project_name, offset)
 
         # Create and cache worktree object
         worktree = Worktree(
