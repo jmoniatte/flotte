@@ -19,6 +19,14 @@ class WorktreeChanged(Message):
         super().__init__()
 
 
+class WorktreeOpened(Message):
+    """Posted when the user activates a worktree row."""
+
+    def __init__(self, worktree: Worktree) -> None:
+        self.worktree = worktree
+        super().__init__()
+
+
 class WorktreeTable(DataTable):
     """DataTable for worktrees with status, name, URL, git status."""
 
@@ -39,6 +47,23 @@ class WorktreeTable(DataTable):
     def on_resize(self, event: events.Resize) -> None:
         """Keep the useful worktree columns balanced across the available width."""
         self._fit_columns()
+
+    async def _on_click(self, event: events.Click) -> None:
+        """Open a clicked data row independently of Textual's selection behavior."""
+        await super()._on_click(event)
+
+        row = event.style.meta.get("row")
+        if (
+            isinstance(row, int)
+            and 0 <= row < len(self._worktrees)
+        ):
+            self.post_message(WorktreeOpened(self._worktrees[row]))
+
+    def action_select_cursor(self) -> None:
+        """Open the highlighted row when Enter is pressed."""
+        worktree = self.get_selected_worktree()
+        if worktree:
+            self.post_message(WorktreeOpened(worktree))
 
     def _fit_columns(self) -> None:
         padding = self.cell_padding * 2 * len(self.columns)
@@ -173,21 +198,19 @@ class WorktreeHeader(Vertical):
         table = self.query_one("#worktree-table", WorktreeTable)
         table.refresh_worktrees(worktrees)
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle row selection (click/Enter)."""
-        self._select_current_row()
-
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Handle cursor movement (arrow keys)."""
         self._select_current_row()
 
-    def _select_current_row(self) -> None:
+    def _select_current_row(self, *, notify: bool = True) -> Worktree | None:
         """Select the worktree at the current cursor position."""
         table = self.query_one("#worktree-table", WorktreeTable)
         wt = table.get_selected_worktree()
         if wt:
             self.selected_worktree = wt
-            self.post_message(WorktreeChanged(wt))
+            if notify:
+                self.post_message(WorktreeChanged(wt))
+        return wt
 
     def select_worktree(self, worktree: Worktree) -> None:
         """Programmatically select a worktree."""

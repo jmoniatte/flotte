@@ -53,6 +53,7 @@ class Worktree:
         self.compose_project_name = compose_project_name
         self.is_main = is_main
         self.linked_worktrees: list[LinkedWorktree] = []
+        self.git_status: dict | None = None
 
         # Containers keyed by service name (persist across polls)
         self.containers: dict[str, Container] = {}

@@ -28,6 +28,7 @@ from .widgets import (
     ContainerTable,
     WorktreeHeader,
     WorktreeChanged,
+    WorktreeOpened,
     ProgressView,
     ErrorView,
     LinkedRepositories,
@@ -56,7 +57,8 @@ class FlotteApp(App):
         Binding("o", "open_url", show=False),
         Binding("tab", "focus_next", show=False),
         Binding("shift+tab", "focus_previous", show=False),
-        Binding("escape", "quit", show=False),
+        Binding("escape", "escape", show=False),
+        Binding("b", "back_to_worktrees", show=False),
     ]
 
     def __init__(self):
@@ -109,10 +111,13 @@ class FlotteApp(App):
                 )
 
         self.selected_worktree: Worktree | None = None
+        self._showing_worktree_details = False
 
         # Git status fetch state (serializes fetches, one subprocess at a time)
         self._git_fetch_running: bool = False
         self._git_fetch_queued: bool = False
+        self._list_git_fetch_running: bool = False
+        self._list_git_fetch_queued: bool = False
 
         # Simple operation lock (prevents concurrent operations)
         self._operation_in_progress: bool = False
@@ -145,20 +150,21 @@ class FlotteApp(App):
 
         # Custom header with project selector
         with Horizontal(id="app-header"):
-            with Vertical(id="app-title-group"):
+            with Horizontal(id="app-title-group"):
                 yield Static("Flotte", id="app-title")
                 yield Static(f"v{__version__}", id="app-subtitle")
+            yield Static("", id="header-spacer")
             yield Select(
                 options=[(p.name, p) for p in self.config.projects],
                 value=self.current_config_project,
                 id="project-selector",
                 allow_blank=False,
             )
-            yield Static("", id="header-spacer")
 
         with Container(id="main-content"):
-            with Container(id="worktrees-box"):
-                yield WorktreeHeader(id="worktree-header")
+            with Container(id="list-view"):
+                with Container(id="worktrees-box"):
+                    yield WorktreeHeader(id="worktree-header")
                 with Horizontal(id="worktree-controls"):
                     yield Button("New", id="btn-new-worktree", variant="primary")
                     yield Button("Refresh", id="btn-refresh", variant="default")
@@ -216,6 +222,41 @@ class FlotteApp(App):
         except Exception:
             pass  # Progress view may not exist
 
+    def _set_view(self, *, show_details: bool) -> None:
+        """Switch between the worktree list and selected-worktree details."""
+        self._showing_worktree_details = show_details
+        self.query_one("#project-selector").display = not show_details
+        self.query_one("#list-view").display = not show_details
+        self.query_one("#containers-box").display = show_details
+
+        if not show_details:
+            self.query_one("#worktree-table").focus()
+
+    def _show_worktree_list(self) -> None:
+        """Show the compact worktree browser."""
+        self._set_view(show_details=False)
+
+    def _show_worktree_details(self) -> None:
+        """Show full-height controls for the selected worktree."""
+        if self.selected_worktree is None:
+            return
+        self._set_view(show_details=True)
+        self._refresh_detail_view(fetch_git_status=True)
+
+    def _refresh_detail_view(self, *, fetch_git_status: bool = False) -> None:
+        """Synchronize widgets shown for the selected worktree."""
+        if self.selected_worktree is None:
+            return
+
+        table = self.query_one("#container-table", ContainerTable)
+        if table.worktree is None or table.worktree.name != self.selected_worktree.name:
+            table.worktree = self.selected_worktree
+        else:
+            table.sync_worktree(self.selected_worktree)
+        self._update_container_view(refresh_linked_repositories=True)
+        if fetch_git_status:
+            self.run_worker(self._fetch_git_status())
+
     @on(Select.Changed, "#project-selector")
     def on_project_changed(self, event: Select.Changed) -> None:
         """Handle project selection change."""
@@ -263,6 +304,7 @@ class FlotteApp(App):
 
         # Clear UI state
         self._clear_ui_state()
+        self._show_worktree_list()
 
         # Discover worktrees for new project
         self.run_worker(self.refresh_worktrees())
@@ -283,6 +325,7 @@ class FlotteApp(App):
         # Reset status line
         status_line = self.query_one("#status-line", StatusLine)
         status_line.status = WorktreeStatus.UNKNOWN
+        status_line.git_status = None
 
         # Hide progress/error views
         self.query_one("#progress-view", ProgressView).display = False
@@ -308,6 +351,7 @@ class FlotteApp(App):
 
         self.query_one("#worktrees-box").border_title = "Worktrees"
         self.query_one("#containers-box").border_title = "Containers"
+        self._show_worktree_list()
 
         # Set initial display states
         self.query_one("#progress-view").display = False
@@ -350,13 +394,12 @@ class FlotteApp(App):
             first_wt = list(self.project.worktrees.values())[0]
             self.selected_worktree = first_wt
             header.select_worktree(self.selected_worktree)
-            self.query_one("#container-table", ContainerTable).worktree = self.selected_worktree
-            self._update_container_view(refresh_linked_repositories=True)
 
         # Poll once immediately to get initial status
         if self.project:
             await self.project.poll_once()
             self._update_ui_after_status_change()
+        self.run_worker(self._fetch_list_git_statuses())
 
     def _sync_worktree_ui(self) -> None:
         """Update UI from existing worktrees (no discovery)."""
@@ -415,11 +458,10 @@ class FlotteApp(App):
             fresh_wt = self.project.worktrees.get(wt_name)
             if fresh_wt is None:
                 self.selected_worktree = None
-            elif changed_worktree is None or changed_worktree.name == wt_name:
-                self.query_one("#container-table", ContainerTable).sync_worktree(fresh_wt)
-                self._refresh_linked_repositories()
-                if changed_worktree is None:
-                    self.run_worker(self._fetch_git_status())
+            elif self._showing_worktree_details and (
+                changed_worktree is None or changed_worktree.name == wt_name
+            ):
+                self._refresh_detail_view(fetch_git_status=changed_worktree is None)
 
         self._update_container_view()
 
@@ -433,7 +475,11 @@ class FlotteApp(App):
         """Show/hide container box widgets based on effective status."""
         status = self._effective_status()
 
-        self.query_one("#status-line", StatusLine).status = status
+        status_line = self.query_one("#status-line", StatusLine)
+        status_line.status = status
+        status_line.git_status = (
+            self.selected_worktree.git_status if self.selected_worktree else None
+        )
 
         # Show table for container-related states, progress for create/delete
         # During DELETING, show table so user sees containers disappearing
@@ -510,9 +556,15 @@ class FlotteApp(App):
             return
         fresh_wt = self.project.worktrees.get(event.worktree.name)
         self.selected_worktree = fresh_wt if fresh_wt else event.worktree
-        self.query_one("#container-table", ContainerTable).worktree = self.selected_worktree
-        self._update_container_view(refresh_linked_repositories=True)
-        self.run_worker(self._fetch_git_status())
+        if self._showing_worktree_details:
+            self._refresh_detail_view(fetch_git_status=True)
+
+    def on_worktree_opened(self, event: WorktreeOpened) -> None:
+        """Open the selected worktree's full-height detail view."""
+        if not self.project:
+            return
+        self.selected_worktree = self.project.worktrees.get(event.worktree.name, event.worktree)
+        self._show_worktree_details()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -560,14 +612,42 @@ class FlotteApp(App):
                 if self._git_fetch_queued:
                     continue
                 if self.selected_worktree and self.selected_worktree.name == wt.name:
+                    wt.git_status = git_status
                     header = self.query_one("#worktree-header", WorktreeHeader)
                     header.update_git_status(wt.name, git_status)
                     for linked in wt.linked_worktrees:
                         linked.git_status = linked_statuses.get(linked.repository_name)
+                    if self._showing_worktree_details:
+                        self.query_one("#status-line", StatusLine).git_status = git_status
                     self._refresh_linked_repositories()
                 return
         finally:
             self._git_fetch_running = False
+
+    async def _fetch_list_git_statuses(self) -> None:
+        """Populate Git column values without delaying worktree navigation."""
+        if self._list_git_fetch_running:
+            self._list_git_fetch_queued = True
+            return
+
+        self._list_git_fetch_running = True
+        try:
+            while True:
+                self._list_git_fetch_queued = False
+                if not self.project or not self.worktree_manager:
+                    return
+                worktrees = list(self.project.worktrees.values())
+                for worktree in worktrees:
+                    git_status = await self.worktree_manager.get_git_status(worktree)
+                    if self.project.worktrees.get(worktree.name) is worktree:
+                        worktree.git_status = git_status
+                        self.query_one("#worktree-header", WorktreeHeader).update_git_status(
+                            worktree.name, git_status
+                        )
+                if not self._list_git_fetch_queued:
+                    return
+        finally:
+            self._list_git_fetch_running = False
 
     async def _empty_linked_statuses(self) -> dict[str, dict]:
         return {}
@@ -577,6 +657,18 @@ class FlotteApp(App):
     def action_refresh(self) -> None:
         """Refresh worktree list and container status."""
         self.run_worker(self.refresh_worktrees())
+
+    def action_back_to_worktrees(self) -> None:
+        """Return to the worktree list."""
+        if self._showing_worktree_details:
+            self._show_worktree_list()
+
+    def action_escape(self) -> None:
+        """Return to the list, or quit when already browsing it."""
+        if self._showing_worktree_details:
+            self._show_worktree_list()
+        else:
+            self.exit()
 
     def action_start_environment(self) -> None:
         """Start Docker environment."""
@@ -742,6 +834,7 @@ class FlotteApp(App):
         self._sync_worktree_ui()
         self.selected_worktree = worktree
         self.query_one("#worktree-header", WorktreeHeader).select_worktree(worktree)
+        self._show_worktree_details()
         self.notify(f"Created {worktree.name}", severity="information")
 
     def action_delete_worktree(self) -> None:
@@ -1034,6 +1127,7 @@ class FlotteApp(App):
         if main_wt:
             self.selected_worktree = main_wt
             self.query_one("#worktree-header", WorktreeHeader).select_worktree(main_wt)
+        self._show_worktree_list()
 
     def action_show_help(self) -> None:
         """Show help screen - '?' key."""

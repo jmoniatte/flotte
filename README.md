@@ -182,6 +182,8 @@ flotte
 
 | Key | Action |
 |-----|--------|
+| `Enter` | Open selected worktree |
+| `b` or `Esc` | Return to worktrees (`Esc` quits from the worktree list) |
 | `n` | New worktree |
 | `d` | Delete worktree |
 | `s` | Start services |

@@ -29,12 +29,15 @@ Screen {
 }
 
 #app-title {
+    width: auto;
     text-style: bold;
     color: $blue;
 }
 
 #app-subtitle {
+    width: auto;
     color: $comment;
+    margin-left: 1;
 }
 
 #project-selector {
@@ -86,12 +89,12 @@ Screen {
     border: round $gutter;
     border-title-color: $yellow;
     border-title-style: bold;
-    padding: 0 1;
+    padding: 1 1;
     margin: 0 1 1 1;
 }
 
-#worktrees-box:focus-within {
-    border: round $blue;
+#list-view {
+    height: auto;
 }
 
 WorktreeHeader {
@@ -127,9 +130,9 @@ WorktreeHeader #worktree-table > .datatable--hover {
 
 #worktree-controls {
     height: 3;
-    padding: 0 0;
+    padding: 0 1;
+    margin: 0 1 1 1;
     background: transparent;
-    border-top: solid $gutter;
 }
 
 #worktree-controls Button {
@@ -198,11 +201,7 @@ WorktreeHeader #worktree-table > .datatable--hover {
     border-title-color: $yellow;
     border-title-style: bold;
     padding: 0;
-    margin: 0 1 1 1;
-}
-
-#containers-box:focus-within {
-    border: round $blue;
+    margin: 1 1 1 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -815,6 +814,11 @@ StatusLine .containers-title {
     width: auto;
     color: $blue;
     text-style: bold;
+}
+
+StatusLine .containers-git-status {
+    width: auto;
+    margin-left: 1;
 }
 
 StatusLine .spacer {

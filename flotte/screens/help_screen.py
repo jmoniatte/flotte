@@ -24,6 +24,9 @@ class HelpScreen(ModalScreen):
 
             yield Static("ACTIONS", classes="section-title")
             with Horizontal(classes="shortcut-row"):
+                yield Static("enter", classes="shortcut-key")
+                yield Static("Open selected worktree", classes="shortcut-desc")
+            with Horizontal(classes="shortcut-row"):
                 yield Static("n", classes="shortcut-key")
                 yield Static("Create worktree", classes="shortcut-desc")
             with Horizontal(classes="shortcut-row"):
@@ -46,6 +49,9 @@ class HelpScreen(ModalScreen):
             with Horizontal(classes="shortcut-row"):
                 yield Static("q", classes="shortcut-key")
                 yield Static("Quit", classes="shortcut-desc")
+            with Horizontal(classes="shortcut-row"):
+                yield Static("b / esc", classes="shortcut-key")
+                yield Static("Back to worktrees", classes="shortcut-desc")
             with Horizontal(classes="shortcut-row"):
                 yield Static("?", classes="shortcut-key")
                 yield Static("Show help", classes="shortcut-desc")
