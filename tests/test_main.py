@@ -38,9 +38,8 @@ class MainTests(unittest.TestCase):
                 projects=[
                     Project(
                         name="test",
-                        path="/tmp/test",
-                        worktree_path="/tmp/worktrees",
-                        worktree_prefix="test-",
+                        repository_path="/tmp/test",
+                        worktree_path="/tmp/worktrees/test-{worktree}",
                     )
                 ]
             )

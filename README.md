@@ -67,9 +67,8 @@ theme: onedark
 
 projects:
   - name: My Project
-    path: /var/www/my-project
-    worktree_path: /var/www/
-    worktree_prefix: "my-project"
+    repository_path: /var/www/my-project
+    worktree_path: /var/www/workspaces/{worktree}/my-project
     post_create_commands:
       - mise trust
       - bundle install
@@ -78,9 +77,8 @@ projects:
 
 **Required fields:**
 - `name` - Project display name
-- `path` - Path to main git repo
-- `worktree_path` - Directory where new worktrees are created
-- `worktree_prefix` - Prefix for worktree directory names (use `""` for no prefix)
+- `repository_path` - Path to the main git repository
+- `worktree_path` - Destination template for new worktrees; must include `{worktree}`
 
 **Optional fields:**
 - `theme` - Color theme: `onedark` (default) or `onelight`
@@ -92,7 +90,7 @@ projects:
   into a new worktree. Only applied when "Clone volumes and bind mounts from main" is checked;
   paths that don't exist in the main repo are skipped
 - `linked_repositories` - Optional repositories whose worktrees can be created on demand from a
-  primary worktree. Each entry needs `name`, `path`, `worktree_path`, and `worktree_prefix`.
+  primary worktree. Each entry needs `repository_path` and `worktree_path`.
 
 ### Linked Repositories
 
@@ -104,10 +102,8 @@ removed when its primary worktree is deleted. Linked worktrees must be clean bef
 
 ```yaml
     linked_repositories:
-      - name: Frontend
-        path: /var/www/my-project-frontend
-        worktree_path: /var/www/
-        worktree_prefix: "my-project-frontend-"
+      - repository_path: /var/www/my-project-frontend
+        worktree_path: /var/www/workspaces/{worktree}/my-project-frontend
         ports:
           dev_server: "5100-5199"
         # Read the assigned frontend port after the setup command writes this file.

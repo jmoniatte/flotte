@@ -8,11 +8,10 @@ theme: onedark
 # At least one project is required
 
 projects:
-  # Project configured for sibling worktrees
+  # Project configured for a shared workspace directory
   - name: My Project
-    path: /var/www/my-project
-    worktree_path: /var/www/
-    worktree_prefix: "my-project-"
+    repository_path: /var/www/my-project
+    worktree_path: /var/www/workspaces/{worktree}/my-project
     # Setup commands run once, in order, via sh -c, after a worktree is created
     post_create_commands:
       - mise trust
@@ -26,10 +25,8 @@ projects:
     # Commands receive FLOTTE_PRIMARY_PATH, FLOTTE_LINKED_PATH,
     # FLOTTE_WORKTREE_NAME, FLOTTE_BRANCH, and FLOTTE_PORT_<NAME>.
     linked_repositories:
-      - name: Frontend
-        path: /var/www/my-project-frontend
-        worktree_path: /var/www/
-        worktree_prefix: "my-project-frontend-"
+      - repository_path: /var/www/my-project-frontend
+        worktree_path: /var/www/workspaces/{worktree}/my-project-frontend
         ports:
           dev_server: "5100-5199"
         # Optional port shown with the linked worktree status.
@@ -48,11 +45,10 @@ projects:
         post_delete_commands:
           - /var/www/scripts/remove-project-link
 
-  # Project configured for a dedicated worktree directory
+  # A flat worktree layout is also supported.
   - name: Another Project
-    path: /var/www/another-project
-    worktree_path: /var/www/another-project-worktrees
-    worktree_prefix: ""
+    repository_path: /var/www/another-project
+    worktree_path: /var/www/another-project-worktrees/another-project-{worktree}
     post_create_commands: mise trust
     ride_command: /path/to/my-workspace-script
     env_file: .env.local

@@ -15,23 +15,37 @@ class WorktreeManager:
     def __init__(
         self,
         main_repo_path: Path,
-        worktree_parent: Path,
-        worktree_prefix: str,
+        worktree_path_template: str,
         clone_paths: tuple[str, ...] = (),
         env_file: str = ".env",
         post_create_commands: tuple[str, ...] = (),
         manage_environment: bool = True,
     ):
         self.main_repo_path = main_repo_path.resolve()
-        self.parent_dir = worktree_parent.resolve()
+        if "{worktree}" not in worktree_path_template:
+            raise ValueError("worktree_path_template must contain {worktree}")
+        self.worktree_path_template = Path(worktree_path_template).expanduser().absolute()
+        template_parts = self.worktree_path_template.parts
+        placeholder_index = next(
+            index for index, part in enumerate(template_parts) if "{worktree}" in part
+        )
+        self.worktree_root = Path(*template_parts[:placeholder_index])
         self.project_name = self.main_repo_path.name  # e.g., "ridewithgps"
-        self.worktree_prefix = worktree_prefix  # "" = no prefix
         self.clone_paths = clone_paths
         self.env_file = env_file
         self.post_create_commands = post_create_commands
         self.manage_environment = manage_environment
         self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
+
+    def _worktree_name_from_path(self, path: Path) -> str | None:
+        pattern = re.escape(str(self.worktree_path_template))
+        pattern = pattern.replace(r"\{worktree\}", r"(?P<worktree>[^/]+)")
+        match = re.fullmatch(pattern, str(path.absolute()))
+        return match.group("worktree") if match else None
+
+    def _worktree_path(self, worktree_name: str) -> Path:
+        return Path(str(self.worktree_path_template).replace("{worktree}", worktree_name))
 
     def _run_command(
         self, *args: str, cwd: Path | None = None, timeout: float = 60.0
@@ -93,13 +107,13 @@ class WorktreeManager:
             # Determine if this is the main repo
             is_main = path.resolve() == self.main_repo_path.resolve()
 
-            # Sanitize name from path
+            # Determine the configured worktree name from its path.
             if is_main:
                 name = "main"
-            elif self.worktree_prefix:
-                name = path.name.removeprefix(self.worktree_prefix)
             else:
-                name = path.name
+                name = self._worktree_name_from_path(path)
+                if name is None:
+                    name = path.name
 
             # Get compose project name - default to directory name (what docker compose uses)
             compose_project_name = env_vars.get(
@@ -174,14 +188,12 @@ class WorktreeManager:
         """
         used_offsets: set[int] = set()
 
-        # Scan all {worktree_prefix}-* directories
-        if self.parent_dir.exists() and self.worktree_prefix:
-            for path in self.parent_dir.iterdir():
-                if path.is_dir() and path.name.startswith(self.worktree_prefix):
-                    env_vars = self._parse_env(path)
-                    offset = self._get_port_offset(env_vars)
-                    if offset > 0:
-                        used_offsets.add(offset)
+        for worktree in self.discover_worktrees_sync():
+            if worktree.is_main:
+                continue
+            offset = self._get_port_offset(self._parse_env(worktree.path))
+            if offset > 0:
+                used_offsets.add(offset)
 
         candidate = PORT_OFFSET_INCREMENT
         while candidate in used_offsets:
@@ -215,13 +227,10 @@ class WorktreeManager:
             RuntimeError: If worktree creation fails
         """
         sanitized_name = self._sanitize_branch_name(branch_name)
-        if self.worktree_prefix:
-            worktree_path = self.parent_dir / f"{self.worktree_prefix}{sanitized_name}"
-        else:
-            worktree_path = self.parent_dir / sanitized_name
+        worktree_path = self._worktree_path(sanitized_name)
 
         # Ensure parent directory exists
-        self.parent_dir.mkdir(parents=True, exist_ok=True)
+        worktree_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Create git worktree
         if base_branch is None:
@@ -726,6 +735,8 @@ class WorktreeManager:
                 timeout=30.0,
             )
 
+        self.prune_empty_worktree_parents(worktree.path)
+
         # Prune dangling worktree references
         self._run_command(
             "git", "worktree", "prune",
@@ -753,6 +764,21 @@ class WorktreeManager:
         """
         import asyncio
         return await asyncio.to_thread(self.remove_worktree_sync, worktree)
+
+    def prune_empty_worktree_parents(self, worktree_path: Path) -> None:
+        path = worktree_path.absolute()
+        try:
+            path.relative_to(self.worktree_root)
+        except ValueError:
+            return
+
+        parent = path.parent
+        while parent != self.worktree_root:
+            try:
+                parent.rmdir()
+            except OSError:
+                return
+            parent = parent.parent
 
     def get_git_status_sync(self, worktree: Worktree) -> dict:
         """

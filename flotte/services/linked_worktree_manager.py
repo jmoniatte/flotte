@@ -21,9 +21,8 @@ class LinkedWorktreeManager:
         self.link_state = LinkStateStore()
         self.managers = {
             repository.name: WorktreeManager(
-                main_repo_path=Path(repository.path),
-                worktree_parent=Path(repository.worktree_path),
-                worktree_prefix=repository.worktree_prefix,
+                main_repo_path=Path(repository.repository_path),
+                worktree_path_template=repository.worktree_path,
                 manage_environment=False,
             )
             for repository in repositories
@@ -57,7 +56,7 @@ class LinkedWorktreeManager:
                     process_status=process_status,
                 ))
             elif primary.is_main:
-                path = Path(repository.path)
+                path = Path(repository.repository_path)
                 if path.exists():
                     ports = self._status_port(repository, path)
                     process_status = "stopped" if repository.start_command else "external"
@@ -238,7 +237,7 @@ class LinkedWorktreeManager:
         path_value = record.get("path")
         path = Path(path_value) if path_value else None
         if primary.is_main:
-            path = Path(repository.path)
+            path = Path(repository.repository_path)
             if not path.exists():
                 raise RuntimeError(f"Main checkout does not exist for {repository_name}")
             self.link_state.update_record(
@@ -382,10 +381,11 @@ class LinkedWorktreeManager:
                 )
                 result = await asyncio.to_thread(
                     subprocess.run,
-                    ["git", "-C", repository.path, "worktree", "remove", "--force", str(path)],
+                    ["git", "-C", repository.repository_path, "worktree", "remove", "--force", str(path)],
                     capture_output=True,
                 )
                 if result.returncode != 0:
                     error = result.stderr.decode("utf-8", errors="replace").strip()
                     raise RuntimeError(f"Failed to remove {repository.name} worktree: {error}")
+                self.managers[repository.name].prune_empty_worktree_parents(path)
         self.link_state.release(key)

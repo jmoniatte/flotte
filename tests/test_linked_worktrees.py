@@ -21,10 +21,8 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         self.primary_path.mkdir()
         self.primary = Worktree("feature-test", self.primary_path, "feature/test")
         self.repository = LinkedRepository(
-            name="Frontend",
-            path=str(self.frontend),
-            worktree_path=str(self.root / "worktrees"),
-            worktree_prefix="frontend-",
+            repository_path=str(self.frontend),
+            worktree_path=str(self.root / "workspaces" / "{worktree}" / "frontend"),
             ports=(PortRange("dev_server", 55100, 55109),),
             post_create_commands=("test -n \"$FLOTTE_PORT_DEV_SERVER\"",),
             pre_start_commands=("echo VITE_PORT=55100 > .env.local",),
@@ -44,6 +42,7 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
 
         self.assertEqual(created.state, "linked")
         self.assertTrue(created.path and created.path.exists())
+        self.assertEqual(created.path, self.root / "workspaces" / "feature-test" / "frontend")
         self.assertIn("dev_server", created.ports)
         self.assertEqual(created.process_status, "running")
 
@@ -67,6 +66,7 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
 
         asyncio.run(self.manager.remove_links(self.primary))
         self.assertFalse(created.path.exists())
+        self.assertFalse((self.root / "workspaces" / "feature-test").exists())
         self.assertEqual(
             self.manager.link_state.get_record(self.manager._key(self.primary, self.repository)),
             {},

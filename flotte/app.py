@@ -91,7 +91,7 @@ class FlotteApp(App):
         if self.current_config_project:
             self.project = Project(
                 self.current_config_project.name,
-                self.current_config_project.path,
+                self.current_config_project.repository_path,
                 self.current_config_project.ride_command,
             )
 
@@ -100,9 +100,8 @@ class FlotteApp(App):
         self.linked_worktree_manager: LinkedWorktreeManager | None = None
         if self.current_config_project:
             self.worktree_manager = WorktreeManager(
-                main_repo_path=Path(self.current_config_project.path),
-                worktree_parent=Path(self.current_config_project.worktree_path),
-                worktree_prefix=self.current_config_project.worktree_prefix,
+                main_repo_path=Path(self.current_config_project.repository_path),
+                worktree_path_template=self.current_config_project.worktree_path,
                 clone_paths=self.current_config_project.clone_paths,
                 env_file=self.current_config_project.env_file,
                 post_create_commands=self.current_config_project.post_create_commands,
@@ -296,7 +295,7 @@ class FlotteApp(App):
         # Create new Project model
         self.project = Project(
             config_project.name,
-            config_project.path,
+            config_project.repository_path,
             config_project.ride_command,
         )
 
@@ -305,9 +304,8 @@ class FlotteApp(App):
 
         # Create new WorktreeManager for new project
         self.worktree_manager = WorktreeManager(
-            main_repo_path=Path(config_project.path),
-            worktree_parent=Path(config_project.worktree_path),
-            worktree_prefix=config_project.worktree_prefix,
+            main_repo_path=Path(config_project.repository_path),
+            worktree_path_template=config_project.worktree_path,
             clone_paths=config_project.clone_paths,
             env_file=config_project.env_file,
             post_create_commands=config_project.post_create_commands,

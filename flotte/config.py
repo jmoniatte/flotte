@@ -22,10 +22,8 @@ class PortRange:
 @dataclass(frozen=True)
 class LinkedRepository:
     """A repository whose worktrees are paired with a primary project."""
-    name: str
-    path: str
+    repository_path: str
     worktree_path: str
-    worktree_prefix: str
     ports: tuple[PortRange, ...] = ()
     post_create_commands: tuple[str, ...] = ()
     post_delete_commands: tuple[str, ...] = ()
@@ -36,14 +34,17 @@ class LinkedRepository:
     status_port_label: str = "Port"
     open_url_path: str = ""
 
+    @property
+    def name(self) -> str:
+        return Path(self.repository_path).name
+
 
 @dataclass(frozen=True)
 class Project:
     """A configured project with its settings."""
     name: str
-    path: str
-    worktree_path: str  # Directory where new worktrees are created
-    worktree_prefix: str  # Prefix for worktree dirs (use "" for no prefix)
+    repository_path: str
+    worktree_path: str  # Destination template containing {worktree}
     post_create_commands: tuple[str, ...] = ()  # Setup commands run once in each new worktree
     ride_command: str = ""
     # Env file flotte reads and writes per worktree, relative to the worktree root.
@@ -82,7 +83,7 @@ def _linked_repositories(value: object) -> tuple[LinkedRepository, ...]:
         return ()
 
     repositories: list[LinkedRepository] = []
-    required = ("name", "path", "worktree_path", "worktree_prefix")
+    required = ("repository_path", "worktree_path")
     for item in value:
         if not isinstance(item, dict):
             logger.warning("Skipping invalid linked repository entry: %s", item)
@@ -90,6 +91,9 @@ def _linked_repositories(value: object) -> tuple[LinkedRepository, ...]:
         missing = [field for field in required if field not in item]
         if missing:
             logger.warning("Skipping linked repository missing fields %s: %s", missing, item)
+            continue
+        if "{worktree}" not in str(item["worktree_path"]):
+            logger.warning("Skipping linked repository without {worktree} in worktree_path: %s", item)
             continue
 
         ports: list[PortRange] = []
@@ -110,10 +114,8 @@ def _linked_repositories(value: object) -> tuple[LinkedRepository, ...]:
                 ports.append(PortRange(str(name), start, end))
 
         repositories.append(LinkedRepository(
-            name=str(item["name"]),
-            path=str(item["path"]),
+            repository_path=str(item["repository_path"]),
             worktree_path=str(item["worktree_path"]),
-            worktree_prefix=str(item["worktree_prefix"]),
             ports=tuple(ports),
             post_create_commands=_commands(item.get("post_create_commands", [])),
             post_delete_commands=_commands(item.get("post_delete_commands", [])),
@@ -148,7 +150,7 @@ def load_config() -> Config:
             config.theme = data["theme"]
 
         # Load projects array
-        required_fields = ("name", "path", "worktree_path", "worktree_prefix")
+        required_fields = ("name", "repository_path", "worktree_path")
         if "projects" in data and isinstance(data["projects"], list):
             for proj_data in data["projects"]:
                 if not isinstance(proj_data, dict):
@@ -158,6 +160,9 @@ def load_config() -> Config:
                 if missing:
                     logger.warning(f"Skipping project missing required fields {missing}: {proj_data}")
                     continue
+                if "{worktree}" not in str(proj_data["worktree_path"]):
+                    logger.warning("Skipping project without {worktree} in worktree_path: %s", proj_data)
+                    continue
                 raw_clone_paths = proj_data.get("clone_paths", [])
                 clone_paths_list: list[str] = []
                 if isinstance(raw_clone_paths, list):
@@ -165,9 +170,8 @@ def load_config() -> Config:
 
                 config.projects.append(Project(
                     name=str(proj_data["name"]),
-                    path=str(proj_data["path"]),
+                    repository_path=str(proj_data["repository_path"]),
                     worktree_path=str(proj_data["worktree_path"]),
-                    worktree_prefix=str(proj_data["worktree_prefix"]),
                     post_create_commands=_commands(proj_data.get("post_create_commands", [])),
                     ride_command=str(proj_data.get("ride_command", "")),
                     env_file=str(proj_data.get("env_file") or ".env"),
@@ -194,9 +198,8 @@ def save_config(config: Config) -> None:
         for project in config.projects:
             proj_dict: dict = {
                 "name": project.name,
-                "path": project.path,
+                "repository_path": project.repository_path,
                 "worktree_path": project.worktree_path,
-                "worktree_prefix": project.worktree_prefix,
                 "ride_command": project.ride_command,
                 "env_file": project.env_file,
             }
@@ -207,10 +210,8 @@ def save_config(config: Config) -> None:
             if project.linked_repositories:
                 proj_dict["linked_repositories"] = [
                     {
-                        "name": linked.name,
-                        "path": linked.path,
+                        "repository_path": linked.repository_path,
                         "worktree_path": linked.worktree_path,
-                        "worktree_prefix": linked.worktree_prefix,
                         "ports": {
                             port.name: f"{port.start}-{port.end}"
                             for port in linked.ports
