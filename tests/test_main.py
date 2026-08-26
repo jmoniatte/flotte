@@ -1,13 +1,16 @@
 import contextlib
 import io
 import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 import unittest
 
 from flotte.__main__ import main
 from flotte.app import FlotteApp
 from flotte.config import Config, Project
-from textual.widgets import ContentSwitcher
+from flotte.models import Container, Worktree
+from flotte.widgets import WebLink
+from textual.widgets import Button, ContentSwitcher, Static
 
 
 class MainTests(unittest.TestCase):
@@ -51,12 +54,65 @@ class MainTests(unittest.TestCase):
                 async with app.run_test(size=(100, 30)) as pilot:
                     switcher = app.query_one("#view-switcher", ContentSwitcher)
                     self.assertEqual(switcher.current, "list-view")
+                    list_title_y = app.query_one("#worktrees-title").region.y
 
                     app._set_view(show_details=True)
                     await pilot.pause()
                     self.assertEqual(switcher.current, "details-view")
+                    self.assertEqual(
+                        app.query_one("#breadcrumbs").region.y, list_title_y
+                    )
+                    breadcrumbs = app.query_one("#breadcrumbs")
+                    self.assertEqual(
+                        app.query_one("#container-table").region.y,
+                        breadcrumbs.region.bottom + 1,
+                    )
+                    container_table = app.query_one("#container-table")
+                    self.assertEqual(container_table.cursor_type, "none")
+                    self.assertEqual(container_table.header_height, 2)
+                    self.assertEqual(container_table.columns["service"].width, 20)
+                    self.assertEqual(container_table.columns["ports"].width, 10)
+                    self.assertEqual(container_table.columns["state"].width, 12)
+                    self.assertEqual(container_table.columns["status"].width, 20)
+                    self.assertEqual(
+                        app.query_one("#container-table-footer-rule").region.y,
+                        app.query_one("#container-table").region.bottom,
+                    )
+                    self.assertEqual(
+                        app.query_one("#container-url", WebLink).render().plain, ""
+                    )
+                    worktree = Worktree("feature", Path("/tmp/feature"))
+                    web_container = Container("nginx")
+                    web_container.ports = ["3200"]
+                    worktree.containers[web_container.service] = web_container
+                    worktree.git_status = {
+                        "staged": 1,
+                        "modified": 2,
+                        "untracked": 0,
+                        "ahead": 0,
+                        "behind": 0,
+                    }
+                    app.selected_worktree = worktree
+                    app._update_container_view()
+                    await pilot.pause()
+                    app._update_breadcrumb()
+                    self.assertEqual(
+                        app.query_one("#breadcrumb-worktree").render().plain, "feature"
+                    )
+                    self.assertEqual(
+                        app.query_one("#container-url", WebLink).render().plain,
+                        "localhost:3200",
+                    )
+                    self.assertEqual(
+                        app.query_one("#breadcrumb-git-status", Static).render().plain,
+                        "· +1 ~2 ",
+                    )
+                    self.assertEqual(
+                        app.query_one("#btn-delete-worktree", Button).region.y,
+                        app.query_one("#btn-container-start", Button).region.y,
+                    )
 
-                    app._set_view(show_details=False)
+                    await pilot.click("#breadcrumb-worktrees")
                     await pilot.pause()
                     self.assertEqual(switcher.current, "list-view")
 

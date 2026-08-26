@@ -6,9 +6,10 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Container, Horizontal, Vertical
 from textual.widgets import Button, ContentSwitcher, Static, Select
-from textual import on, work
+from textual import events, on, work
 
 from .config import load_config, Project as ConfigProject
+from .formatters import format_git_status
 from .theme import load_theme_colors
 from .models import Worktree
 from .models.project import Project
@@ -33,7 +34,8 @@ from .widgets import (
     ErrorView,
     LinkedRepositories,
     LinkedRepositoryAction,
-    StatusLine,
+    DashedTableFooter,
+    WebLink,
 )
 from . import __version__
 
@@ -149,9 +151,10 @@ class FlotteApp(App):
 
         # Custom header with project selector
         with Horizontal(id="app-header"):
-            with Horizontal(id="app-title-group"):
+            with Vertical(id="app-title-group"):
                 yield Static("Flotte", id="app-title")
                 yield Static(f"v{__version__}", id="app-subtitle")
+                yield Static("", id="header-gap")
             yield Static("", id="header-spacer")
             yield Select(
                 options=[(p.name, p) for p in self.config.projects],
@@ -162,6 +165,7 @@ class FlotteApp(App):
 
         with ContentSwitcher(initial="list-view", id="view-switcher"):
             with Container(id="list-view"):
+                yield Static("Worktrees", id="worktrees-title")
                 with Container(id="worktrees-box"):
                     yield WorktreeHeader(id="worktree-header")
                 with Horizontal(id="worktree-controls"):
@@ -170,9 +174,16 @@ class FlotteApp(App):
                     yield Static("", classes="spacer")
                     yield Button("Help", id="btn-help", variant="default")
             with Container(id="details-view"):
+                with Horizontal(id="breadcrumbs"):
+                    yield Static("Worktrees", id="breadcrumb-worktrees")
+                    yield Static(">", id="breadcrumb-separator")
+                    yield Static("", id="breadcrumb-worktree")
+                    yield Static("", id="breadcrumb-git-status")
+                    yield Static("", classes="spacer")
+                    yield Button("Go Ride", id="btn-ride")
                 with Container(id="containers-box"):
-                    yield StatusLine(id="status-line")
                     yield ContainerTable(id="container-table")
+                    yield DashedTableFooter(id="container-table-footer-rule")
                     yield ProgressView(id="progress-view")
                     yield ErrorView(id="error-view")
                     yield ContainerControls(id="container-controls")
@@ -326,11 +337,6 @@ class FlotteApp(App):
         container_table = self.query_one("#container-table", ContainerTable)
         container_table.worktree = None
 
-        # Reset status line
-        status_line = self.query_one("#status-line", StatusLine)
-        status_line.status = WorktreeStatus.UNKNOWN
-        status_line.git_status = None
-
         # Hide progress/error views
         self.query_one("#progress-view", ProgressView).display = False
         self.query_one("#error-view", ErrorView).display = False
@@ -339,12 +345,7 @@ class FlotteApp(App):
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = WorktreeStatus.UNKNOWN
         controls.operation_active = False
-        delete_button = self.query_one("#btn-delete-worktree", Button)
-        delete_button.display = False
-        delete_button.disabled = True
-
-        # Reset container box title
-        self.query_one("#containers-box").border_title = "Containers"
+        self._update_breadcrumb()
 
     def on_mount(self) -> None:
         """Initialize app and start polling."""
@@ -353,8 +354,6 @@ class FlotteApp(App):
             self.query_one("#quit-btn", Button).focus()
             return
 
-        self.query_one("#worktrees-box").border_title = "Worktrees"
-        self.query_one("#containers-box").border_title = "Containers"
         self._show_worktree_list()
 
         # Set initial display states
@@ -479,12 +478,6 @@ class FlotteApp(App):
         """Show/hide container box widgets based on effective status."""
         status = self._effective_status()
 
-        status_line = self.query_one("#status-line", StatusLine)
-        status_line.status = status
-        status_line.git_status = (
-            self.selected_worktree.git_status if self.selected_worktree else None
-        )
-
         # Show table for container-related states, progress for create/delete
         # During DELETING, show table so user sees containers disappearing
         show_table = status != WorktreeStatus.CREATING
@@ -499,6 +492,14 @@ class FlotteApp(App):
         # Only a running command locks the buttons - a worktree left half-up after
         # the command returns must stay actionable
         controls.operation_active = self._operation_in_progress
+        ride_button = self.query_one("#btn-ride", Button)
+        ride_button.disabled = self._operation_in_progress or status in (
+            WorktreeStatus.CREATING,
+            WorktreeStatus.DELETING,
+        )
+        self.query_one("#container-url", WebLink).set_url(
+            self.selected_worktree.web_url if self.selected_worktree else None
+        )
 
         delete_button = self.query_one("#btn-delete-worktree", Button)
         can_delete = (
@@ -514,17 +515,21 @@ class FlotteApp(App):
         delete_button.display = can_delete
         delete_button.disabled = False
 
-        self._update_box_title()
+        self._update_breadcrumb()
         if refresh_linked_repositories:
             self._refresh_linked_repositories()
 
-    def _update_box_title(self) -> None:
-        """Update containers-box border title to show selected worktree name."""
-        box = self.query_one("#containers-box")
-        if self.selected_worktree:
-            box.border_title = self.selected_worktree.name
-        else:
-            box.border_title = "Containers"
+    def _update_breadcrumb(self) -> None:
+        """Show the selected worktree as the current breadcrumb segment."""
+        title = self.selected_worktree.name if self.selected_worktree else ""
+        self.query_one("#breadcrumb-worktree", Static).update(title)
+        self.query_one("#breadcrumb-git-status", Static).update(
+            format_git_status(
+                self.selected_worktree.git_status if self.selected_worktree else None,
+                self.theme_colors,
+                prefix="· ",
+            )
+        )
 
     def _refresh_linked_repositories(self) -> None:
         widget = self.query_one("#linked-repositories", LinkedRepositories)
@@ -591,6 +596,12 @@ class FlotteApp(App):
         if action:
             action()
 
+    @on(events.Click, "#breadcrumb-worktrees")
+    def on_breadcrumb_worktrees_clicked(self, event: events.Click) -> None:
+        """Return to the worktree list from the breadcrumb."""
+        event.stop()
+        self.action_back_to_worktrees()
+
     async def _fetch_git_status(self) -> None:
         """Fetch git status for the selected worktree and update display.
 
@@ -619,10 +630,9 @@ class FlotteApp(App):
                     wt.git_status = git_status
                     header = self.query_one("#worktree-header", WorktreeHeader)
                     header.update_git_status(wt.name, git_status)
+                    self._update_breadcrumb()
                     for linked in wt.linked_worktrees:
                         linked.git_status = linked_statuses.get(linked.repository_name)
-                    if self._is_showing_worktree_details():
-                        self.query_one("#status-line", StatusLine).git_status = git_status
                     self._refresh_linked_repositories()
                 return
         finally:

@@ -1,14 +1,17 @@
 from textual.containers import Vertical
-from textual import events
-from textual.widgets import DataTable
+from textual import events, on
+from textual.binding import Binding
+from textual.widgets import DataTable, Static
 from textual.widgets._data_table import CellDoesNotExist
 from textual.reactive import reactive
 from textual.message import Message
-from rich.style import Style
+from rich.align import Align
 from rich.text import Text
 
+from ..formatters import format_git_status, format_web_url
 from ..models import Worktree
 from ..theme import get_status_style
+from .table_rules import DashedHeaderDataTable, DashedTableFooter
 
 
 class WorktreeChanged(Message):
@@ -27,22 +30,72 @@ class WorktreeOpened(Message):
         super().__init__()
 
 
-class WorktreeTable(DataTable):
+class WorktreeTable(DashedHeaderDataTable):
     """DataTable for worktrees with status, name, URL, git status."""
+
+    BINDINGS = DataTable.BINDINGS + [
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
+    ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._worktrees: list[Worktree] = []
         self._git_statuses: dict[str, dict] = {}
+        self._hovered_url_worktree: str | None = None
 
     def on_mount(self) -> None:
+        super().on_mount()
         self.cursor_foreground_priority = "renderable"
+        self.cursor_background_priority = "css"
         self.add_column("", key="status", width=3)
         self.add_column("Name", key="name", width=30)
         self.add_column("URL", key="url", width=50)
         self.add_column("Git", key="git", width=20)
         self.cursor_type = "row"
         self.call_after_refresh(self._fit_columns)
+
+    @on(events.Leave)
+    def on_pointer_left(self) -> None:
+        """Restore the default URL styling after leaving the table."""
+        self._set_hovered_url(None)
+
+    @on(events.MouseMove)
+    def on_pointer_moved(self, event: events.MouseMove) -> None:
+        """Update only the URL text beneath the pointer."""
+        row = event.style.meta.get("row")
+        column = event.style.meta.get("column")
+        url_column_index = self._url_column_index()
+        is_data_row = isinstance(row, int) and 0 <= row < len(self._worktrees)
+        if is_data_row and column != url_column_index:
+            self.move_cursor(row=row)
+        worktree_name = self._worktrees[row].name if is_data_row and column == url_column_index else None
+        self._set_hovered_url(worktree_name)
+
+    def _set_hovered_url(self, worktree_name: str | None) -> None:
+        if worktree_name == self._hovered_url_worktree:
+            return
+
+        previous_name = self._hovered_url_worktree
+        self._hovered_url_worktree = worktree_name
+        for name in (previous_name, worktree_name):
+            if name is None:
+                continue
+            worktree = next((item for item in self._worktrees if item.name == name), None)
+            if worktree is not None:
+                try:
+                    self.update_cell(
+                        name,
+                        "url",
+                        format_web_url(
+                            worktree.web_url,
+                            color=self.app.theme_colors.blue,
+                            empty="-",
+                            hovered=name == worktree_name,
+                        ),
+                    )
+                except CellDoesNotExist:
+                    pass
 
     def on_resize(self, event: events.Resize) -> None:
         """Keep the useful worktree columns balanced across the available width."""
@@ -53,17 +106,28 @@ class WorktreeTable(DataTable):
         await super()._on_click(event)
 
         row = event.style.meta.get("row")
+        column = event.style.meta.get("column")
         if (
             isinstance(row, int)
             and 0 <= row < len(self._worktrees)
         ):
-            self.post_message(WorktreeOpened(self._worktrees[row]))
+            worktree = self._worktrees[row]
+            url_column_index = self._url_column_index()
+            if column == url_column_index and worktree.web_url:
+                self.app.open_url(worktree.web_url)
+                return
+            self.post_message(WorktreeOpened(worktree))
 
     def action_select_cursor(self) -> None:
         """Open the highlighted row when Enter is pressed."""
         worktree = self.get_selected_worktree()
         if worktree:
             self.post_message(WorktreeOpened(worktree))
+
+    def _url_column_index(self) -> int:
+        return next(
+            index for index, key in enumerate(self.columns) if key.value == "url"
+        )
 
     def _fit_columns(self) -> None:
         padding = self.cell_padding * 2 * len(self.columns)
@@ -76,49 +140,13 @@ class WorktreeTable(DataTable):
         self.columns["url"].width = url
         self.columns["git"].width = git
 
-    def _format_status(self, wt: Worktree) -> Text:
+    def _format_status(self, wt: Worktree) -> Align:
         """Format status icon for a worktree."""
         icon, color = get_status_style(wt.status, self.app.theme_colors)
-        return Text(icon, style=color)
+        return Align.center(Text(icon, style=color))
 
     def _format_name(self, wt: Worktree) -> Text:
         return Text(wt.name, style="bold" if wt.is_main else "")
-
-    def _format_url(self, wt: Worktree) -> Text:
-        """Format URL for a worktree."""
-        url = wt.web_url
-        if url:
-            text = Text(self._display_url(url), style="cyan underline")
-            text.stylize(Style(meta={"@click": f"app.open_url({url!r})"}))
-            return text
-        return Text("-", style="dim")
-
-    @staticmethod
-    def _display_url(url: str) -> str:
-        return url.removeprefix("http://").removeprefix("https://")
-
-    def _format_git(self, wt: Worktree) -> Text:
-        git_status = self._git_statuses.get(wt.name)
-        if not git_status:
-            return Text("")
-
-        colors = self.app.theme_colors
-        text = Text()
-        if git_status["staged"]:
-            text.append(f"+{git_status['staged']} ", style=colors.green)
-        if git_status["modified"]:
-            text.append(f"~{git_status['modified']} ", style=colors.yellow)
-        if git_status["untracked"]:
-            text.append(f"?{git_status['untracked']} ", style=colors.dim)
-        if git_status["ahead"]:
-            text.append(f"↑{git_status['ahead']} ", style=colors.cyan)
-        if git_status["behind"]:
-            text.append(f"↓{git_status['behind']} ", style=colors.red)
-
-        if not text.plain:
-            text = Text("clean", style=colors.dim)
-
-        return text
 
     def refresh_worktrees(self, worktrees: list[Worktree]) -> None:
         """Update table with worktrees.
@@ -142,8 +170,13 @@ class WorktreeTable(DataTable):
             self.add_row(
                 self._format_status(wt),
                 self._format_name(wt),
-                self._format_url(wt),
-                self._format_git(wt),
+                format_web_url(
+                    wt.web_url,
+                    color=self.app.theme_colors.blue,
+                    empty="-",
+                    hovered=wt.name == self._hovered_url_worktree,
+                ),
+                format_git_status(self._git_statuses.get(wt.name), self.app.theme_colors),
                 key=wt.name,
             )
 
@@ -160,7 +193,13 @@ class WorktreeTable(DataTable):
         worktree = next((item for item in self._worktrees if item.name == worktree_name), None)
         if worktree is not None:
             try:
-                self.update_cell(worktree_name, "git", self._format_git(worktree))
+                self.update_cell(
+                    worktree_name,
+                    "git",
+                    format_git_status(
+                        self._git_statuses.get(worktree.name), self.app.theme_colors
+                    ),
+                )
             except CellDoesNotExist:
                 pass
 
@@ -183,11 +222,9 @@ class WorktreeHeader(Vertical):
 
     selected_worktree: reactive[Worktree | None] = reactive(None)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
     def compose(self):
         yield WorktreeTable(id="worktree-table")
+        yield DashedTableFooter(id="worktree-table-footer-rule")
 
     def refresh_worktrees(self, worktrees: list[Worktree]) -> None:
         """Update the table with worktrees.
@@ -219,6 +256,7 @@ class WorktreeHeader(Vertical):
         for i, wt in enumerate(table._worktrees):
             if wt.name == worktree.name:
                 table.move_cursor(row=i)
+                table.focus()
                 break
 
     def update_git_status(self, worktree_name: str, git_status: dict | None) -> None:

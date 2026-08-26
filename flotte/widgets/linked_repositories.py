@@ -3,10 +3,10 @@
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Button, Static
-from rich.style import Style
-from rich.text import Text
 
+from ..formatters import format_git_status
 from ..models import LinkedWorktree, Worktree
+from .web_link import WebLink
 
 
 def available_actions(linked: LinkedWorktree, worktree: Worktree) -> frozenset[str]:
@@ -51,10 +51,21 @@ class LinkedRepositoryRow(Vertical):
         with Horizontal(classes="linked-repository-details"):
             with Horizontal(classes="linked-repository-lifecycle"):
                 yield Button("Link", id=f"linked-link-{self.index}")
-                yield Button("Start", id=f"linked-start-{self.index}", classes="linked-start-button")
+                yield Button(
+                    "Start",
+                    id=f"linked-start-{self.index}",
+                    classes="linked-start-button",
+                    variant="success",
+                )
                 yield Button("Stop", id=f"linked-stop-{self.index}", classes="linked-stop-button", variant="error")
-                yield Button("Restart", id=f"linked-restart-{self.index}", classes="linked-restart-button")
-            yield Static("", classes="linked-repository-url")
+                yield Button(
+                    "Restart",
+                    id=f"linked-restart-{self.index}",
+                    classes="linked-restart-button",
+                    variant="warning",
+                )
+            yield WebLink(classes="linked-repository-url")
+            yield Static("", classes="spacer")
             unlink_button = Button(
                 "Unlink",
                 id=f"linked-unlink-{self.index}",
@@ -70,7 +81,7 @@ class LinkedRepositoryRow(Vertical):
         stop_button = self.query_one(f"#linked-stop-{self.index}", Button)
         restart_button = self.query_one(f"#linked-restart-{self.index}", Button)
         unlink_button = self.query_one(f"#linked-unlink-{self.index}", Button)
-        url_widget = self.query_one(".linked-repository-url", Static)
+        url_widget = self.query_one(".linked-repository-url", WebLink)
         git_widget = self.query_one(".linked-repository-git-status", Static)
 
         actions = available_actions(linked, worktree)
@@ -90,42 +101,16 @@ class LinkedRepositoryRow(Vertical):
             if linked.process_status == "running"
             else None
         )
-        if url:
-            url_text = Text(self._display_url(url), style=Style(color=self.app.theme_colors.blue, underline=True))
-            url_text.stylize(Style(meta={"@click": f"app.open_url({url!r})"}))
-            url_widget.update(url_text)
-        else:
-            url_widget.update("")
-        git_widget.update(self._format_git_status(linked.git_status))
+        url_widget.set_url(url)
+        git_widget.update(
+            format_git_status(linked.git_status, self.app.theme_colors, prefix="· ")
+        )
 
     @staticmethod
     def _open_url(worktree: Worktree, path: str) -> str | None:
         if not path or not worktree.web_url:
             return None
         return f"{worktree.web_url.rstrip('/')}/{path.lstrip('/')}"
-
-    @staticmethod
-    def _display_url(url: str) -> str:
-        return url.removeprefix("http://").removeprefix("https://")
-
-    def _format_git_status(self, git_status: dict | None) -> Text:
-        if git_status is None:
-            return Text("")
-
-        colors = self.app.theme_colors
-        text = Text("· ", style=colors.dim)
-        if git_status["staged"]:
-            text.append(f"+{git_status['staged']} ", style=colors.green)
-        if git_status["modified"]:
-            text.append(f"~{git_status['modified']} ", style=colors.yellow)
-        if git_status["untracked"]:
-            text.append(f"?{git_status['untracked']} ", style=colors.dim)
-        if git_status["ahead"]:
-            text.append(f"↑{git_status['ahead']} ", style=colors.cyan)
-        if git_status["behind"]:
-            text.append(f"↓{git_status['behind']} ", style=colors.red)
-        return text if text.plain != "· " else Text("· clean", style=colors.dim)
-
 
 class LinkedRepositories(Vertical):
     """Linked-repository rows, rebuilt only if configured repositories change."""

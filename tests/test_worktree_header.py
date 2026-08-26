@@ -39,13 +39,17 @@ class WorktreeHeaderTests(unittest.TestCase):
                     for index in range(12)
                 ]
                 header.refresh_worktrees(worktrees)
+                header.select_worktree(worktrees[0])
                 await pilot.pause()
 
                 table = app.query_one("#worktree-table", WorktreeTable)
+                self.assertIs(app.focused, table)
                 self.assertEqual(table.row_count, 12)
-                self.assertEqual(header.size.height, 13)
+                self.assertEqual(header.size.height, 15)
                 self.assertEqual(table.styles.scrollbar_size_horizontal, 0)
                 self.assertEqual(table.styles.scrollbar_size_vertical, 0)
+                footer_rule = app.query_one("#worktree-table-footer-rule")
+                self.assertTrue(footer_rule.render().plain.lstrip().startswith("-"))
 
         asyncio.run(exercise())
 
@@ -57,9 +61,47 @@ class WorktreeHeaderTests(unittest.TestCase):
                 header.refresh_worktrees([Worktree("branch", Path("/tmp/branch"))])
                 await pilot.pause()
 
-                await pilot.click("#worktree-table", offset=(10, 1))
+                await pilot.click("#worktree-table", offset=(10, 2))
                 await pilot.pause()
 
                 self.assertEqual(app.opened_worktrees, ["branch"])
+
+        asyncio.run(exercise())
+
+    def test_j_and_k_move_the_worktree_cursor(self) -> None:
+        async def exercise() -> None:
+            app = WorktreeHeaderApp()
+            async with app.run_test(size=(100, 30)) as pilot:
+                header = app.query_one("#worktree-header", WorktreeHeader)
+                worktrees = [
+                    Worktree("main", Path("/tmp/main"), is_main=True),
+                    Worktree("second", Path("/tmp/second")),
+                ]
+                header.refresh_worktrees(worktrees)
+                header.select_worktree(worktrees[0])
+                await pilot.pause()
+
+                table = app.query_one("#worktree-table", WorktreeTable)
+                self.assertIs(app.focused, table)
+                self.assertEqual(table.cursor_row, 0)
+
+                await pilot.press("j")
+                self.assertEqual(table.cursor_row, 1)
+
+                await pilot.press("k")
+                self.assertEqual(table.cursor_row, 0)
+
+                await pilot.press("down")
+                self.assertEqual(table.cursor_row, 1)
+
+                await pilot.hover("#worktree-table", offset=(10, 2))
+                await pilot.pause()
+                self.assertEqual(table.cursor_row, 0)
+                self.assertEqual(header.selected_worktree.name, "main")
+
+                await pilot.hover("#worktree-table", offset=(10, 3))
+                await pilot.pause()
+                self.assertEqual(table.cursor_row, 1)
+                self.assertEqual(header.selected_worktree.name, "second")
 
         asyncio.run(exercise())
