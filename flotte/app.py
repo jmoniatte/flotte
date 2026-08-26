@@ -5,7 +5,7 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Container, Horizontal, Vertical
-from textual.widgets import Button, Static, Select
+from textual.widgets import Button, ContentSwitcher, Static, Select
 from textual import on, work
 
 from .config import load_config, Project as ConfigProject
@@ -111,7 +111,6 @@ class FlotteApp(App):
                 )
 
         self.selected_worktree: Worktree | None = None
-        self._showing_worktree_details = False
 
         # Git status fetch state (serializes fetches, one subprocess at a time)
         self._git_fetch_running: bool = False
@@ -161,7 +160,7 @@ class FlotteApp(App):
                 allow_blank=False,
             )
 
-        with Container(id="main-content"):
+        with ContentSwitcher(initial="list-view", id="view-switcher"):
             with Container(id="list-view"):
                 with Container(id="worktrees-box"):
                     yield WorktreeHeader(id="worktree-header")
@@ -170,13 +169,14 @@ class FlotteApp(App):
                     yield Button("Refresh", id="btn-refresh", variant="default")
                     yield Static("", classes="spacer")
                     yield Button("Help", id="btn-help", variant="default")
-            with Container(id="containers-box"):
-                yield StatusLine(id="status-line")
-                yield ContainerTable(id="container-table")
-                yield ProgressView(id="progress-view")
-                yield ErrorView(id="error-view")
-                yield ContainerControls(id="container-controls")
-                yield LinkedRepositories(id="linked-repositories")
+            with Container(id="details-view"):
+                with Container(id="containers-box"):
+                    yield StatusLine(id="status-line")
+                    yield ContainerTable(id="container-table")
+                    yield ProgressView(id="progress-view")
+                    yield ErrorView(id="error-view")
+                    yield ContainerControls(id="container-controls")
+                    yield LinkedRepositories(id="linked-repositories")
 
     # Operation lock helpers
 
@@ -224,13 +224,17 @@ class FlotteApp(App):
 
     def _set_view(self, *, show_details: bool) -> None:
         """Switch between the worktree list and selected-worktree details."""
-        self._showing_worktree_details = show_details
+        self.query_one("#view-switcher", ContentSwitcher).current = (
+            "details-view" if show_details else "list-view"
+        )
         self.query_one("#project-selector").display = not show_details
-        self.query_one("#list-view").display = not show_details
-        self.query_one("#containers-box").display = show_details
 
         if not show_details:
             self.query_one("#worktree-table").focus()
+
+    def _is_showing_worktree_details(self) -> bool:
+        """Return whether the detail view is the active ContentSwitcher child."""
+        return self.query_one("#view-switcher", ContentSwitcher).current == "details-view"
 
     def _show_worktree_list(self) -> None:
         """Show the compact worktree browser."""
@@ -458,7 +462,7 @@ class FlotteApp(App):
             fresh_wt = self.project.worktrees.get(wt_name)
             if fresh_wt is None:
                 self.selected_worktree = None
-            elif self._showing_worktree_details and (
+            elif self._is_showing_worktree_details() and (
                 changed_worktree is None or changed_worktree.name == wt_name
             ):
                 self._refresh_detail_view(fetch_git_status=changed_worktree is None)
@@ -556,7 +560,7 @@ class FlotteApp(App):
             return
         fresh_wt = self.project.worktrees.get(event.worktree.name)
         self.selected_worktree = fresh_wt if fresh_wt else event.worktree
-        if self._showing_worktree_details:
+        if self._is_showing_worktree_details():
             self._refresh_detail_view(fetch_git_status=True)
 
     def on_worktree_opened(self, event: WorktreeOpened) -> None:
@@ -617,7 +621,7 @@ class FlotteApp(App):
                     header.update_git_status(wt.name, git_status)
                     for linked in wt.linked_worktrees:
                         linked.git_status = linked_statuses.get(linked.repository_name)
-                    if self._showing_worktree_details:
+                    if self._is_showing_worktree_details():
                         self.query_one("#status-line", StatusLine).git_status = git_status
                     self._refresh_linked_repositories()
                 return
@@ -660,12 +664,12 @@ class FlotteApp(App):
 
     def action_back_to_worktrees(self) -> None:
         """Return to the worktree list."""
-        if self._showing_worktree_details:
+        if self._is_showing_worktree_details():
             self._show_worktree_list()
 
     def action_escape(self) -> None:
         """Return to the list, or quit when already browsing it."""
-        if self._showing_worktree_details:
+        if self._is_showing_worktree_details():
             self._show_worktree_list()
         else:
             self.exit()

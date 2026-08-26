@@ -208,11 +208,15 @@ WorktreeHeader #worktree-table > .datatable--hover {
    MAIN CONTENT AREA
    ═══════════════════════════════════════════════════════════════════════ */
 
-#main-content {
+#view-switcher {
     width: 100%;
     height: 1fr;
     background: $bg;
     overflow-y: auto;
+}
+
+#details-view {
+    height: 100%;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
