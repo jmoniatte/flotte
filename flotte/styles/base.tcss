@@ -389,6 +389,10 @@ ContainerControls #container-url {
     margin: 0 1 0 0;
 }
 
+ContainerControls .spacer {
+    width: 1fr;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    CONTAINER TABLE
    ═══════════════════════════════════════════════════════════════════════ */
