@@ -103,9 +103,6 @@ _WORKTREE_STYLES: dict[WorktreeStatus, tuple[str, str]] = {
     WorktreeStatus.STARTING: ("◐", "green"),
     WorktreeStatus.STOPPING: ("◐", "orange"),
     WorktreeStatus.STOPPED: ("○", "red"),
-    WorktreeStatus.CREATING: ("◐", "blue"),
-    WorktreeStatus.DELETING: ("◐", "red"),
-    WorktreeStatus.ERROR: ("✗", "red"),
     WorktreeStatus.UNKNOWN: ("?", "dim"),
 }
 

@@ -284,7 +284,3 @@ class WorktreeHeader(Vertical):
 
     def update_worktree_status(self, worktree: Worktree) -> None:
         self.query_one("#worktree-table", WorktreeTable).update_worktree_status(worktree)
-
-    def clear(self) -> None:
-        """Clear the display."""
-        self.selected_worktree = None

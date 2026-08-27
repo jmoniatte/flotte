@@ -3,7 +3,7 @@ import io
 import asyncio
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 import unittest
 
 from flotte.__main__ import main
@@ -17,6 +17,42 @@ from textual.widgets import Button, ContentSwitcher, RichLog, Static
 
 
 class MainTests(unittest.TestCase):
+    def test_link_lifecycle_logs_the_process_id_and_failures(self) -> None:
+        async def exercise() -> None:
+            app = Mock()
+            app.linked_worktree_manager.start_link = AsyncMock(
+                return_value=Mock(pid=12345)
+            )
+            app.linked_worktree_manager.stop_link = AsyncMock(
+                side_effect=RuntimeError("stop failed")
+            )
+            worktree = Worktree("feature", Path("/tmp/feature"))
+
+            await FlotteApp._run_link_lifecycle(
+                app,
+                worktree,
+                "rwgps-ui",
+                "start",
+            )
+            action = app.log_store.record_elapsed.call_args.args
+            self.assertEqual(action[0], "feature")
+            self.assertEqual(action[1], "Started rwgps-ui (PID: 12345)")
+            self.assertTrue(action[3])
+
+            app.log_store.record_elapsed.reset_mock()
+            await FlotteApp._run_link_lifecycle(
+                app,
+                worktree,
+                "rwgps-ui",
+                "stop",
+            )
+            action = app.log_store.record_elapsed.call_args.args
+            self.assertEqual(action[0], "feature")
+            self.assertEqual(action[1], "Stopped rwgps-ui")
+            self.assertFalse(action[3])
+
+        asyncio.run(exercise())
+
     def test_version_exits_without_starting_the_tui(self) -> None:
         output = io.StringIO()
 

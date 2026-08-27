@@ -630,24 +630,6 @@ class WorktreeManager:
 
         return True
 
-    async def cleanup_docker(self, worktree: Worktree) -> bool:
-        """
-        Clean up Docker resources for a worktree (async wrapper).
-
-        Keeps the git worktree and code intact.
-
-        Args:
-            worktree: The worktree to clean up
-
-        Returns:
-            True if successful
-
-        Raises:
-            RuntimeError: If cleanup fails
-        """
-        import asyncio
-        return await asyncio.to_thread(self.cleanup_docker_sync, worktree)
-
     def commit_all_changes_sync(self, worktree: Worktree, message: str) -> bool:
         """
         Commit all changes in a worktree (synchronous).

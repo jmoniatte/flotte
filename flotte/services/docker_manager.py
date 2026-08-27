@@ -70,7 +70,7 @@ async def get_all_containers_by_project() -> dict[str, list[dict]]:
 
 
 class DockerManager:
-    """Direct Docker Compose interaction for status and service control."""
+    """Read Docker Compose configuration for one worktree."""
 
     def __init__(self, worktree_path: Path, project_name: str):
         """
@@ -121,37 +121,7 @@ class DockerManager:
 
     async def get_services(self) -> list[str]:
         """Get all service names defined in the compose file."""
-        returncode, stdout, stderr = await self._run_compose("config", "--services")
+        returncode, stdout, _ = await self._run_compose("config", "--services")
         if returncode != 0:
             return []
         return [line.strip() for line in stdout.strip().split("\n") if line.strip()]
-
-    async def start_service(self, service: str) -> bool:
-        """
-        Start a specific service.
-
-        Returns:
-            True if successful, False otherwise
-        """
-        returncode, _, _ = await self._run_compose("up", "-d", service)
-        return returncode == 0
-
-    async def stop_service(self, service: str) -> bool:
-        """
-        Stop a specific service.
-
-        Returns:
-            True if successful, False otherwise
-        """
-        returncode, _, _ = await self._run_compose("stop", service)
-        return returncode == 0
-
-    async def restart_service(self, service: str) -> bool:
-        """
-        Restart a specific service.
-
-        Returns:
-            True if successful, False otherwise
-        """
-        returncode, _, _ = await self._run_compose("restart", service)
-        return returncode == 0

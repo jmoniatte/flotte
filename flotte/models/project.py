@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .worktree import Worktree
@@ -31,17 +30,9 @@ CONTAINER_STATE_EVENTS = (
 
 
 class Project:
-    """Project that owns worktrees.
+    """Own the active worktrees and their container polling loop."""
 
-    Initialized from config data (name, path, ride_command).
-    Owns and manages its worktrees, creating them on demand.
-    Also owns the polling loop for container status updates.
-    """
-
-    def __init__(self, name: str, path: str, ride_command: str = ""):
-        self.name = name
-        self.path = Path(path)
-        self.ride_command = ride_command
+    def __init__(self):
         self.worktrees: dict[str, Worktree] = {}
 
         # Polling state

@@ -4,6 +4,7 @@ import asyncio
 import os
 import signal
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..config import LinkedRepository
@@ -12,6 +13,12 @@ from .git_status import get_git_status
 from .link_state_store import LinkStateStore
 from .process_identity import capture_process_identity, matches_process_identity
 from .worktree_manager import WorktreeManager
+
+
+@dataclass(frozen=True, slots=True)
+class LinkedProcessResult:
+    worktree: LinkedWorktree
+    pid: int
 
 
 class LinkedWorktreeManager:
@@ -158,12 +165,12 @@ class LinkedWorktreeManager:
         linked_path: Path,
         ports: dict[str, int],
         key: str,
-    ) -> None:
+    ) -> int | None:
         if not repository.start_command:
-            return
+            return None
         record = self.link_state.get_record(key)
         if self._is_managed_process_running(record):
-            return
+            return int(record["pid"])
         if self._is_process_running(record.get("pid")):
             raise RuntimeError(f"{repository.name} is externally managed")
         self._run_commands(repository.pre_start_commands, primary, linked_path, ports)
@@ -183,6 +190,7 @@ class LinkedWorktreeManager:
             raise RuntimeError(f"Could not verify the {repository.name} process identity")
         self._processes[key] = process
         self.link_state.update_record(key, pid=process.pid, process_identity=identity)
+        return process.pid
 
     @staticmethod
     def _is_process_running(pid: object) -> bool:
@@ -226,7 +234,11 @@ class LinkedWorktreeManager:
                 os.killpg(int(record["process_identity"]["process_group"]), signal.SIGKILL)
                 process.wait()
 
-    async def start_link(self, primary: Worktree, repository_name: str) -> LinkedWorktree:
+    async def start_link(
+        self,
+        primary: Worktree,
+        repository_name: str,
+    ) -> LinkedProcessResult:
         """Start the configured development command for an existing linked worktree."""
         repository = next(
             (item for item in self.repositories if item.name == repository_name), None
@@ -253,11 +265,29 @@ class LinkedWorktreeManager:
             raise RuntimeError(f"No linked worktree exists for {repository_name}")
         ports = {name: int(port) for name, port in record.get("ports", {}).items()}
         ports.update(self._status_port(repository, path))
-        await asyncio.to_thread(self._start_process, primary, repository, path, ports, key)
+        pid = await asyncio.to_thread(
+            self._start_process,
+            primary,
+            repository,
+            path,
+            ports,
+            key,
+        )
+        if pid is None:
+            raise RuntimeError(f"{repository_name} did not start a process")
         self.attach(primary)
-        return next(link for link in primary.linked_worktrees if link.repository_name == repository_name)
+        worktree = next(
+            link
+            for link in primary.linked_worktrees
+            if link.repository_name == repository_name
+        )
+        return LinkedProcessResult(worktree, pid)
 
-    async def restart_link(self, primary: Worktree, repository_name: str) -> LinkedWorktree:
+    async def restart_link(
+        self,
+        primary: Worktree,
+        repository_name: str,
+    ) -> LinkedProcessResult:
         """Restart a development process that Flotte previously started."""
         repository = next(
             (item for item in self.repositories if item.name == repository_name), None
@@ -271,7 +301,11 @@ class LinkedWorktreeManager:
         await asyncio.to_thread(self._stop_process, key, record)
         return await self.start_link(primary, repository_name)
 
-    async def stop_link(self, primary: Worktree, repository_name: str) -> LinkedWorktree:
+    async def stop_link(
+        self,
+        primary: Worktree,
+        repository_name: str,
+    ) -> LinkedProcessResult:
         """Stop a development process that Flotte previously started."""
         repository = next(
             (item for item in self.repositories if item.name == repository_name), None
@@ -282,9 +316,15 @@ class LinkedWorktreeManager:
         record = self.link_state.get_record(key)
         if not self._is_managed_process_running(record):
             raise RuntimeError(f"{repository_name} is externally managed")
+        pid = int(record["pid"])
         await asyncio.to_thread(self._stop_process, key, record)
         self.attach(primary)
-        return next(link for link in primary.linked_worktrees if link.repository_name == repository_name)
+        worktree = next(
+            link
+            for link in primary.linked_worktrees
+            if link.repository_name == repository_name
+        )
+        return LinkedProcessResult(worktree, pid)
 
     @staticmethod
     def _status_port(repository: LinkedRepository, linked_path: Path) -> dict[str, int]:

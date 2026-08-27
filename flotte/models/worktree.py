@@ -18,9 +18,6 @@ class WorktreeStatus(Enum):
     STARTING = "starting"  # Containers are starting up
     STOPPING = "stopping"  # Containers are shutting down
     STOPPED = "stopped"  # No containers running
-    CREATING = "creating"  # Git worktree add + ride init in progress
-    DELETING = "deleting"  # Cleanup + git worktree remove in progress
-    ERROR = "error"  # Error state detected
     UNKNOWN = "unknown"  # Status not yet polled
 
 

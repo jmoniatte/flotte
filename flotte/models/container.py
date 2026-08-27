@@ -93,8 +93,3 @@ class Container:
 
         # Return sorted for consistent display
         return sorted(exposed_ports, key=lambda p: int(p) if p.isdigit() else 0)
-
-    @property
-    def is_healthy(self) -> bool:
-        """Container is considered healthy if running."""
-        return self.state == ContainerState.RUNNING

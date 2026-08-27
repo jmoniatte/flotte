@@ -53,16 +53,12 @@ class ContainerControls(Horizontal):
             start_btn.disabled = True
             stop_btn.disabled = False
             restart_btn.disabled = False
-        elif status in (WorktreeStatus.STARTING, WorktreeStatus.STOPPING, WorktreeStatus.ERROR):
+        elif status in (WorktreeStatus.STARTING, WorktreeStatus.STOPPING):
             # STARTING/STOPPING here means containers are stuck part-way with no
             # operation running - the user needs the controls to recover
             start_btn.disabled = False
             stop_btn.disabled = False
             restart_btn.disabled = False
-        elif status in (WorktreeStatus.CREATING, WorktreeStatus.DELETING):
-            start_btn.disabled = True
-            stop_btn.disabled = True
-            restart_btn.disabled = True
         else:  # UNKNOWN
             start_btn.disabled = False
             stop_btn.disabled = True

@@ -1,7 +1,6 @@
 import asyncio
 import os
 from pathlib import Path
-from typing import AsyncIterator
 
 
 class RideWrapper:
@@ -46,39 +45,3 @@ class RideWrapper:
     async def stop(self) -> tuple[int, str, str]:
         """Stop Docker containers."""
         return await self._run("down")
-
-    async def restart(self) -> tuple[int, str, str]:
-        """Restart Docker containers."""
-        await self.stop()
-        return await self.start()
-
-    async def status(self) -> tuple[int, str, str]:
-        """Get container status."""
-        return await self._run("ps", timeout=30.0)
-
-    async def logs(self, services: list[str] | None = None) -> AsyncIterator[str]:
-        """Stream logs from containers."""
-        cmd = self._base_cmd() + ["logs", "-f", "--tail", "100"]
-        if services:
-            cmd.extend(services)
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=self.worktree_path,
-            env=os.environ,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-
-        try:
-            assert proc.stdout is not None
-            async for line in proc.stdout:
-                yield line.decode("utf-8", errors="replace").rstrip("\n")
-        except asyncio.CancelledError:
-            proc.terminate()
-            await proc.wait()
-            raise
-        finally:
-            if proc.returncode is None:
-                proc.terminate()
-                await proc.wait()

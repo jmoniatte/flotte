@@ -100,11 +100,7 @@ class FlotteApp(App):
         # Project model (owns worktrees and polling)
         self.project: Project | None = None
         if self.current_config_project:
-            self.project = Project(
-                self.current_config_project.name,
-                self.current_config_project.repository_path,
-                self.current_config_project.ride_command,
-            )
+            self.project = Project()
 
         # WorktreeManager for discovery and lifecycle operations
         self.worktree_manager: WorktreeManager | None = None
@@ -300,11 +296,7 @@ class FlotteApp(App):
         self.log_store = WorktreeLogStore(config_project.name)
 
         # Create new Project model
-        self.project = Project(
-            config_project.name,
-            config_project.repository_path,
-            config_project.ride_command,
-        )
+        self.project = Project()
 
         # Reset selection
         self.selected_worktree = None
@@ -489,23 +481,18 @@ class FlotteApp(App):
         status = self._effective_status()
 
         containers_loaded = bool(self.selected_worktree and self.selected_worktree.has_polled)
-        show_table = status != WorktreeStatus.CREATING and containers_loaded
+        show_table = containers_loaded
 
         self.query_one("#container-table").display = show_table
         self.query_one("#container-table-footer-rule").display = show_table
-        self.query_one("#container-loading", Static).display = (
-            status != WorktreeStatus.CREATING and not containers_loaded
-        )
+        self.query_one("#container-loading", Static).display = not containers_loaded
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = status
         # Only a running command locks the buttons - a worktree left half-up after
         # the command returns must stay actionable
         controls.operation_active = self._operation_in_progress
         ride_button = self.query_one("#btn-ride", Button)
-        ride_button.disabled = self._operation_in_progress or status in (
-            WorktreeStatus.CREATING,
-            WorktreeStatus.DELETING,
-        )
+        ride_button.disabled = self._operation_in_progress
         self.query_one("#container-url", WebLink).set_url(
             self.selected_worktree.web_url if self.selected_worktree else None
         )
@@ -973,11 +960,24 @@ class FlotteApp(App):
             "stop": ("Stopped", "Failed to stop"),
             "restart": ("Restarted", "Failed to restart"),
         }
+        started_at = perf_counter()
         try:
-            await operations[action](worktree, repository_name)
+            result = await operations[action](worktree, repository_name)
+            self.log_store.record_elapsed(
+                worktree.name,
+                f"{messages[action][0]} {repository_name} (PID: {result.pid})",
+                started_at,
+                True,
+            )
             self._update_container_view(refresh_linked_repositories=True)
             self.notify(f"{messages[action][0]} {repository_name}", severity="information")
         except Exception as error:
+            self.log_store.record_elapsed(
+                worktree.name,
+                f"{messages[action][0]} {repository_name}",
+                started_at,
+                False,
+            )
             self.notify(f"{messages[action][1]} {repository_name}: {error}", severity="error")
         finally:
             self._release_operation_lock()

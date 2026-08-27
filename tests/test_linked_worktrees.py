@@ -57,12 +57,12 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         self.assertEqual(retried.process_status, "running")
 
         restarted = asyncio.run(self.manager.restart_link(self.primary, self.repository.name))
-        self.assertEqual(restarted.process_status, "running")
-        self.assertEqual(restarted.process_status, "running")
+        self.assertEqual(restarted.worktree.process_status, "running")
+        self.assertGreater(restarted.pid, 0)
 
         stopped = asyncio.run(self.manager.stop_link(self.primary, self.repository.name))
-        self.assertEqual(stopped.process_status, "stopped")
-        self.assertEqual(stopped.process_status, "stopped")
+        self.assertEqual(stopped.worktree.process_status, "stopped")
+        self.assertEqual(stopped.pid, restarted.pid)
 
         asyncio.run(self.manager.remove_links(self.primary))
         self.assertFalse(created.path.exists())
@@ -104,11 +104,13 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         self.assertEqual(attached.process_status, "stopped")
 
         started = asyncio.run(self.manager.start_link(main, self.repository.name))
-        self.assertEqual(started.process_status, "running")
-        self.assertEqual(started.ports["Vite"], 55100)
+        self.assertEqual(started.worktree.process_status, "running")
+        self.assertEqual(started.worktree.ports["Vite"], 55100)
+        self.assertGreater(started.pid, 0)
 
         stopped = asyncio.run(self.manager.stop_link(main, self.repository.name))
-        self.assertEqual(stopped.process_status, "stopped")
+        self.assertEqual(stopped.worktree.process_status, "stopped")
+        self.assertEqual(stopped.pid, started.pid)
 
         asyncio.run(self.manager.remove_link(main, self.repository.name))
         self.assertTrue(self.frontend.exists())
