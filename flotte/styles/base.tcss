@@ -140,6 +140,7 @@ WorktreeHeader #worktree-table {
     height: auto;
     background: transparent;
     border: none;
+    color: $fg;
     scrollbar-size: 0 0;
 }
 
@@ -300,6 +301,26 @@ WorktreeHeader #worktree-table-footer-rule {
     text-style: bold;
 }
 
+#breadcrumbs #btn-logs {
+    width: auto;
+    min-width: 0;
+    margin: 0 1 0 0;
+    padding: 0 2;
+    border: none;
+    background: $bg-light;
+    color: $fg;
+}
+
+#breadcrumbs #btn-logs:hover {
+    background: $gutter;
+}
+
+#breadcrumbs #btn-logs:focus {
+    background: $blue;
+    color: $bg-dark;
+    text-style: bold;
+}
+
 WebLink {
     width: auto;
     color: $blue;
@@ -427,6 +448,7 @@ ContainerControls .spacer {
 ContainerTable {
     height: auto;
     background: transparent;
+    color: $fg;
     border: none;
     margin: 0 1;
     scrollbar-size: 0 0;
@@ -645,6 +667,70 @@ HelpScreen #help-repository:hover {
     color: $blue;
     text-style: underline;
     background: transparent;
+}
+
+WorktreeLogScreen {
+    background: $bg;
+}
+
+#worktree-log-screen {
+    height: 1fr;
+    padding: 0 2 1 2;
+}
+
+#log-breadcrumbs {
+    height: 1;
+    margin-bottom: 1;
+}
+
+#log-breadcrumb-worktrees,
+#log-breadcrumb-worktree {
+    width: auto;
+    color: $blue;
+}
+
+#log-breadcrumb-worktrees:hover,
+#log-breadcrumb-worktree:hover {
+    text-style: underline;
+}
+
+.log-breadcrumb-separator {
+    width: auto;
+    margin: 0 1;
+    color: $comment;
+}
+
+#log-breadcrumb-current {
+    width: auto;
+    color: $yellow;
+    text-style: bold;
+}
+
+#worktree-log {
+    height: 1fr;
+    background: transparent;
+    color: $fg;
+    border: none;
+    padding: 0;
+    scrollbar-size: 0 0;
+}
+
+#worktree-log-header {
+    height: 1;
+    color: $comment;
+}
+
+#worktree-log-datetime {
+    width: 22;
+}
+
+#worktree-log-label {
+    width: 1fr;
+}
+
+#worktree-log-rule {
+    height: 1;
+    color: $comment;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1259,6 +1345,7 @@ ContainerControls #btn-container-start:disabled,
 ContainerControls #btn-container-stop:disabled,
 ContainerControls #btn-container-restart:disabled,
 #breadcrumbs #btn-ride:disabled,
+#breadcrumbs #btn-logs:disabled,
 ContainerControls #btn-delete-worktree:disabled,
 .linked-repository-lifecycle Button:disabled,
 .linked-repository-lifecycle .linked-start-button:disabled,

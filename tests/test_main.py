@@ -1,6 +1,7 @@
 import contextlib
 import io
 import asyncio
+import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 import unittest
@@ -10,8 +11,9 @@ from flotte.app import FlotteApp
 from flotte.config import Config, PreflightResult, Project
 from flotte.models import Container, Worktree
 from flotte.models.container import ContainerState
+from flotte.screens import WorktreeLogScreen
 from flotte.widgets import WebLink
-from textual.widgets import Button, ContentSwitcher, Static
+from textual.widgets import Button, ContentSwitcher, RichLog, Static
 
 
 class MainTests(unittest.TestCase):
@@ -164,5 +166,83 @@ class MainTests(unittest.TestCase):
                     self.assertFalse(app.query_one("#btn-new-worktree", Button).display)
                     self.assertFalse(app.query_one("#btn-refresh", Button).display)
                     self.assertTrue(app.query_one("#btn-new-worktree", Button).disabled)
+
+        asyncio.run(exercise())
+
+    def test_logs_button_opens_the_selected_worktree_log(self) -> None:
+        async def exercise() -> None:
+            config = Config(
+                projects=[Project("test", "/tmp/test", "/tmp/worktrees/{worktree}")]
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                with (
+                    patch("flotte.app.load_config", return_value=config),
+                    patch(
+                        "flotte.app.preflight_config",
+                        return_value=PreflightResult(
+                            tuple(config.projects), ((config.projects[0], ()),)
+                        ),
+                    ),
+                    patch("flotte.services.worktree_log.LOG_DIR", Path(directory)),
+                    patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
+                    patch.object(FlotteApp, "_fetch_git_status", new_callable=AsyncMock),
+                    patch("flotte.models.project.Project.start_polling"),
+                    patch("flotte.models.project.Project.shutdown", new_callable=AsyncMock),
+                ):
+                    app = FlotteApp()
+                    async with app.run_test() as pilot:
+                        worktree = Worktree("feature", Path("/tmp/feature"))
+                        app.selected_worktree = worktree
+                        self.assertFalse(app.query_one("#btn-logs", Button).disabled)
+                        app.action_show_logs()
+                        await pilot.pause()
+                        self.assertIsInstance(app.screen, WorktreeLogScreen)
+                        app.pop_screen()
+                        await pilot.pause()
+
+                        app.log_store.record(
+                            worktree.name, "Create worktree", 0.1, True
+                        )
+                        app._update_container_view()
+                        logs_button = app.query_one("#btn-logs", Button)
+                        self.assertFalse(logs_button.disabled)
+
+                        app.action_show_logs()
+                        await pilot.pause()
+                        self.assertIsInstance(app.screen, WorktreeLogScreen)
+                        self.assertIn(
+                            "Logs",
+                            app.screen.query_one("#log-breadcrumb-current", Static).render().plain,
+                        )
+                        self.assertEqual(
+                            app.screen.query_one("#project-name", Static).render().plain,
+                            "test",
+                        )
+                        self.assertEqual(
+                            app.screen.query_one("#worktree-log-datetime", Static).render().plain,
+                            "DateTime",
+                        )
+                        self.assertEqual(
+                            app.screen.query_one("#worktree-log-label", Static).render().plain,
+                            "Log",
+                        )
+                        self.assertIsInstance(
+                            app.screen.query_one("#worktree-log", RichLog), RichLog,
+                        )
+                        await pilot.click("#log-breadcrumb-worktree")
+                        await pilot.pause()
+                        self.assertEqual(
+                            app.query_one("#view-switcher", ContentSwitcher).current,
+                            "details-view",
+                        )
+
+                        app.action_show_logs()
+                        await pilot.pause()
+                        await pilot.click("#log-breadcrumb-worktrees")
+                        await pilot.pause()
+                        self.assertEqual(
+                            app.query_one("#view-switcher", ContentSwitcher).current,
+                            "list-view",
+                        )
 
         asyncio.run(exercise())

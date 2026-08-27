@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class ThemeColors:
     """Color palette parsed from a TCSS theme file."""
+    bg_light: str
     green: str
     red: str
     yellow: str
@@ -32,6 +33,7 @@ class ThemeColors:
 # Default colors (OneDark) used as fallback when app not available.
 # Hardcoded for simplicity - only used in edge cases (pre-mount renders).
 DEFAULT_COLORS = ThemeColors(
+    bg_light="#3e4451",
     green="#98c379",
     red="#e06c75",
     yellow="#e5c07b",
@@ -42,7 +44,9 @@ DEFAULT_COLORS = ThemeColors(
     dim="#5c6370",
 )
 
-REQUIRED_VARS = ("green", "red", "yellow", "orange", "blue", "purple", "cyan", "comment")
+REQUIRED_VARS = (
+    "bg-light", "green", "red", "yellow", "orange", "blue", "purple", "cyan", "comment"
+)
 
 
 def load_theme_colors(theme_name: str) -> ThemeColors:
@@ -68,7 +72,7 @@ def load_theme_colors(theme_name: str) -> ThemeColors:
 
     # Parse $var: #hex; patterns (supports 6 or 8 digit hex, ignores alpha)
     colors = {}
-    for match in re.finditer(r'\$(\w+):\s*#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?', content):
+    for match in re.finditer(r'\$([\w-]+):\s*#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?', content):
         colors[match.group(1)] = f"#{match.group(2)}"
 
     # Validate required variables
@@ -77,6 +81,7 @@ def load_theme_colors(theme_name: str) -> ThemeColors:
         raise ValueError(f"Theme '{theme_name}' missing required variables: {missing}")
 
     return ThemeColors(
+        bg_light=colors["bg-light"],
         green=colors["green"],
         red=colors["red"],
         yellow=colors["yellow"],

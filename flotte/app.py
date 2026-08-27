@@ -1,6 +1,7 @@
 import asyncio
 from functools import partial
 from pathlib import Path
+from time import perf_counter
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -15,7 +16,7 @@ from .models import Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
 from .messages import OperationCompleted, WorktreeStatusChanged
-from .services import LinkedWorktreeManager, RideWrapper, WorktreeManager
+from .services import LinkedWorktreeManager, RideWrapper, WorktreeLogStore, WorktreeManager
 from .screens import (
     ConfirmDialog,
     CreateWorktreeScreen,
@@ -23,6 +24,7 @@ from .screens import (
     DeleteWorktreeScreen,
     DeleteWorktreeResult,
     HelpScreen,
+    WorktreeLogScreen,
 )
 from .widgets import (
     ContainerControls,
@@ -84,6 +86,9 @@ class FlotteApp(App):
         self.current_config_project: ConfigProject | None = None
         if self.config.projects:
             self.current_config_project = self.config.projects[0]
+        self.log_store = WorktreeLogStore(
+            self.current_config_project.name if self.current_config_project else "flotte"
+        )
 
         # Project model (owns worktrees and polling)
         self.project: Project | None = None
@@ -179,6 +184,7 @@ class FlotteApp(App):
                     yield Static("", id="breadcrumb-worktree")
                     yield Static("", id="breadcrumb-git-status")
                     yield Static("", classes="spacer")
+                    yield Button("Logs", id="btn-logs")
                     yield Button("Go Ride", id="btn-ride")
                 with Container(id="containers-box"):
                     yield ContainerTable(id="container-table")
@@ -284,6 +290,7 @@ class FlotteApp(App):
             self.project.stop_polling()
 
         self.current_config_project = config_project
+        self.log_store = WorktreeLogStore(config_project.name)
 
         # Create new Project model
         self.project = Project(
@@ -495,7 +502,6 @@ class FlotteApp(App):
         self.query_one("#container-url", WebLink).set_url(
             self.selected_worktree.web_url if self.selected_worktree else None
         )
-
         delete_button = self.query_one("#btn-delete-worktree", Button)
         can_delete = (
             self.selected_worktree is not None
@@ -585,6 +591,7 @@ class FlotteApp(App):
             "btn-container-stop": self.action_stop_environment,
             "btn-container-restart": self.action_restart_environment,
             "btn-ride": self.action_ride,
+            "btn-logs": self.action_show_logs,
             "btn-delete-worktree": self.action_delete_worktree,
         }
         action = button_actions.get(event.button.id)
@@ -828,7 +835,7 @@ class FlotteApp(App):
             return
 
         self.push_screen(
-            CreateWorktreeScreen(self.worktree_manager),
+            CreateWorktreeScreen(self.worktree_manager, self.log_store),
             callback=self._on_create_dialog_result
         )
 
@@ -890,12 +897,24 @@ class FlotteApp(App):
 
     async def _create_link(self, worktree: Worktree, repository_name: str) -> None:
         try:
+            started_at = perf_counter()
             result = await self.linked_worktree_manager.create_link(worktree, repository_name)
             if result.state == "error":
+                self.log_store.record(
+                    worktree.name, f"Link {repository_name}", perf_counter() - started_at, False
+                )
                 self.notify(f"Link setup failed: {result.error}", severity="error")
             else:
+                self.log_store.record(
+                    worktree.name, f"Link {repository_name}", perf_counter() - started_at, True
+                )
                 self.notify(f"Linked {repository_name}", severity="information")
             self._update_container_view(refresh_linked_repositories=True)
+        except Exception:
+            self.log_store.record(
+                worktree.name, f"Link {repository_name}", perf_counter() - started_at, False
+            )
+            raise
         finally:
             self._release_operation_lock()
 
@@ -967,11 +986,18 @@ class FlotteApp(App):
 
     async def _delete_link(self, worktree: Worktree, repository_name: str) -> None:
         try:
+            started_at = perf_counter()
             await self.linked_worktree_manager.remove_link(worktree, repository_name)
+            self.log_store.record(
+                worktree.name, f"Unlink {repository_name}", perf_counter() - started_at, True
+            )
             self.linked_worktree_manager.attach(worktree)
             self._update_container_view(refresh_linked_repositories=True)
             self.notify(f"Unlinked {repository_name}", severity="information")
         except Exception as error:
+            self.log_store.record(
+                worktree.name, f"Unlink {repository_name}", perf_counter() - started_at, False
+            )
             self.notify(f"Failed to unlink {repository_name}: {error}", severity="error")
         finally:
             self._release_operation_lock()
@@ -1137,6 +1163,7 @@ class FlotteApp(App):
 
         # Remove from project model
         self.project.worktrees.pop(deleted_name, None)
+        self.log_store.remove(deleted_name)
 
         self._sync_worktree_ui()
         main_wt = next(
@@ -1151,6 +1178,29 @@ class FlotteApp(App):
     def action_show_help(self) -> None:
         """Show help screen - '?' key."""
         self.push_screen(HelpScreen())
+
+    def action_show_logs(self) -> None:
+        """Show the selected worktree's operation log."""
+        if not self.selected_worktree:
+            return
+        log_path = self.log_store.path_for(self.selected_worktree.name)
+        self.push_screen(
+            WorktreeLogScreen(
+                self.selected_worktree.name,
+                log_path,
+                self.current_config_project.name,
+                self._show_worktree_list_from_logs,
+                self._show_worktree_details_from_logs,
+            )
+        )
+
+    def _show_worktree_list_from_logs(self) -> None:
+        self.pop_screen()
+        self._show_worktree_list()
+
+    def _show_worktree_details_from_logs(self) -> None:
+        self.pop_screen()
+        self._show_worktree_details()
 
     def action_ride(self) -> None:
         """Open workspace using configured ride_command."""

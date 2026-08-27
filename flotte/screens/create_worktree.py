@@ -1,5 +1,6 @@
 import asyncio
 import re
+from time import perf_counter
 from dataclasses import dataclass
 
 from textual.screen import ModalScreen
@@ -7,7 +8,7 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Input, Select, Checkbox, Button, Static, TabbedContent, TabPane
 from textual.app import ComposeResult
 
-from ..services import WorktreeManager
+from ..services import WorktreeLogStore, WorktreeManager
 from ..models import Worktree
 
 # Failures scroll by while the user watches creation, so they outlast the 5s default
@@ -36,9 +37,14 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, worktree_manager: WorktreeManager):
+    def __init__(
+        self,
+        worktree_manager: WorktreeManager,
+        log_store: WorktreeLogStore,
+    ):
         super().__init__()
         self.worktree_manager = worktree_manager
+        self.log_store = log_store
         self._all_branches: list[str] = []
         self._existing_worktree_branches: set[str] = set()
         self._is_new_branch_mode: bool = True
@@ -227,9 +233,13 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
         try:
             # Create git worktree (uses asyncio.to_thread internally)
             self._update_status("Creating git worktree...")
+            started_at = perf_counter()
             worktree = await self.worktree_manager.create_worktree(
                 branch_name=params.branch_name,
                 base_branch=params.base_branch,
+            )
+            self.log_store.record(
+                worktree.name, "Create worktree", perf_counter() - started_at, True
             )
 
             # Clone volumes if requested
@@ -247,17 +257,31 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                     source_vol = f"{source_project}_{vol}"
                     target_vol = f"{worktree.compose_project_name}_{vol}"
                     # Use asyncio.to_thread to release event loop for UI updates
-                    await asyncio.to_thread(
+                    started_at = perf_counter()
+                    returncode, _, _ = await asyncio.to_thread(
                         self.worktree_manager._run_command,
                         "docker", "volume", "create", target_vol
                     )
-                    await asyncio.to_thread(
+                    self.log_store.record(
+                        worktree.name,
+                        f"Create volume {vol}",
+                        perf_counter() - started_at,
+                        returncode == 0,
+                    )
+                    started_at = perf_counter()
+                    returncode, _, _ = await asyncio.to_thread(
                         self.worktree_manager._run_command,
                         "docker", "run", "--rm",
                         "-v", f"{source_vol}:/source:ro",
                         "-v", f"{target_vol}:/dest",
                         "alpine", "sh", "-c", "cp -a /source/. /dest/",
                         timeout=300.0,
+                    )
+                    self.log_store.record(
+                        worktree.name,
+                        f"Clone volume {vol}",
+                        perf_counter() - started_at,
+                        returncode == 0,
                     )
 
                 # Tag built images so docker compose up doesn't rebuild
@@ -266,6 +290,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                     self.worktree_manager.get_built_services_sync
                 )
                 if built_services:
+                    started_at = perf_counter()
                     failures = await asyncio.to_thread(
                         self.worktree_manager.tag_images_sync,
                         source_project,
@@ -276,6 +301,12 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         self._notify_failure(
                             f"Failed to tag image for {service}: {error}"
                         )
+                    self.log_store.record(
+                        worktree.name,
+                        "Tag images",
+                        perf_counter() - started_at,
+                        not failures,
+                    )
 
                 # Clone gitignored bind mounts
                 bind_mounts = await self.worktree_manager.get_gitignored_bind_mounts()
@@ -294,6 +325,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         source = self.worktree_manager.main_repo_path / rel_path
                         target = worktree.path / rel_path
 
+                        started_at = perf_counter()
                         success, error = await asyncio.to_thread(
                             self.worktree_manager._clone_bind_mount_sync,
                             source,
@@ -302,6 +334,12 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
 
                         if not success:
                             failed_mounts.append((rel_path, error))
+                        self.log_store.record(
+                            worktree.name,
+                            f"Clone bind mount {rel_path}",
+                            perf_counter() - started_at,
+                            success,
+                        )
 
                     # Show warning for any failures (but don't abort)
                     for rel_path, error in failed_mounts:
@@ -318,6 +356,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         source = self.worktree_manager.main_repo_path / rel_path
                         target = worktree.path / rel_path
 
+                        started_at = perf_counter()
                         success, error = await asyncio.to_thread(
                             self.worktree_manager._clone_bind_mount_sync,
                             source,
@@ -326,6 +365,12 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
 
                         if not success:
                             failed_clones.append((rel_path, error))
+                        self.log_store.record(
+                            worktree.name,
+                            f"Copy extra path {rel_path}",
+                            perf_counter() - started_at,
+                            success,
+                        )
 
                     for rel_path, error in failed_clones:
                         self._notify_failure(f"Failed to copy {rel_path}: {error}")
@@ -333,6 +378,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
             commands = self.worktree_manager.post_create_commands
             for i, command in enumerate(commands):
                 self._update_status(f"Running command {i+1}/{len(commands)}: {command}...")
+                started_at = perf_counter()
                 success, error = await asyncio.to_thread(
                     self.worktree_manager.run_post_create_command_sync,
                     command,
@@ -340,6 +386,12 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                 )
                 if not success:
                     self._notify_failure(f"Command failed: {command}: {error}")
+                self.log_store.record(
+                    worktree.name,
+                    f"Run post-create command: {command}",
+                    perf_counter() - started_at,
+                    success,
+                )
 
             # Dismiss with result
             self.dismiss(CreateWorktreeResult(worktree=worktree, params=params))

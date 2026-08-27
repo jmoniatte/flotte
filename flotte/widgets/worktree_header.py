@@ -158,7 +158,10 @@ class WorktreeTable(DashedHeaderDataTable):
         return Text("Loading" if not wt.has_polled else status.value.title(), style=color)
 
     def _format_name(self, wt: Worktree) -> Text:
-        return Text(wt.name, style="bold" if wt.is_main else "")
+        return Text(
+            wt.name,
+            style=self.app.theme_colors.yellow if wt.is_main else "",
+        )
 
     def refresh_worktrees(self, worktrees: list[Worktree]) -> None:
         """Update table with worktrees.
