@@ -12,13 +12,19 @@ class WorktreeLogStoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with patch("flotte.services.worktree_log.LOG_DIR", Path(directory)):
                 store = WorktreeLogStore("ridewithgps")
-                store.record("feature/login", "Clone volume mysql", 1.2, True)
+                store.record(
+                    "feature/login", "Clone volume\n  mysql", 1.2, True
+                )
                 log_path = store.path_for("feature/login")
 
                 self.assertEqual(log_path.name, "ridewithgps-feature-login.csv")
                 self.assertTrue(log_path.is_file())
                 with log_path.open(newline="") as log_file:
                     entries = list(csv.DictReader(log_file))
+                self.assertRegex(
+                    entries[0]["timestamp"],
+                    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",
+                )
                 self.assertEqual(entries[0]["action"], "Clone volume mysql")
                 self.assertEqual(entries[0]["status"], "success")
                 self.assertEqual(entries[0]["duration_seconds"], "1.200000")

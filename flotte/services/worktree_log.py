@@ -20,6 +20,10 @@ class WorktreeLogStore:
         slug = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-").lower()
         return slug or "project"
 
+    @staticmethod
+    def _single_line(value: str) -> str:
+        return " ".join(value.split())
+
     def path_for(self, worktree_name: str) -> Path:
         return LOG_DIR / f"{self.project_name}-{self._slug(worktree_name)}.csv"
 
@@ -45,7 +49,7 @@ class WorktreeLogStore:
                 writer.writerow(
                     {
                         "timestamp": timestamp,
-                        "action": action,
+                        "action": self._single_line(action),
                         "status": "success" if succeeded else "failed",
                         "duration_seconds": f"{duration_seconds:.6f}",
                     }

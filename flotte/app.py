@@ -713,7 +713,11 @@ class FlotteApp(App):
         self._update_container_view()
 
         try:
+            started_at = perf_counter()
             returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).start()
+            self.log_store.record_elapsed(
+                wt.name, "Started containers", started_at, returncode == 0
+            )
             if returncode != 0:
                 self.log.error(f"Start failed: {stderr or stdout}")
                 self.notify(f"Failed to start: {stderr or stdout}", severity="error")
@@ -724,6 +728,7 @@ class FlotteApp(App):
             wt.clear_operation()
             raise
         except Exception as e:
+            self.log_store.record_elapsed(wt.name, "Started containers", started_at, False)
             self.log.error(f"Start failed: {e}")
             self.notify(f"Failed to start: {e}", severity="error")
             wt.clear_operation()
@@ -754,7 +759,11 @@ class FlotteApp(App):
         self._update_container_view()
 
         try:
+            started_at = perf_counter()
             returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).stop()
+            self.log_store.record_elapsed(
+                wt.name, "Stopped containers", started_at, returncode == 0
+            )
             if returncode != 0:
                 self.log.error(f"Stop failed: {stderr or stdout}")
                 self.notify(f"Failed to stop: {stderr or stdout}", severity="error")
@@ -765,6 +774,7 @@ class FlotteApp(App):
             wt.clear_operation()
             raise
         except Exception as e:
+            self.log_store.record_elapsed(wt.name, "Stopped containers", started_at, False)
             self.log.error(f"Stop failed: {e}")
             self.notify(f"Failed to stop: {e}", severity="error")
             wt.clear_operation()
@@ -791,6 +801,7 @@ class FlotteApp(App):
             self.log.error("_perform_restart called without lock")
             return
 
+        started_at = perf_counter()
         try:
             # Phase 1: Stop
             wt.start_operation(WorktreeStatus.STOPPING, None)  # No auto-clear
@@ -798,6 +809,7 @@ class FlotteApp(App):
 
             returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).stop()
             if returncode != 0:
+                self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
                 self.log.error(f"Restart (stop phase) failed: {stderr or stdout}")
                 self.notify(f"Failed to restart: {stderr or stdout}", severity="error")
                 wt.clear_operation()
@@ -809,9 +821,12 @@ class FlotteApp(App):
 
             returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).start()
             if returncode != 0:
+                self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
                 self.log.error(f"Restart (start phase) failed: {stderr or stdout}")
                 self.notify(f"Failed to restart: {stderr or stdout}", severity="error")
                 wt.clear_operation()
+            else:
+                self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, True)
             # Success: poll will confirm when all containers running and post OperationCompleted
 
         except asyncio.CancelledError:
@@ -819,6 +834,7 @@ class FlotteApp(App):
             wt.clear_operation()
             raise
         except Exception as e:
+            self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
             self.log.error(f"Restart failed: {e}")
             self.notify(f"Failed to restart: {e}", severity="error")
             wt.clear_operation()
