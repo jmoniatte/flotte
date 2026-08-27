@@ -1,4 +1,5 @@
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from textual.screen import ModalScreen
@@ -30,10 +31,12 @@ class CreateWorktreeScreen(ModalScreen[WorktreeCreationResult | None]):
     def __init__(
         self,
         creator: WorktreeCreator,
+        existing_branches: Collection[str],
     ):
         super().__init__()
         self.creator = creator
         self.worktree_manager = creator.manager
+        self.existing_branches = frozenset(existing_branches)
         self._is_new_branch_mode: bool = True
 
     def compose(self) -> ComposeResult:
@@ -98,10 +101,6 @@ class CreateWorktreeScreen(ModalScreen[WorktreeCreationResult | None]):
 
         branches.sort(key=sort_key)
 
-        existing_worktree_branches = {
-            wt.branch for wt in self.worktree_manager.worktrees.values()
-        }
-
         # Populate base-branch select (all branches for new branch mode)
         base_select = self.query_one("#base-branch", Select)
         if branches:
@@ -111,7 +110,7 @@ class CreateWorktreeScreen(ModalScreen[WorktreeCreationResult | None]):
 
         # Populate existing-branch select (only branches without worktrees)
         available_branches = [
-            b for b in branches if b not in existing_worktree_branches
+            branch for branch in branches if branch not in self.existing_branches
         ]
         existing_select = self.query_one("#existing-branch", Select)
         if available_branches:

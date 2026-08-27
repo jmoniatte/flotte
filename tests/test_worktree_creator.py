@@ -113,3 +113,24 @@ class WorktreeCreatorTests(unittest.TestCase):
                 (False, "copy failed"),
             )
             self.assertEqual(run_command.call_count, 2)
+
+    def test_port_allocation_uses_fresh_worktree_discovery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main_path = root / "main"
+            existing_path = root / "feature"
+            main_path.mkdir()
+            existing_path.mkdir()
+            (main_path / ".env").write_text("APP_PORT=3000\n")
+            (existing_path / ".env").write_text("APP_PORT=3100\n")
+            manager = WorktreeManager(main_path, str(root / "{worktree}"))
+            with patch.object(
+                manager,
+                "discover_worktrees_sync",
+                return_value=(
+                    Worktree("main", main_path, is_main=True),
+                    Worktree("feature", existing_path),
+                ),
+            ) as discover:
+                self.assertEqual(manager.find_next_port_offset(), 200)
+                discover.assert_called_once_with()

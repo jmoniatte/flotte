@@ -35,7 +35,6 @@ class WorktreeManager:
         self.env_file = env_file
         self.post_create_commands = post_create_commands
         self.manage_environment = manage_environment
-        self.worktrees: dict[str, Worktree] = {}
         self._cached_volumes: list[str] | None = None
 
     def _worktree_name_from_path(self, path: Path) -> str | None:
@@ -128,7 +127,6 @@ class WorktreeManager:
                 is_main=is_main,
             )
             worktrees.append(worktree)
-            self.worktrees[name] = worktree
 
         return worktrees
 
@@ -183,7 +181,7 @@ class WorktreeManager:
         """
         Find the lowest available port offset.
 
-        Scans existing worktrees to collect used offsets, then returns the
+        Discovers current worktrees to collect used offsets, then returns the
         first multiple of PORT_OFFSET_INCREMENT not already in use.
         """
         used_offsets: set[int] = set()
@@ -210,7 +208,9 @@ class WorktreeManager:
         return sanitized[:30].lower()
 
     def create_worktree_sync(
-        self, branch_name: str, base_branch: str | None = "beta"
+        self,
+        branch_name: str,
+        base_branch: str | None = "beta",
     ) -> Worktree:
         """
         Create a new worktree with its own port configuration (synchronous).
@@ -267,19 +267,18 @@ class WorktreeManager:
             compose_project_name = f"{self.get_compose_project_prefix()}-{sanitized_name}"
             self._generate_env_file(worktree_path, compose_project_name, offset)
 
-        # Create and cache worktree object
-        worktree = Worktree(
+        return Worktree(
             name=sanitized_name,
             path=worktree_path,
             branch=branch_name,
             compose_project_name=compose_project_name,
             is_main=False,
         )
-        self.worktrees[sanitized_name] = worktree
-        return worktree
 
     async def create_worktree(
-        self, branch_name: str, base_branch: str | None = "beta"
+        self,
+        branch_name: str,
+        base_branch: str | None = "beta",
     ) -> Worktree:
         """
         Create a new worktree with its own port configuration (async wrapper).
@@ -297,7 +296,9 @@ class WorktreeManager:
         """
         import asyncio
         return await asyncio.to_thread(
-            self.create_worktree_sync, branch_name, base_branch
+            self.create_worktree_sync,
+            branch_name,
+            base_branch,
         )
 
     def _generate_env_file(
@@ -720,10 +721,6 @@ class WorktreeManager:
             "git", "worktree", "prune",
             cwd=self.main_repo_path,
         )
-
-        # Remove from cache
-        if worktree.name in self.worktrees:
-            del self.worktrees[worktree.name]
 
         return True
 

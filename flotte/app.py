@@ -856,9 +856,20 @@ class FlotteApp(App):
         if self._operation_in_progress:
             self.notify("Operation in progress", severity="warning")
             return
+        if not self.project or not self.worktree_manager:
+            return
 
         self.push_screen(
-            CreateWorktreeScreen(WorktreeCreator(self.worktree_manager, self.log_store)),
+            CreateWorktreeScreen(
+                WorktreeCreator(
+                    self.worktree_manager,
+                    self.log_store,
+                ),
+                {
+                    worktree.branch
+                    for worktree in self.project.worktrees.values()
+                },
+            ),
             callback=self._on_create_dialog_result
         )
 
