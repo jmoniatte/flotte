@@ -66,87 +66,90 @@ Create `~/.config/flotte/config.yaml`:
 theme: onedark
 
 projects:
-  - name: My Project
-    repository_path: /var/www/my-project
-    worktree_path: /var/www/workspaces/{worktree}/my-project
-    post_create_commands:
-      - mise trust
-      - bundle install
-    ride_command: ""
+  - name: Acme API
+    repository_path: /var/www/acme-api
+    worktree_path: /var/www/worktrees/{worktree}/acme-api
 ```
 
-**Required fields:**
-- `name` - Project display name
-- `repository_path` - Path to the main git repository
-- `worktree_path` - Destination template for new worktrees; must include `{worktree}`
+Each project requires:
 
-**Optional fields:**
-- `theme` - Color theme: `onedark` (default) or `onelight`
-- `post_create_commands` - Setup commands run once, in order, after a new worktree is created
-- `ride_command` - Command for "Go Ride" button (receives `PROJECT_PATH` and `PROJECT_NAME` env vars)
-- `env_file` - Env file flotte reads and writes per worktree (default: `.env`). Docker compose only
-  auto-loads `.env`; anything else must be passed to compose with `--env-file` by your own tooling
-- `clone_paths` - Extra files or directories, relative to the repo root, copied from the main repo
-  into a new worktree. Only applied when "Clone volumes and bind mounts from main" is checked;
-  paths that don't exist in the main repo are skipped
-- `linked_repositories` - Optional repositories whose worktrees can be created on demand from a
-  primary worktree. Each entry needs `repository_path` and `worktree_path`.
+- `name`: Display name shown in the sidebar.
+- `repository_path`: Path to the main Git checkout.
+- `worktree_path`: Destination template containing `{worktree}`.
 
-### Linked Repositories
+Optional fields:
 
-Linked Repositories are useful for a React frontend, or any repository that should share a branch
-and lifecycle with the Docker project without itself running in Docker. Select a worktree and use
-the **Link** button to create its companion worktree with the same branch name. Flotte records the
-pairing in local state; **Unlink** removes the companion worktree. A linked worktree is also
-removed when its primary worktree is deleted. Linked worktrees must be clean before deletion.
+- `post_create_commands`: Setup commands run after creating a worktree.
+- `ride_command`: Command used by **Go Ride**. It receives `PROJECT_PATH` and `PROJECT_NAME`.
+- `env_file`: Worktree environment file read and written by Flotte. Defaults to `.env`.
+- `clone_paths`: Files or directories copied from the main checkout when cloning volumes and bind
+  mounts.
+- `linked_repositories`: Companion repositories paired with the project.
+
+The global `theme` can be `onedark` (default) or `onelight`.
+
+## Linked repositories
+
+Use a linked repository when part of a project, such as a React frontend, lives in a separate Git
+repository but should follow the primary project's branch and worktree.
+
+This complete config pairs a Docker-backed API with a React app served by Vite:
 
 ```yaml
+theme: onedark
+
+projects:
+  - name: Acme API
+    repository_path: /var/www/acme-api
+    worktree_path: /var/www/worktrees/{worktree}/acme-api
     linked_repositories:
-      - repository_path: /var/www/my-project-frontend
-        worktree_path: /var/www/workspaces/{worktree}/my-project-frontend
+      - repository_path: /var/www/acme-web
+        worktree_path: /var/www/worktrees/{worktree}/acme-web
         ports:
-          dev_server: "5100-5199"
-        # Read the assigned frontend port after the setup command writes this file.
+          vite: "5100-5199"
+        post_create_commands:
+          - pnpm install
+        pre_start_commands:
+          - printf 'VITE_PORT=%s\n' "$FLOTTE_PORT_VITE" > .env.local
+        start_command: pnpm dev -- --port "$FLOTTE_PORT_VITE"
         status_port_env: VITE_PORT
         status_port_file: .env.local
         status_port_label: Vite
-        # Open this route in the selected Docker worktree while the frontend is running.
-        open_url_path: /?hot=v:{port}
-        post_create_commands:
-          - /var/www/scripts/configure-project-link
-        # Run before every Start, including a managed primary checkout.
-        pre_start_commands:
-          - /var/www/scripts/configure-project-link
-        # Keep the server in the foreground so Flotte can stop and restart it.
-        start_command: pnpm dev
-        post_delete_commands:
-          - /var/www/scripts/remove-project-link
 ```
 
-`ports` maps a name to an inclusive local port range. Flotte chooses an available port and retains
-the assignment in `~/.local/state/flotte/linked-worktrees.yaml`. Link commands run from the linked
-worktree and receive `FLOTTE_PRIMARY_PATH`, `FLOTTE_LINKED_PATH`, `FLOTTE_WORKTREE_NAME`,
-`FLOTTE_BRANCH`, and one `FLOTTE_PORT_<NAME>` variable per allocated port. The same variables are
-available to `post_delete_commands`, which can remove or reset primary-repository configuration
-such as a frontend URL. Commands should be idempotent so a failed setup can safely be retried.
-Set `start_command` to launch a linked repository's long-running development process after setup.
-Flotte records and stops that process when the linked worktree is removed. It shows **Start** when
-the process is stopped, and **Stop** and **Restart** while it is running. The linked URL is shown
-only while that process is running. The command must keep its server in the foreground; commands
-that daemonize or background their server are externally managed and cannot be safely stopped or
-restarted by Flotte.
+Select a primary worktree and choose **Link**. Flotte creates the linked worktree on the same
+branch, assigns its Vite port, installs dependencies, and starts the dev server. **Start**,
+**Stop**, and **Restart** then manage that server. The start command must stay in the foreground
+so Flotte can track it.
 
-Set `pre_start_commands` for idempotent commands that must run immediately before every managed
-process start. This is useful for a primary checkout, which has no linked-worktree creation hook.
+Choose **Unlink** to remove the paired worktree and release its ports. Flotte refuses to unlink a
+repository with uncommitted changes.
 
-Set `status_port_env` to display a port read from the linked worktree's env file. Use
-`status_port_file` to select that file (default: `.env.local`) and `status_port_label` to name the
-port in the UI. This is useful when a setup hook writes the frontend's local env file. Set
-`open_url_path` to the path and optional query string to open in the selected Docker worktree. Use
-`{port}` to substitute the configured status port. For example, `/?hot=v:{port}` produces
-`http://localhost:PORT?hot=v:27882` when the frontend's status port is `27882`.
+### Linked repository options
 
-### post_create_commands
+| Field | Purpose |
+| --- | --- |
+| `repository_path` | Main checkout of the linked repository. Required. |
+| `worktree_path` | Linked worktree template containing `{worktree}`. Required. |
+| `ports` | Named inclusive port ranges. A `vite` port is exposed as `FLOTTE_PORT_VITE`. |
+| `post_create_commands` | Run once after creating the linked worktree. |
+| `pre_start_commands` | Run before every process start. |
+| `start_command` | Foreground process managed by Flotte. |
+| `post_delete_commands` | Run before removing the linked worktree. |
+| `status_port_env` | Variable read from `status_port_file` to display the process port. |
+| `status_port_file` | File containing `status_port_env`. Defaults to `.env.local`. |
+| `status_port_label` | Label shown beside the port. Defaults to `Port`. |
+| `open_url_path` | Path appended to the primary URL; `{port}` expands to the displayed port. |
+
+Port assignments persist in `~/.local/state/flotte/linked-worktrees.yaml`. Linked commands receive:
+
+- `FLOTTE_PRIMARY_PATH`: Primary worktree path.
+- `FLOTTE_LINKED_PATH`: Linked worktree path.
+- `FLOTTE_WORKTREE_NAME`: Worktree name.
+- `FLOTTE_BRANCH`: Branch name.
+- `FLOTTE_PORT_<NAME>`: Assigned port for each entry in `ports`.
+
+### Post-create commands
 
 Each entry runs through `sh -c` with the new worktree as working directory, so `&&`, pipes, globs
 and `$VARS` work. They run last, once the worktree, its volumes and its copied files are all in
