@@ -841,12 +841,16 @@ class FlotteApp(App):
         """Finish worktree creation after modal is done."""
         if not self.project:
             return
+        if self.linked_worktree_manager:
+            self.linked_worktree_manager.attach(worktree)
         # Add the worktree to our project model
         self.project.worktrees[worktree.name] = worktree
         self._sync_worktree_ui()
         self.selected_worktree = worktree
         self.query_one("#worktree-header", WorktreeHeader).select_worktree(worktree)
         self._show_worktree_details()
+        await self.project.poll_once()
+        self._update_ui_after_status_change(worktree)
         self.notify(f"Created {worktree.name}", severity="information")
 
     def action_delete_worktree(self) -> None:
