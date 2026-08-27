@@ -148,7 +148,8 @@ class FlotteApp(App):
                             id="no-config-path"
                         )
                         yield Static(
-                            "Add a [[projects]] entry with name and repository_path.",
+                            "Add an entry under projects: with name, repository_path, "
+                            "and worktree_path.",
                             id="no-config-help"
                         )
                     with Horizontal(id="dialog-buttons"):

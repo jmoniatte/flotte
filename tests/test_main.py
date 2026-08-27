@@ -17,6 +17,25 @@ from textual.widgets import Button, ContentSwitcher, RichLog, Static
 
 
 class MainTests(unittest.TestCase):
+    def test_no_config_screen_uses_yaml_guidance(self) -> None:
+        async def exercise() -> None:
+            config = Config()
+            with (
+                patch("flotte.app.load_config", return_value=config),
+                patch(
+                    "flotte.app.preflight_config",
+                    return_value=PreflightResult((), ()),
+                ),
+            ):
+                app = FlotteApp()
+                async with app.run_test():
+                    help_text = app.query_one("#no-config-help", Static).render().plain
+                    self.assertIn("projects:", help_text)
+                    self.assertNotIn("[[projects]]", help_text)
+                    self.assertIn("worktree_path", help_text)
+
+        asyncio.run(exercise())
+
     def test_link_lifecycle_logs_the_process_id_and_failures(self) -> None:
         async def exercise() -> None:
             app = Mock()
