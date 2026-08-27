@@ -17,6 +17,8 @@ Screen {
     height: auto;
     background: $bg;
     padding: 0 1;
+    border-bottom: solid $gutter;
+    margin: 0 0 1 0;
 }
 
 #app-title-group {
@@ -46,14 +48,8 @@ Screen {
     color: $comment;
 }
 
-#header-gap {
-    height: 1;
-}
-
 #project-selector {
-    width: auto;
-    min-width: 25;
-    max-width: 40;
+    width: 25;
     background: transparent;
     border: none;
     padding: 0;
@@ -84,6 +80,12 @@ Screen {
 
 #project-selector SelectOverlay > .option-list--option-highlighted {
     background: $bg-light;
+}
+
+#project-name {
+    width: 25;
+    content-align: left middle;
+    color: $fg;
 }
 
 #no-projects-label {
@@ -1165,7 +1167,7 @@ ErrorView #btn-error-dismiss:focus {
    ═══════════════════════════════════════════════════════════════════════ */
 
 ToastRack {
-    dock: top;
+    dock: bottom;
     align-horizontal: right;
     margin-top: 0;
 }

@@ -153,7 +153,6 @@ class FlotteApp(App):
             with Vertical(id="app-title-group"):
                 yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
                 yield Static(f"v{__version__}", id="app-subtitle")
-                yield Static("", id="header-gap")
             yield Static("", id="header-spacer")
             yield Select(
                 options=[(p.name, p) for p in self.config.projects],
@@ -161,6 +160,7 @@ class FlotteApp(App):
                 id="project-selector",
                 allow_blank=False,
             )
+            yield Static(self.current_config_project.name, id="project-name")
 
         with ContentSwitcher(initial="list-view", id="view-switcher"):
             with Container(id="list-view"):
@@ -238,6 +238,9 @@ class FlotteApp(App):
             "details-view" if show_details else "list-view"
         )
         self.query_one("#project-selector").display = not show_details
+        project_name = self.query_one("#project-name", Static)
+        project_name.update(self.current_config_project.name)
+        project_name.display = show_details
 
         if not show_details:
             self.query_one("#worktree-table").focus()
