@@ -12,11 +12,17 @@ from textual import events, on, work
 from .config import load_config, preflight_config, Project as ConfigProject
 from .formatters import format_git_status
 from .theme import load_theme_colors
-from .models import Worktree
+from .models import GitStatus, Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
 from .messages import OperationCompleted, WorktreeStatusChanged
-from .services import LinkedWorktreeManager, RideWrapper, WorktreeLogStore, WorktreeManager
+from .services import (
+    LinkedWorktreeManager,
+    RideWrapper,
+    WorktreeLogStore,
+    WorktreeManager,
+    get_git_status,
+)
 from .screens import (
     ConfirmDialog,
     CreateWorktreeScreen,
@@ -622,7 +628,7 @@ class FlotteApp(App):
                 if wt is None:
                     return
                 git_status, linked_statuses = await asyncio.gather(
-                    self.worktree_manager.get_git_status(wt),
+                    get_git_status(wt.path),
                     self.linked_worktree_manager.linked_statuses(wt)
                     if self.linked_worktree_manager else self._empty_linked_statuses(),
                 )
@@ -654,7 +660,7 @@ class FlotteApp(App):
                     return
                 worktrees = list(self.project.worktrees.values())
                 for worktree in worktrees:
-                    git_status = await self.worktree_manager.get_git_status(worktree)
+                    git_status = await get_git_status(worktree.path)
                     if self.project.worktrees.get(worktree.name) is worktree:
                         worktree.git_status = git_status
                         self.query_one("#worktree-header", WorktreeHeader).update_git_status(
@@ -665,7 +671,7 @@ class FlotteApp(App):
         finally:
             self._list_git_fetch_running = False
 
-    async def _empty_linked_statuses(self) -> dict[str, dict]:
+    async def _empty_linked_statuses(self) -> dict[str, GitStatus]:
         return {}
 
     # Action methods
@@ -971,7 +977,7 @@ class FlotteApp(App):
 
     async def _prepare_delete_link(self, worktree: Worktree, repository_name: str) -> None:
         status = (await self.linked_worktree_manager.linked_statuses(worktree)).get(repository_name)
-        if status and any(status[key] for key in ("modified", "staged", "untracked")):
+        if status and status.has_changes:
             self.notify(f"Clean {repository_name} before deleting", severity="warning")
             return
         self._clear_action_focus()
@@ -1027,24 +1033,16 @@ class FlotteApp(App):
                 self.log.debug("Operation started during _prepare_delete, aborting")
                 return
 
-            git_status = await self.worktree_manager.get_git_status(wt)
+            git_status = await get_git_status(wt.path)
             linked_statuses = {}
             if self.linked_worktree_manager:
                 linked_statuses = await self.linked_worktree_manager.linked_statuses(wt)
-            has_changes = (
-                git_status["modified"] > 0 or
-                git_status["staged"] > 0 or
-                git_status["untracked"] > 0
-            )
+            has_changes = git_status.has_changes
 
             dirty_links = []
             for repository_name, linked_status in linked_statuses.items():
-                changed = sum(
-                    linked_status[key]
-                    for key in ("modified", "staged", "untracked")
-                )
-                if changed:
-                    dirty_links.append(f"{repository_name} ({changed} changes)")
+                if linked_status.has_changes:
+                    dirty_links.append(repository_name)
 
             if dirty_links:
                 self.notify(
@@ -1060,12 +1058,12 @@ class FlotteApp(App):
 
             if has_changes:
                 changes = []
-                if git_status["staged"] > 0:
-                    changes.append(f"{git_status['staged']} staged")
-                if git_status["modified"] > 0:
-                    changes.append(f"{git_status['modified']} modified")
-                if git_status["untracked"] > 0:
-                    changes.append(f"{git_status['untracked']} untracked")
+                if git_status.staged:
+                    changes.append(f"{git_status.staged} staged")
+                if git_status.unstaged:
+                    changes.append(f"{git_status.unstaged} unstaged")
+                if git_status.untracked:
+                    changes.append(f"{git_status.untracked} untracked")
 
                 self._show_commit_dialog(wt, changes)
             else:

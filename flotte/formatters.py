@@ -1,5 +1,6 @@
 from rich.text import Text
 
+from .models import GitStatus
 from .theme import ThemeColors
 
 
@@ -27,7 +28,7 @@ def format_web_url(
 
 
 def format_git_status(
-    git_status: dict | None,
+    git_status: GitStatus | None,
     colors: ThemeColors,
     *,
     prefix: str = "",
@@ -37,14 +38,14 @@ def format_git_status(
         return Text("")
 
     text = Text(prefix, style=colors.dim)
-    if git_status["staged"]:
-        text.append(f"+{git_status['staged']} ", style=colors.green)
-    if git_status["modified"]:
-        text.append(f"~{git_status['modified']} ", style=colors.yellow)
-    if git_status["untracked"]:
-        text.append(f"?{git_status['untracked']} ", style=colors.dim)
-    if git_status["ahead"]:
-        text.append(f"↑{git_status['ahead']} ", style=colors.cyan)
-    if git_status["behind"]:
-        text.append(f"↓{git_status['behind']} ", style=colors.red)
+    if git_status.staged:
+        text.append(f"+{git_status.staged} ", style=colors.green)
+    if git_status.unstaged:
+        text.append(f"~{git_status.unstaged} ", style=colors.yellow)
+    if git_status.untracked:
+        text.append(f"?{git_status.untracked} ", style=colors.dim)
+    if git_status.ahead:
+        text.append(f"↑{git_status.ahead} ", style=colors.cyan)
+    if git_status.behind:
+        text.append(f"↓{git_status.behind} ", style=colors.red)
     return text if text.plain != prefix else Text(f"{prefix}clean", style=colors.dim)

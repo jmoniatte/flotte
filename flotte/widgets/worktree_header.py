@@ -9,7 +9,7 @@ from rich.align import Align
 from rich.text import Text
 
 from ..formatters import format_git_status, format_web_url
-from ..models import Worktree, WorktreeStatus
+from ..models import GitStatus, Worktree, WorktreeStatus
 from ..theme import get_status_style
 from .table_rules import DashedHeaderDataTable, DashedTableFooter
 
@@ -41,7 +41,7 @@ class WorktreeTable(DashedHeaderDataTable):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._worktrees: list[Worktree] = []
-        self._git_statuses: dict[str, dict] = {}
+        self._git_statuses: dict[str, GitStatus] = {}
         self._hovered_url_worktree: str | None = None
 
     def on_mount(self) -> None:
@@ -203,7 +203,7 @@ class WorktreeTable(DashedHeaderDataTable):
                     self.move_cursor(row=i)
                     break
 
-    def update_git_status(self, worktree_name: str, git_status: dict) -> None:
+    def update_git_status(self, worktree_name: str, git_status: GitStatus) -> None:
         """Update git status for a worktree."""
         self._git_statuses[worktree_name] = git_status
         worktree = next((item for item in self._worktrees if item.name == worktree_name), None)
@@ -276,7 +276,7 @@ class WorktreeHeader(Vertical):
                 table.focus()
                 break
 
-    def update_git_status(self, worktree_name: str, git_status: dict | None) -> None:
+    def update_git_status(self, worktree_name: str, git_status: GitStatus | None) -> None:
         """Update git status for one worktree."""
         if git_status:
             table = self.query_one("#worktree-table", WorktreeTable)

@@ -9,7 +9,7 @@ import unittest
 from flotte.__main__ import main
 from flotte.app import FlotteApp
 from flotte.config import Config, PreflightResult, Project
-from flotte.models import Container, Worktree
+from flotte.models import Container, GitStatus, Worktree
 from flotte.models.container import ContainerState
 from flotte.screens import WorktreeLogScreen
 from flotte.widgets import WebLink
@@ -95,13 +95,7 @@ class MainTests(unittest.TestCase):
                     web_container.state = ContainerState.EXITED
                     web_container.ports = ["3200"]
                     worktree.containers[web_container.service] = web_container
-                    worktree.git_status = {
-                        "staged": 1,
-                        "modified": 2,
-                        "untracked": 0,
-                        "ahead": 0,
-                        "behind": 0,
-                    }
+                    worktree.git_status = GitStatus(staged=1, unstaged=2)
                     app.selected_worktree = worktree
                     app._update_container_view()
                     await pilot.pause()

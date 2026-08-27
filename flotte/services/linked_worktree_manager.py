@@ -7,7 +7,8 @@ import subprocess
 from pathlib import Path
 
 from ..config import LinkedRepository
-from ..models import LinkedWorktree, Worktree
+from ..models import GitStatus, LinkedWorktree, Worktree
+from .git_status import get_git_status
 from .link_state_store import LinkStateStore
 from .process_identity import capture_process_identity, matches_process_identity
 from .worktree_manager import WorktreeManager
@@ -326,28 +327,21 @@ class LinkedWorktreeManager:
                 message = result.stderr.decode("utf-8", errors="replace").strip()
                 raise RuntimeError(message or f"Link command failed: {command}")
 
-    async def linked_statuses(self, primary: Worktree) -> dict[str, dict]:
+    async def linked_statuses(self, primary: Worktree) -> dict[str, GitStatus]:
         """Return git status keyed by linked repository name for delete preflight."""
-        status_requests: list[tuple[str, WorktreeManager, Worktree]] = []
+        status_requests: list[tuple[str, Path]] = []
         for linked in primary.linked_worktrees:
             if linked.path is None or not linked.path.exists():
                 continue
-            manager = self.managers.get(linked.repository_name)
-            if manager:
-                status_requests.append(
-                    (
-                        linked.repository_name,
-                        manager,
-                        Worktree(linked.path.name, linked.path, linked.branch),
-                    )
-                )
+            if linked.repository_name in self.managers:
+                status_requests.append((linked.repository_name, linked.path))
 
         statuses = await asyncio.gather(
-            *(manager.get_git_status(worktree) for _, manager, worktree in status_requests)
+            *(get_git_status(path) for _, path in status_requests)
         )
         return {
             repository_name: status
-            for (repository_name, _, _), status in zip(status_requests, statuses)
+            for (repository_name, _), status in zip(status_requests, statuses)
         }
 
     async def remove_links(self, primary: Worktree) -> None:

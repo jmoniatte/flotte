@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .git_status import GitStatus
+
 
 @dataclass
 class LinkedWorktree:
@@ -14,4 +16,4 @@ class LinkedWorktree:
     open_url_path: str = ""
     can_start: bool = False
     process_status: str = "external"
-    git_status: dict | None = None
+    git_status: GitStatus | None = None

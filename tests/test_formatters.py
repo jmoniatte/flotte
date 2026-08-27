@@ -1,6 +1,7 @@
 import unittest
 
 from flotte.formatters import display_web_url, format_git_status, format_web_url
+from flotte.models import GitStatus
 from flotte.theme import DEFAULT_COLORS
 
 
@@ -13,14 +14,8 @@ class FormatterTests(unittest.TestCase):
         self.assertEqual(format_web_url(None, empty="-").plain, "-")
 
     def test_format_git_status_supports_list_and_detail_forms(self) -> None:
-        changed = {
-            "staged": 1,
-            "modified": 2,
-            "untracked": 0,
-            "ahead": 0,
-            "behind": 0,
-        }
-        clean = {key: 0 for key in changed}
+        changed = GitStatus(staged=1, unstaged=2)
+        clean = GitStatus()
 
         self.assertEqual(format_git_status(changed, DEFAULT_COLORS).plain, "+1 ~2 ")
         self.assertEqual(
