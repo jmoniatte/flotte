@@ -19,6 +19,8 @@ from .messages import OperationCompleted, WorktreeStatusChanged
 from .services import (
     LinkedWorktreeManager,
     RideWrapper,
+    WorktreeCreationResult,
+    WorktreeCreator,
     WorktreeLogStore,
     WorktreeManager,
     get_git_status,
@@ -26,7 +28,6 @@ from .services import (
 from .screens import (
     ConfirmDialog,
     CreateWorktreeScreen,
-    CreateWorktreeResult,
     DeleteWorktreeScreen,
     DeleteWorktreeResult,
     HelpScreen,
@@ -857,11 +858,11 @@ class FlotteApp(App):
             return
 
         self.push_screen(
-            CreateWorktreeScreen(self.worktree_manager, self.log_store),
+            CreateWorktreeScreen(WorktreeCreator(self.worktree_manager, self.log_store)),
             callback=self._on_create_dialog_result
         )
 
-    def _on_create_dialog_result(self, result: CreateWorktreeResult | None) -> None:
+    def _on_create_dialog_result(self, result: WorktreeCreationResult | None) -> None:
         """Callback when create dialog dismissed."""
         if result is None:
             return  # Cancelled or failed

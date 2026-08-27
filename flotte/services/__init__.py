@@ -4,6 +4,7 @@ from .ride_wrapper import RideWrapper
 from .worktree_manager import WorktreeManager
 from .linked_worktree_manager import LinkedWorktreeManager
 from .worktree_log import WorktreeLogStore
+from .worktree_creator import WorktreeCreationResult, WorktreeCreator
 
 __all__ = [
     "DockerManager",
@@ -12,4 +13,6 @@ __all__ = [
     "WorktreeManager",
     "LinkedWorktreeManager",
     "WorktreeLogStore",
+    "WorktreeCreationResult",
+    "WorktreeCreator",
 ]

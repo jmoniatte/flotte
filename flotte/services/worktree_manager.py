@@ -498,7 +498,7 @@ class WorktreeManager:
         """Return clone_paths that exist in the main repo."""
         return [p for p in self.clone_paths if (self.main_repo_path / p).exists()]
 
-    def _clone_bind_mount_sync(
+    def clone_path_sync(
         self,
         source: Path,
         target: Path,
@@ -549,53 +549,31 @@ class WorktreeManager:
             return False, stderr.strip() or f"Docker copy failed with code {returncode}"
         return True, ""
 
-    async def clone_volumes(
+    def clone_volume_sync(
         self,
         source_project: str,
         target_project: str,
-        on_progress: callable = None,
-    ) -> bool:
-        """
-        Clone Docker volumes from source project to target project.
+        volume_name: str,
+    ) -> tuple[bool, str]:
+        """Clone one named volume into a worktree's Compose project."""
+        source_volume = f"{source_project}_{volume_name}"
+        target_volume = f"{target_project}_{volume_name}"
+        returncode, _, stderr = self._run_command(
+            "docker", "volume", "create", target_volume
+        )
+        if returncode != 0:
+            return False, stderr.strip() or "Docker volume creation failed"
 
-        Args:
-            source_project: Source compose project name (e.g., 'myproject')
-            target_project: Target compose project name (e.g., 'myproject-feature')
-            on_progress: Optional callback(volume_name, current, total) for progress
-
-        Returns:
-            True if successful
-        """
-        volumes = await self.get_volumes()
-        total = len(volumes)
-
-        for i, volume_name in enumerate(volumes):
-            source_vol = f"{source_project}_{volume_name}"
-            target_vol = f"{target_project}_{volume_name}"
-
-            if on_progress:
-                on_progress(volume_name, i + 1, total)
-
-            # Create target volume
-            self._run_command(
-                "docker", "volume", "create", target_vol
-            )
-
-            # Copy data using alpine container
-            returncode, stdout, stderr = self._run_command(
-                "docker", "run", "--rm",
-                "-v", f"{source_vol}:/source:ro",
-                "-v", f"{target_vol}:/dest",
-                "alpine",
-                "sh", "-c", "cp -a /source/. /dest/",
-                timeout=300.0,  # 5 min per volume
-            )
-
-            if returncode != 0:
-                # Log error but continue with other volumes
-                pass
-
-        return True
+        returncode, _, stderr = self._run_command(
+            "docker", "run", "--rm",
+            "-v", f"{source_volume}:/source:ro",
+            "-v", f"{target_volume}:/dest",
+            "alpine", "sh", "-c", "cp -a /source/. /dest/",
+            timeout=300.0,
+        )
+        if returncode != 0:
+            return False, stderr.strip() or f"Docker copy failed with code {returncode}"
+        return True, ""
 
     def cleanup_docker_sync(self, worktree: Worktree) -> bool:
         """
