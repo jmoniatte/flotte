@@ -102,23 +102,49 @@ class WorktreeLogScreen(Screen):
                 entries = list(csv.DictReader(log_file))
         except FileNotFoundError:
             return
-        except OSError as error:
+        except (OSError, csv.Error) as error:
             entries = [{"error": f"Unable to read log: {error}"}]
         log = self.query_one("#worktree-log", RichLog)
+        malformed_entries = 0
         for entry in reversed(entries):
-            log.write(self._format_entry(entry), scroll_end=False)
+            rendered = self._format_entry(entry)
+            if rendered is None:
+                malformed_entries += 1
+            else:
+                log.write(rendered, scroll_end=False)
+        if malformed_entries:
+            log.write(
+                Text(
+                    f"Skipped {malformed_entries} malformed log entr"
+                    f"{'y' if malformed_entries == 1 else 'ies'}",
+                    style=self.app.theme_colors.red,
+                ),
+                scroll_end=False,
+            )
 
-    def _format_entry(self, entry: dict[str, str]) -> Text:
+    def _format_entry(self, entry: dict[str, str | None]) -> Text | None:
         if "error" in entry:
             return Text(entry["error"], style=self.app.theme_colors.red)
-        rendered = Text(f"{entry['timestamp']:<22}")
+        timestamp = entry.get("timestamp")
+        action = entry.get("action")
+        status = entry.get("status")
+        duration_seconds = entry.get("duration_seconds")
+        if (
+            not all(isinstance(value, str) for value in (timestamp, action, status, duration_seconds))
+            or status not in ("success", "failed")
+        ):
+            return None
+        try:
+            duration = WorktreeLogStore.format_duration(float(duration_seconds))
+        except ValueError:
+            return None
+        rendered = Text(f"{timestamp:<22}")
         rendered.append(
-            entry["action"],
+            action,
             style=self.app.theme_colors.green
-            if entry["status"] == "success"
+            if status == "success"
             else self.app.theme_colors.red,
         )
-        duration = WorktreeLogStore.format_duration(float(entry["duration_seconds"]))
         rendered.append(f" [took {duration}]", style=self.app.theme_colors.dim)
         return rendered
 

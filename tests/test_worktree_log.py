@@ -25,3 +25,13 @@ class WorktreeLogStoreTests(unittest.TestCase):
 
                 store.remove("feature/login")
                 self.assertFalse(log_path.exists())
+
+    def test_log_write_errors_do_not_raise(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log_dir = Path(directory) / "logs"
+            log_dir.write_text("not a directory")
+            with patch("flotte.services.worktree_log.LOG_DIR", log_dir):
+                store = WorktreeLogStore("ridewithgps")
+                with self.assertLogs("flotte.services.worktree_log", level="WARNING"):
+                    store.record("feature", "Create worktree", 1.2, True)
+                    store.remove("feature")

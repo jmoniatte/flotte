@@ -203,6 +203,8 @@ class MainTests(unittest.TestCase):
                         app.log_store.record(
                             worktree.name, "Create worktree", 0.1, True
                         )
+                        with app.log_store.path_for(worktree.name).open("a") as log_file:
+                            log_file.write("malformed\n")
                         app._update_container_view()
                         logs_button = app.query_one("#btn-logs", Button)
                         self.assertFalse(logs_button.disabled)
@@ -226,9 +228,8 @@ class MainTests(unittest.TestCase):
                             app.screen.query_one("#worktree-log-label", Static).render().plain,
                             "Log",
                         )
-                        self.assertIsInstance(
-                            app.screen.query_one("#worktree-log", RichLog), RichLog,
-                        )
+                        log = app.screen.query_one("#worktree-log", RichLog)
+                        self.assertEqual(len(log.lines), 2)
                         await pilot.click("#log-breadcrumb-worktree")
                         await pilot.pause()
                         self.assertEqual(

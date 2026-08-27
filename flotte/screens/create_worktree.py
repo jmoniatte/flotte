@@ -238,9 +238,7 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                 branch_name=params.branch_name,
                 base_branch=params.base_branch,
             )
-            self.log_store.record(
-                worktree.name, "Create worktree", perf_counter() - started_at, True
-            )
+            self.log_store.record_elapsed(worktree.name, "Create worktree", started_at, True)
 
             # Clone volumes if requested
             if params.clone_data:
@@ -262,11 +260,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         self.worktree_manager._run_command,
                         "docker", "volume", "create", target_vol
                     )
-                    self.log_store.record(
-                        worktree.name,
-                        f"Create volume {vol}",
-                        perf_counter() - started_at,
-                        returncode == 0,
+                    self.log_store.record_elapsed(
+                        worktree.name, f"Create volume {vol}", started_at, returncode == 0
                     )
                     started_at = perf_counter()
                     returncode, _, _ = await asyncio.to_thread(
@@ -277,11 +272,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         "alpine", "sh", "-c", "cp -a /source/. /dest/",
                         timeout=300.0,
                     )
-                    self.log_store.record(
-                        worktree.name,
-                        f"Clone volume {vol}",
-                        perf_counter() - started_at,
-                        returncode == 0,
+                    self.log_store.record_elapsed(
+                        worktree.name, f"Clone volume {vol}", started_at, returncode == 0
                     )
 
                 # Tag built images so docker compose up doesn't rebuild
@@ -301,11 +293,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                         self._notify_failure(
                             f"Failed to tag image for {service}: {error}"
                         )
-                    self.log_store.record(
-                        worktree.name,
-                        "Tag images",
-                        perf_counter() - started_at,
-                        not failures,
+                    self.log_store.record_elapsed(
+                        worktree.name, "Tag images", started_at, not failures
                     )
 
                 # Clone gitignored bind mounts
@@ -334,11 +323,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
 
                         if not success:
                             failed_mounts.append((rel_path, error))
-                        self.log_store.record(
-                            worktree.name,
-                            f"Clone bind mount {rel_path}",
-                            perf_counter() - started_at,
-                            success,
+                        self.log_store.record_elapsed(
+                            worktree.name, f"Clone bind mount {rel_path}", started_at, success
                         )
 
                     # Show warning for any failures (but don't abort)
@@ -365,11 +351,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
 
                         if not success:
                             failed_clones.append((rel_path, error))
-                        self.log_store.record(
-                            worktree.name,
-                            f"Copy extra path {rel_path}",
-                            perf_counter() - started_at,
-                            success,
+                        self.log_store.record_elapsed(
+                            worktree.name, f"Copy extra path {rel_path}", started_at, success
                         )
 
                     for rel_path, error in failed_clones:
@@ -386,11 +369,8 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
                 )
                 if not success:
                     self._notify_failure(f"Command failed: {command}: {error}")
-                self.log_store.record(
-                    worktree.name,
-                    f"Run post-create command: {command}",
-                    perf_counter() - started_at,
-                    success,
+                self.log_store.record_elapsed(
+                    worktree.name, f"Run post-create command: {command}", started_at, success
                 )
 
             # Dismiss with result
