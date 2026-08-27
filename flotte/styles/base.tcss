@@ -102,6 +102,14 @@ ModalScreen {
     color: $red;
 }
 
+#project-problems {
+    height: auto;
+    margin: 1 1;
+    padding: 0 1;
+    color: $red;
+    border-left: solid $red;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    WORKTREES BOX
    ═══════════════════════════════════════════════════════════════════════ */

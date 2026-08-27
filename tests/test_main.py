@@ -7,7 +7,7 @@ import unittest
 
 from flotte.__main__ import main
 from flotte.app import FlotteApp
-from flotte.config import Config, Project
+from flotte.config import Config, PreflightResult, Project
 from flotte.models import Container, Worktree
 from flotte.widgets import WebLink
 from textual.widgets import Button, ContentSwitcher, Static
@@ -45,6 +45,12 @@ class MainTests(unittest.TestCase):
             )
             with (
                 patch("flotte.app.load_config", return_value=config),
+                patch(
+                    "flotte.app.preflight_config",
+                    return_value=PreflightResult(
+                        tuple(config.projects), ((config.projects[0], ()),)
+                    ),
+                ),
                 patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
                 patch("flotte.models.project.Project.start_polling"),
                 patch("flotte.models.project.Project.shutdown", new_callable=AsyncMock),
@@ -120,5 +126,39 @@ class MainTests(unittest.TestCase):
                     await pilot.click("#breadcrumb-worktrees")
                     await pilot.pause()
                     self.assertEqual(switcher.current, "list-view")
+
+        asyncio.run(exercise())
+
+    def test_preflight_problems_follow_the_selected_project(self) -> None:
+        valid = Project("valid", "/tmp/valid", "/tmp/worktrees/{worktree}")
+        invalid = Project("invalid", "/tmp/missing", "/tmp/worktrees/{worktree}")
+        config = Config(projects=[valid, invalid])
+        problem = "invalid: repository does not exist: /tmp/missing"
+        async def exercise() -> None:
+            with (
+                patch("flotte.app.load_config", return_value=config),
+                patch(
+                    "flotte.app.preflight_config",
+                    return_value=PreflightResult(
+                        tuple(config.projects), ((valid, ()), (invalid, (problem,)))
+                    ),
+                ),
+                patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
+                patch("flotte.models.project.Project.start_polling"),
+                patch("flotte.models.project.Project.shutdown", new_callable=AsyncMock),
+            ):
+                app = FlotteApp()
+                async with app.run_test():
+                    self.assertFalse(app.query_one("#project-problems", Static).display)
+                    app.switch_project(invalid)
+                    self.assertEqual(
+                        app.query_one("#project-problems", Static).render().plain,
+                        problem,
+                    )
+                    self.assertTrue(app.query_one("#project-problems", Static).display)
+                    self.assertFalse(app.query_one("#worktrees-box").display)
+                    self.assertFalse(app.query_one("#btn-new-worktree", Button).display)
+                    self.assertFalse(app.query_one("#btn-refresh", Button).display)
+                    self.assertTrue(app.query_one("#btn-new-worktree", Button).disabled)
 
         asyncio.run(exercise())

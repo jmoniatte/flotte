@@ -8,7 +8,7 @@ from textual.containers import Center, Container, Horizontal, Vertical
 from textual.widgets import Button, ContentSwitcher, Static, Select
 from textual import events, on, work
 
-from .config import load_config, Project as ConfigProject
+from .config import load_config, preflight_config, Project as ConfigProject
 from .formatters import format_git_status
 from .theme import load_theme_colors
 from .models import Worktree
@@ -64,6 +64,7 @@ class FlotteApp(App):
     def __init__(self):
         # Load config first to determine theme
         self.config = load_config()
+        self.preflight = preflight_config(self.config)
 
         # Load theme colors for Python code (parsed from same TCSS file)
         self.theme_colors = load_theme_colors(self.config.theme)
@@ -123,7 +124,7 @@ class FlotteApp(App):
         self._operation_target: str | None = None  # worktree name
 
     def compose(self) -> ComposeResult:
-        # Show no-config screen if no projects configured
+        # Show no-config screen if no projects configured.
         if not self.config.projects:
             from .config import CONFIG_FILE
             with Center(id="no-config-center"):
@@ -163,6 +164,7 @@ class FlotteApp(App):
         with ContentSwitcher(initial="list-view", id="view-switcher"):
             with Container(id="list-view"):
                 yield Static("Worktrees", id="worktrees-title")
+                yield Static("", id="project-problems")
                 with Container(id="worktrees-box"):
                     yield WorktreeHeader(id="worktree-header")
                 with Horizontal(id="worktree-controls"):
@@ -310,11 +312,29 @@ class FlotteApp(App):
         self._clear_ui_state()
         self._show_worktree_list()
 
-        # Discover worktrees for new project
-        self.run_worker(self.refresh_worktrees())
+        self._activate_current_project()
 
-        # Start polling for new project
-        self.project.start_polling(self)
+    def _current_project_problems(self) -> tuple[str, ...]:
+        if self.current_config_project is None:
+            return ()
+        return self.preflight.problems_for(self.current_config_project)
+
+    def _activate_current_project(self) -> None:
+        """Show the selected project's problems or start its normal refresh loop."""
+        problems = self._current_project_problems()
+        problem_view = self.query_one("#project-problems", Static)
+        problem_view.update("\n".join(problems))
+        problem_view.display = bool(problems)
+        self.query_one("#worktrees-box").display = not problems
+        for button_id in ("#btn-new-worktree", "#btn-refresh"):
+            button = self.query_one(button_id, Button)
+            button.display = not problems
+            button.disabled = bool(problems)
+        if problems:
+            return
+        self.run_worker(self.refresh_worktrees())
+        if self.project:
+            self.project.start_polling(self)
 
     def _clear_ui_state(self) -> None:
         """Clear all UI widgets to blank state."""
@@ -340,12 +360,7 @@ class FlotteApp(App):
             return
 
         self._show_worktree_list()
-
-        self.run_worker(self.refresh_worktrees())
-
-        # Start project polling
-        if self.project:
-            self.project.start_polling(self)
+        self._activate_current_project()
 
         self.notify("Welcome!")
 
@@ -650,6 +665,9 @@ class FlotteApp(App):
 
     def action_refresh(self) -> None:
         """Refresh worktree list and container status."""
+        if self._current_project_problems():
+            self.notify("Fix this project's configuration before refreshing", severity="warning")
+            return
         self.run_worker(self.refresh_worktrees())
 
     def action_back_to_worktrees(self) -> None:
@@ -802,6 +820,9 @@ class FlotteApp(App):
 
     def action_new_worktree(self) -> None:
         """Handle New button - opens dialog."""
+        if self._current_project_problems():
+            self.notify("Fix this project's configuration before creating a worktree", severity="warning")
+            return
         if self._operation_in_progress:
             self.notify("Operation in progress", severity="warning")
             return

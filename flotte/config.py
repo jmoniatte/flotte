@@ -1,5 +1,8 @@
 import yaml
 import logging
+import os
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -65,9 +68,94 @@ class Config:
     projects: list[Project] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class PreflightResult:
+    """Configured projects and their startup validation problems."""
+
+    projects: tuple[Project, ...]
+    project_problems: tuple[tuple[Project, tuple[str, ...]], ...]
+
+    def problems_for(self, project: Project) -> tuple[str, ...]:
+        for configured_project, problems in self.project_problems:
+            if configured_project == project:
+                return problems
+        return ()
+
+
 def ensure_config_dir() -> None:
     """Create config directory if it doesn't exist."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _writable_parent(path: Path) -> Path | None:
+    """Find the existing directory that would contain path."""
+    candidate = path
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return candidate if candidate.is_dir() else None
+
+
+def _project_problems(project: Project) -> list[str]:
+    problems: list[str] = []
+    repository_path = Path(project.repository_path).expanduser()
+    if not repository_path.is_dir():
+        return [f"{project.name}: repository does not exist: {repository_path}"]
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository_path), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        result = None
+    if (
+        result is None
+        or result.returncode != 0
+        or Path(result.stdout.strip()).resolve() != repository_path.resolve()
+    ):
+        problems.append(f"{project.name}: repository is not a Git worktree: {repository_path}")
+
+    if "{worktree}" not in project.worktree_path:
+        problems.append(f"{project.name}: worktree_path must include {{worktree}}")
+    else:
+        template = Path(project.worktree_path).expanduser()
+        destination_parent = _writable_parent(template.parent)
+        if destination_parent is None:
+            problems.append(f"{project.name}: worktree destination has no usable parent")
+        elif not os.access(destination_parent, os.W_OK | os.X_OK):
+            problems.append(
+                f"{project.name}: worktree destination is not writable: {destination_parent}"
+            )
+    return problems
+
+
+def preflight_config(config: Config) -> PreflightResult:
+    """Validate local prerequisites before a project is selected."""
+    docker_available = shutil.which("docker") is not None
+    if docker_available:
+        try:
+            docker_check = subprocess.run(
+                ["docker", "compose", "version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            docker_available = docker_check.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            docker_available = False
+    docker_problem = "Docker Compose is unavailable. Start Docker or install the Compose plugin."
+    project_problems: list[tuple[Project, tuple[str, ...]]] = []
+    for project in config.projects:
+        problems = _project_problems(project)
+        if not docker_available:
+            problems.insert(0, docker_problem)
+        project_problems.append((project, tuple(problems)))
+
+    return PreflightResult(tuple(config.projects), tuple(project_problems))
 
 
 def _commands(value: object) -> tuple[str, ...]:
