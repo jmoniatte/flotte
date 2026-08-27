@@ -2,7 +2,7 @@
 
 Single source of truth for:
 - Theme color parsing from TCSS files
-- Status icons and colors for WorktreeStatus, ContainerState, StepStatus
+- Status icons and colors for WorktreeStatus and ContainerState
 """
 import logging
 import re
@@ -115,27 +115,6 @@ _CONTAINER_STYLES: dict[ContainerState, tuple[None, str]] = {
     ContainerState.UNKNOWN: (None, "dim"),
 }
 
-# StepStatus: (icon, color_attr) - uses string keys to avoid circular import
-_STEP_STYLES: dict[str, tuple[str, str]] = {
-    "pending": ("󰄱", "dim"),    # nf-md-checkbox_blank_outline
-    "active": ("󰄵", "cyan"),    # nf-md-checkbox_intermediate
-    "done": ("󰄲", "green"),     # nf-md-checkbox_marked
-    "error": ("󰅖", "red"),      # nf-md-close_box
-}
-
-# Status text for status_line.py (text only, icons come from _WORKTREE_STYLES)
-WORKTREE_STATUS_TEXT: dict[WorktreeStatus, str] = {
-    WorktreeStatus.RUNNING: "Services running",
-    WorktreeStatus.STARTING: "Services starting...",
-    WorktreeStatus.STOPPING: "Services stopping...",
-    WorktreeStatus.STOPPED: "Services stopped",
-    WorktreeStatus.CREATING: "Services creating...",
-    WorktreeStatus.DELETING: "Services deleting...",
-    WorktreeStatus.ERROR: "Error",
-    WorktreeStatus.UNKNOWN: "Unknown",
-}
-
-
 def get_status_style(
     status: Union[WorktreeStatus, ContainerState, str],
     colors: ThemeColors,
@@ -143,7 +122,7 @@ def get_status_style(
     """Return (icon, color_hex) for any status enum.
 
     Args:
-        status: WorktreeStatus, ContainerState, or StepStatus.value string
+        status: WorktreeStatus or ContainerState
         colors: ThemeColors instance with hex color values
 
     Returns:
@@ -157,9 +136,6 @@ def get_status_style(
         icon, color_attr = _CONTAINER_STYLES.get(
             status, _CONTAINER_STYLES[ContainerState.UNKNOWN]
         )
-    elif isinstance(status, str) and status in _STEP_STYLES:
-        # StepStatus passed as .value string
-        icon, color_attr = _STEP_STYLES[status]
     else:
         # Fallback for unknown status types
         return ("?", colors.dim)

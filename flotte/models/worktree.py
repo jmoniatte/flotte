@@ -65,6 +65,7 @@ class Worktree:
 
         self._services: list[str] = []
         self._services_mtime: float | None = None
+        self.has_polled = False
 
     def get_or_create_container(self, service: str) -> Container:
         """Get existing container or create new one.
@@ -185,6 +186,8 @@ class Worktree:
             if service not in self.containers:
                 container = self.get_or_create_container(service)
                 container.mark_exited()
+
+        self.has_polled = True
 
         # Auto-clear transient if target status reached
         cleared = None

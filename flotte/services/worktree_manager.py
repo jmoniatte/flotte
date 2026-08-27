@@ -749,22 +749,6 @@ class WorktreeManager:
 
         return True
 
-    async def remove_worktree(self, worktree: Worktree) -> bool:
-        """
-        Remove a git worktree (async wrapper, keeps the branch).
-
-        Args:
-            worktree: The worktree to remove
-
-        Returns:
-            True if successful
-
-        Raises:
-            RuntimeError: If removal fails
-        """
-        import asyncio
-        return await asyncio.to_thread(self.remove_worktree_sync, worktree)
-
     def prune_empty_worktree_parents(self, worktree_path: Path) -> None:
         path = worktree_path.absolute()
         try:

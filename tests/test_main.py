@@ -94,6 +94,12 @@ class MainTests(unittest.TestCase):
                     app.selected_worktree = worktree
                     app._update_container_view()
                     await pilot.pause()
+                    self.assertTrue(app.query_one("#container-loading", Static).display)
+                    self.assertFalse(container_table.display)
+                    worktree.has_polled = True
+                    app._update_container_view()
+                    self.assertFalse(app.query_one("#container-loading", Static).display)
+                    self.assertTrue(container_table.display)
                     app._update_breadcrumb()
                     self.assertEqual(
                         app.query_one("#breadcrumb-worktree").render().plain, "feature"

@@ -1,7 +1,7 @@
 from textual.containers import Vertical
 from textual import events, on
 from textual.binding import Binding
-from textual.widgets import DataTable, Static
+from textual.widgets import DataTable
 from textual.widgets._data_table import CellDoesNotExist
 from textual.reactive import reactive
 from textual.message import Message
@@ -9,7 +9,7 @@ from rich.align import Align
 from rich.text import Text
 
 from ..formatters import format_git_status, format_web_url
-from ..models import Worktree
+from ..models import Worktree, WorktreeStatus
 from ..theme import get_status_style
 from .table_rules import DashedHeaderDataTable, DashedTableFooter
 
@@ -50,6 +50,7 @@ class WorktreeTable(DashedHeaderDataTable):
         self.cursor_background_priority = "css"
         self.add_column("", key="status", width=3)
         self.add_column("Name", key="name", width=30)
+        self.add_column("State", key="state", width=12)
         self.add_column("URL", key="url", width=50)
         self.add_column("Git", key="git", width=20)
         self.cursor_type = "row"
@@ -131,19 +132,30 @@ class WorktreeTable(DashedHeaderDataTable):
 
     def _fit_columns(self) -> None:
         padding = self.cell_padding * 2 * len(self.columns)
-        available = max(self.size.width - padding - 3, 69)
-        name = max(28, int(available * 0.40))
+        available = max(self.size.width - padding - 3, 81)
+        name = max(28, int(available * 0.35))
+        state = 12
         git = max(12, int(available * 0.15))
-        url = max(30, available - name - git)
+        url = max(25, available - name - state - git)
 
         self.columns["name"].width = name
+        self.columns["state"].width = state
         self.columns["url"].width = url
         self.columns["git"].width = git
 
+    @staticmethod
+    def _display_status(wt: Worktree):
+        return wt.status if wt.has_polled else WorktreeStatus.UNKNOWN
+
     def _format_status(self, wt: Worktree) -> Align:
         """Format status icon for a worktree."""
-        icon, color = get_status_style(wt.status, self.app.theme_colors)
+        icon, color = get_status_style(self._display_status(wt), self.app.theme_colors)
         return Align.center(Text(icon, style=color))
+
+    def _format_state(self, wt: Worktree) -> Text:
+        status = self._display_status(wt)
+        _, color = get_status_style(status, self.app.theme_colors)
+        return Text("Loading" if not wt.has_polled else status.value.title(), style=color)
 
     def _format_name(self, wt: Worktree) -> Text:
         return Text(wt.name, style="bold" if wt.is_main else "")
@@ -170,6 +182,7 @@ class WorktreeTable(DashedHeaderDataTable):
             self.add_row(
                 self._format_status(wt),
                 self._format_name(wt),
+                self._format_state(wt),
                 format_web_url(
                     wt.web_url,
                     color=self.app.theme_colors.blue,
@@ -207,6 +220,7 @@ class WorktreeTable(DashedHeaderDataTable):
         """Update one status cell without rebuilding the worktree table."""
         try:
             self.update_cell(worktree.name, "status", self._format_status(worktree))
+            self.update_cell(worktree.name, "state", self._format_state(worktree))
         except CellDoesNotExist:
             pass
 

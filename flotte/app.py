@@ -30,8 +30,6 @@ from .widgets import (
     WorktreeHeader,
     WorktreeChanged,
     WorktreeOpened,
-    ProgressView,
-    ErrorView,
     LinkedRepositories,
     LinkedRepositoryAction,
     DashedTableFooter,
@@ -183,8 +181,7 @@ class FlotteApp(App):
                 with Container(id="containers-box"):
                     yield ContainerTable(id="container-table")
                     yield DashedTableFooter(id="container-table-footer-rule")
-                    yield ProgressView(id="progress-view")
-                    yield ErrorView(id="error-view")
+                    yield Static("Loading containers...", id="container-loading")
                     yield ContainerControls(id="container-controls")
                     yield LinkedRepositories(id="linked-repositories")
 
@@ -220,17 +217,8 @@ class FlotteApp(App):
         self._operation_in_progress = False
         self._operation_type = None
         self._operation_target = None
-        self._clear_progress_view()
         self._update_container_view()
         self.log.info(f"Lock released: {op_type} on {target}")
-
-    def _clear_progress_view(self) -> None:
-        """Clear the progress view after operation completes."""
-        try:
-            progress = self.query_one("#progress-view", ProgressView)
-            progress.clear()
-        except Exception:
-            pass  # Progress view may not exist
 
     def _set_view(self, *, show_details: bool) -> None:
         """Switch between the worktree list and selected-worktree details."""
@@ -338,10 +326,6 @@ class FlotteApp(App):
         container_table = self.query_one("#container-table", ContainerTable)
         container_table.worktree = None
 
-        # Hide progress/error views
-        self.query_one("#progress-view", ProgressView).display = False
-        self.query_one("#error-view", ErrorView).display = False
-
         # Reset controls
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = WorktreeStatus.UNKNOWN
@@ -356,10 +340,6 @@ class FlotteApp(App):
             return
 
         self._show_worktree_list()
-
-        # Set initial display states
-        self.query_one("#progress-view").display = False
-        self.query_one("#error-view").display = False
 
         self.run_worker(self.refresh_worktrees())
 
@@ -479,15 +459,14 @@ class FlotteApp(App):
         """Show/hide container box widgets based on effective status."""
         status = self._effective_status()
 
-        # Show table for container-related states, progress for create/delete
-        # During DELETING, show table so user sees containers disappearing
-        show_table = status != WorktreeStatus.CREATING
-        show_progress = status == WorktreeStatus.CREATING
+        containers_loaded = bool(self.selected_worktree and self.selected_worktree.has_polled)
+        show_table = status != WorktreeStatus.CREATING and containers_loaded
 
         self.query_one("#container-table").display = show_table
-        self.query_one("#progress-view").display = show_progress
-        self.query_one("#error-view").display = False  # Errors shown via notify
-
+        self.query_one("#container-table-footer-rule").display = show_table
+        self.query_one("#container-loading", Static).display = (
+            status != WorktreeStatus.CREATING and not containers_loaded
+        )
         controls = self.query_one("#container-controls", ContainerControls)
         controls.status = status
         # Only a running command locks the buttons - a worktree left half-up after

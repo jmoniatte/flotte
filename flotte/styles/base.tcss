@@ -9,6 +9,11 @@
 Screen {
     background: $bg;
     color: $fg;
+    border: solid $gutter;
+}
+
+ModalScreen {
+    border: none;
 }
 
 /* Custom app header with project selector */
@@ -60,12 +65,17 @@ Screen {
     border: none;
     border-bottom: solid $gutter;
     padding: 0;
+    color: $comment;
 }
 
 #project-selector SelectCurrent:hover {
     border-bottom: solid $blue;
 }
 
+#project-selector SelectCurrent.-has-value Static#label,
+#project-selector SelectCurrent .arrow {
+    color: $comment;
+}
 
 #project-selector SelectOverlay {
     background: $bg-dark;
@@ -85,7 +95,7 @@ Screen {
 #project-name {
     width: 25;
     content-align: left middle;
-    color: $fg;
+    color: $comment;
 }
 
 #no-projects-label {
@@ -431,6 +441,12 @@ ContainerTable > .datatable--hover {
 }
 
 #container-table-footer-rule {
+    height: 1;
+    margin: 0 1;
+    color: $comment;
+}
+
+#container-loading {
     height: 1;
     margin: 0 1;
     color: $comment;
@@ -1115,54 +1131,6 @@ LinkedRepositories {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   PROGRESS VIEW (Creating/Deleting operations)
-   ═══════════════════════════════════════════════════════════════════════ */
-
-ProgressView {
-    height: auto;
-    min-height: 5;
-    padding: 1 2;
-    color: $fg;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   ERROR VIEW
-   ═══════════════════════════════════════════════════════════════════════ */
-
-ErrorView {
-    height: auto;
-    padding: 1 2;
-}
-
-ErrorView #error-message {
-    color: $fg;
-    margin-bottom: 1;
-}
-
-ErrorView #error-buttons {
-    height: 3;
-    align: left middle;
-}
-
-ErrorView #btn-error-dismiss {
-    width: auto;
-    min-width: 0;
-    background: $bg-light;
-    color: $fg;
-    margin: 0;
-    padding: 0 2;
-}
-
-ErrorView #btn-error-dismiss:hover {
-    background: $gutter;
-}
-
-ErrorView #btn-error-dismiss:focus {
-    background: $blue;
-    color: $bg-dark;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
    TOAST NOTIFICATIONS
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1293,7 +1261,6 @@ ModalScreen #cancel-btn:disabled,
 ModalScreen #confirm-btn:disabled,
 ModalScreen #create-btn:disabled,
 ModalScreen #delete-btn:disabled,
-ErrorView #btn-error-dismiss:disabled,
 #no-config-dialog #quit-btn:disabled {
     background: $comment 30%;
     color: $comment;

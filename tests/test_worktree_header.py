@@ -48,6 +48,10 @@ class WorktreeHeaderTests(unittest.TestCase):
                 self.assertEqual(header.size.height, 15)
                 self.assertEqual(table.styles.scrollbar_size_horizontal, 0)
                 self.assertEqual(table.styles.scrollbar_size_vertical, 0)
+                self.assertEqual(table.get_cell("branch-0", "state").plain, "Loading")
+                worktrees[0].has_polled = True
+                header.update_worktree_status(worktrees[0])
+                self.assertEqual(table.get_cell("branch-0", "state").plain, "Stopped")
                 footer_rule = app.query_one("#worktree-table-footer-rule")
                 self.assertTrue(footer_rule.render().plain.lstrip().startswith("-"))
 
