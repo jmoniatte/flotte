@@ -32,6 +32,13 @@ Screen {
     width: auto;
     text-style: bold;
     color: $blue;
+    background: transparent;
+}
+
+#app-title:hover {
+    color: $blue;
+    text-style: bold underline;
+    background: transparent;
 }
 
 #app-subtitle {
@@ -90,7 +97,7 @@ Screen {
 #worktrees-box {
     height: auto;
     padding: 1 1 0 1;
-    margin: 0 1 1 1;
+    margin: 0 1;
 }
 
 #worktrees-title {
@@ -142,7 +149,7 @@ WorktreeHeader #worktree-table-footer-rule {
 }
 
 #worktree-controls {
-    height: 3;
+    height: 1;
     padding: 0 1;
     margin: 0 1 1 1;
     background: transparent;
@@ -307,7 +314,7 @@ WebLink:hover {
 
 ContainerControls {
     height: auto;
-    padding: 0 2 1 3;
+    padding: 0 2 1 1;
     align: left top;
     background: transparent;
 }
@@ -401,7 +408,7 @@ ContainerTable {
     height: auto;
     background: transparent;
     border: none;
-    margin: 0 1 0 2;
+    margin: 0 1;
     scrollbar-size: 0 0;
 }
 
@@ -423,7 +430,7 @@ ContainerTable > .datatable--hover {
 
 #container-table-footer-rule {
     height: 1;
-    margin: 0 1 0 2;
+    margin: 0 1;
     color: $comment;
 }
 
@@ -464,7 +471,7 @@ ContainerControls #btn-delete-worktree:focus {
    ═══════════════════════════════════════════════════════════════════════ */
 
 ModalScreen {
-    align: center middle;
+    align: center top;
     background: $bg 80%;
 }
 
@@ -473,8 +480,14 @@ ModalScreen > Vertical {
     height: auto;
     max-height: 80%;
     background: $bg-dark;
-    border: solid $gutter;
+    border: none;
     padding: 1 2;
+    margin-top: 4;
+}
+
+ModalScreen #dialog-title,
+#no-config-dialog #dialog-title {
+    border-bottom: ascii $gutter;
 }
 
 ModalScreen Input {
@@ -508,28 +521,23 @@ ModalScreen Button:focus {
    ═══════════════════════════════════════════════════════════════════════ */
 
 HelpScreen {
-    align: center middle;
+    align: center top;
     background: $bg 80%;
 }
 
 HelpScreen > Vertical {
     width: auto;
-    min-width: 50;
-    max-width: 56;
+    min-width: 64;
+    max-width: 70;
     height: auto;
     max-height: 80%;
     background: $bg-dark;
-    border: solid $blue;
-    padding: 0 1 0 1;
+    border: none;
+    padding: 1 2;
 }
 
 HelpScreen Static {
     color: $fg;
-}
-
-HelpScreen #help-header {
-    text-style: bold;
-    color: $blue;
 }
 
 HelpScreen #dialog-title {
@@ -544,12 +552,29 @@ HelpScreen #title-separator {
 HelpScreen .section-title {
     text-style: bold;
     color: $fg;
+    border-bottom: ascii $gutter;
 }
 
-HelpScreen .section-title-spaced {
-    text-style: bold;
-    color: $fg;
-    margin-top: 1;
+HelpScreen #help-sections {
+    height: 9;
+}
+
+HelpScreen .help-section {
+    height: 9;
+}
+
+HelpScreen #help-actions {
+    width: 30;
+    margin-right: 3;
+}
+
+HelpScreen #help-general {
+    width: 27;
+}
+
+HelpScreen #help-sections-separator {
+    height: 1;
+    color: $comment;
 }
 
 HelpScreen .shortcut-row {
@@ -557,7 +582,7 @@ HelpScreen .shortcut-row {
 }
 
 HelpScreen .shortcut-key {
-    width: 4;
+    width: 8;
     color: $green;
 }
 
@@ -566,8 +591,34 @@ HelpScreen .shortcut-desc {
 }
 
 HelpScreen #help-footer {
-    text-align: right;
+    height: 1;
+    align: right middle;
+}
+
+HelpScreen #help-footer-spacer {
+    height: 1;
+}
+
+HelpScreen #help-footer .spacer {
+    width: 1fr;
+}
+
+HelpScreen #help-version {
+    width: auto;
+    margin-left: 1;
     color: $comment;
+}
+
+HelpScreen #help-repository {
+    width: auto;
+    color: $blue;
+    background: transparent;
+}
+
+HelpScreen #help-repository:hover {
+    color: $blue;
+    text-style: underline;
+    background: transparent;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -579,13 +630,14 @@ ConfirmDialog > Vertical {
     min-width: 40;
     max-width: 60;
     background: $bg-dark;
-    border: round $red;
-    padding: 0 1;
+    border: none;
+    padding: 1 2;
 }
 
 ConfirmDialog #dialog-title {
     text-style: bold;
     color: $red;
+    margin-bottom: 1;
 }
 
 ConfirmDialog #dialog-message {
@@ -593,15 +645,16 @@ ConfirmDialog #dialog-message {
 }
 
 ConfirmDialog #dialog-buttons {
-    height: 3;
+    height: 1;
     align: right middle;
+    margin-top: 1;
 }
 
 ConfirmDialog Button {
     width: auto;
     min-width: 0;
     border: none;
-    margin-left: 1;
+    margin: 0 0 0 1;
     padding: 0 2;
 }
 
@@ -644,23 +697,20 @@ CreateWorktreeScreen > Vertical {
     min-width: 45;
     max-width: 60;
     background: $bg-dark;
-    border: round $blue;
-    padding: 0 1;
+    border: none;
+    padding: 1 2;
 }
 
 CreateWorktreeScreen #dialog-title {
     text-style: bold;
     color: $blue;
-}
-
-CreateWorktreeScreen #title-separator {
-    height: 1;
+    margin-bottom: 1;
 }
 
 /* TabbedContent for branch mode selection */
 CreateWorktreeScreen #branch-mode {
     height: auto;
-    margin: 0 0 1 0;
+    margin: 0;
 }
 
 CreateWorktreeScreen #branch-mode Tabs {
@@ -690,17 +740,27 @@ CreateWorktreeScreen #branch-mode Underline {
 
 CreateWorktreeScreen #branch-mode TabPane {
     height: auto;
-    min-height: 10;
     padding: 0;
 }
 
 CreateWorktreeScreen .field-label {
     color: $comment;
-    margin-top: 1;
+    margin-top: 0;
+}
+
+CreateWorktreeScreen .form-row {
+    height: 2;
+    align: left middle;
+    margin-bottom: 1;
+}
+
+CreateWorktreeScreen .form-row .field-label {
+    width: 14;
+    margin: 0;
 }
 
 CreateWorktreeScreen Input {
-    width: 100%;
+    width: 1fr;
     height: 2;
     margin: 0 0 1 0;
     padding: 0;
@@ -721,7 +781,7 @@ CreateWorktreeScreen Input:focus {
 
 /* Select - clean style */
 CreateWorktreeScreen Select {
-    width: 100%;
+    width: 1fr;
     height: auto;
     margin: 0 0 1 0;
     background: transparent;
@@ -765,7 +825,7 @@ CreateWorktreeScreen Checkbox {
 }
 
 CreateWorktreeScreen #dialog-buttons {
-    height: 3;
+    height: 1;
     align: right middle;
     margin-top: 1;
 }
@@ -774,7 +834,7 @@ CreateWorktreeScreen Button {
     width: auto;
     min-width: 0;
     border: none;
-    margin-left: 1;
+    margin: 0 0 0 1;
     padding: 0 2;
 }
 
@@ -834,18 +894,19 @@ DeleteWorktreeScreen #delete-dialog {
     min-width: 45;
     max-width: 60;
     background: $bg-dark;
-    border: round $red;
-    padding: 0 1;
+    border: none;
+    padding: 1 2;
 }
 
 DeleteWorktreeScreen #dialog-title {
     text-style: bold;
     color: $red;
+    margin-bottom: 1;
 }
 
 DeleteWorktreeScreen #confirm-content {
     height: auto;
-    padding: 1 0;
+    padding: 0;
 }
 
 DeleteWorktreeScreen #confirm-message {
@@ -858,7 +919,7 @@ DeleteWorktreeScreen #confirm-warning {
 }
 
 DeleteWorktreeScreen #dialog-buttons {
-    height: 3;
+    height: 1;
     align: right middle;
     margin-top: 1;
 }
@@ -867,7 +928,7 @@ DeleteWorktreeScreen Button {
     width: auto;
     min-width: 0;
     border: none;
-    margin-left: 1;
+    margin: 0 0 0 1;
     padding: 0 2;
 }
 
@@ -920,7 +981,7 @@ DeleteWorktreeScreen #status-text {
 
 LinkedRepositories {
     height: auto;
-    padding: 0 1 1 3;
+    padding: 0 1 1 1;
     color: $comment;
 }
 
@@ -1137,6 +1198,7 @@ Toast.-error {
 #no-config-center {
     width: 100%;
     height: 100%;
+    align: center top;
 }
 
 #no-config-dialog {
@@ -1145,18 +1207,20 @@ Toast.-error {
     min-width: 55;
     max-width: 70;
     background: $bg-dark;
-    border: round $yellow;
-    padding: 0 1;
+    border: none;
+    padding: 1 2;
+    margin-top: 4;
 }
 
 #no-config-dialog #dialog-title {
     text-style: bold;
     color: $yellow;
+    margin-bottom: 1;
 }
 
 #no-config-content {
     height: auto;
-    padding: 1 0;
+    padding: 0;
 }
 
 #no-config-message {
@@ -1174,7 +1238,7 @@ Toast.-error {
 }
 
 #no-config-dialog #dialog-buttons {
-    height: 3;
+    height: 1;
     align: center middle;
     margin-top: 1;
 }
@@ -1183,7 +1247,7 @@ Toast.-error {
     width: auto;
     min-width: 0;
     border: none;
-    margin-left: 1;
+    margin: 0 0 0 1;
     padding: 0 2;
 }
 

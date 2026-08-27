@@ -46,17 +46,19 @@ class CreateWorktreeScreen(ModalScreen[CreateWorktreeResult | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="create-dialog"):
             yield Static("New Worktree", id="dialog-title")
-            yield Static("", id="title-separator")
 
             with TabbedContent(id="branch-mode"):
                 with TabPane("New branch", id="tab-new"):
-                    yield Static("Branch name", classes="field-label")
-                    yield Input(placeholder="feature/my-feature", id="branch-input")
-                    yield Static("Base branch", classes="field-label")
-                    yield Select([], id="base-branch", prompt="")
+                    with Horizontal(classes="form-row"):
+                        yield Static("Branch name", classes="field-label")
+                        yield Input(placeholder="feature/my-feature", id="branch-input")
+                    with Horizontal(classes="form-row"):
+                        yield Static("Base branch", classes="field-label")
+                        yield Select([], id="base-branch", prompt="")
                 with TabPane("Existing branch", id="tab-existing"):
-                    yield Static("Select branch", classes="field-label")
-                    yield Select([], id="existing-branch", prompt="")
+                    with Horizontal(classes="form-row"):
+                        yield Static("Select branch", classes="field-label")
+                        yield Select([], id="existing-branch", prompt="")
 
             yield Checkbox("Clone volumes and bind mounts from main", id="clone-data", value=True)
 

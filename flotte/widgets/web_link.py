@@ -8,8 +8,8 @@ class WebLink(Link):
 
     can_focus = False
 
-    def __init__(self, url: str | None = None, **kwargs) -> None:
-        super().__init__(display_web_url(url), url=url or "", **kwargs)
+    def __init__(self, url: str | None = None, label: str | None = None, **kwargs) -> None:
+        super().__init__(label or display_web_url(url), url=url or "", **kwargs)
         self.display = bool(url)
 
     def set_url(self, url: str | None) -> None:

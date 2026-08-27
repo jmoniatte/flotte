@@ -37,7 +37,7 @@ from .widgets import (
     DashedTableFooter,
     WebLink,
 )
-from . import __version__
+from . import REPOSITORY_URL, __version__
 
 
 class FlotteApp(App):
@@ -141,7 +141,7 @@ class FlotteApp(App):
                             id="no-config-path"
                         )
                         yield Static(
-                            "Add a [[projects]] entry with name and path.",
+                            "Add a [[projects]] entry with name and repository_path.",
                             id="no-config-help"
                         )
                     with Horizontal(id="dialog-buttons"):
@@ -151,7 +151,7 @@ class FlotteApp(App):
         # Custom header with project selector
         with Horizontal(id="app-header"):
             with Vertical(id="app-title-group"):
-                yield Static("Flotte", id="app-title")
+                yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
                 yield Static(f"v{__version__}", id="app-subtitle")
                 yield Static("", id="header-gap")
             yield Static("", id="header-spacer")
@@ -1048,7 +1048,7 @@ class FlotteApp(App):
 
         self.push_screen(
             ConfirmDialog(
-                f"[bold]Uncommitted changes:[/bold]\n  {', '.join(changes)}\n\nCommit before deleting?",
+                f"{', '.join(changes)}\n\nCommit before deleting?",
                 title="Uncommitted Changes",
                 confirm_label="Commit",
                 cancel_label="Discard"
