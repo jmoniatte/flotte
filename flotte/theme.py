@@ -104,15 +104,14 @@ _WORKTREE_STYLES: dict[WorktreeStatus, tuple[str, str]] = {
     WorktreeStatus.UNKNOWN: ("?", "dim"),
 }
 
-# ContainerState: (None, color_attr) - no icons, color only
-_CONTAINER_STYLES: dict[ContainerState, tuple[None, str]] = {
-    ContainerState.RUNNING: (None, "green"),
-    ContainerState.EXITED: (None, "red"),
-    ContainerState.PAUSED: (None, "yellow"),
-    ContainerState.RESTARTING: (None, "yellow"),
-    ContainerState.DEAD: (None, "red"),
-    ContainerState.CREATED: (None, "dim"),
-    ContainerState.UNKNOWN: (None, "dim"),
+_CONTAINER_STYLES: dict[ContainerState, tuple[str, str]] = {
+    ContainerState.RUNNING: ("●", "green"),
+    ContainerState.EXITED: ("○", "red"),
+    ContainerState.PAUSED: ("◐", "yellow"),
+    ContainerState.RESTARTING: ("◐", "yellow"),
+    ContainerState.DEAD: ("✗", "red"),
+    ContainerState.CREATED: ("○", "dim"),
+    ContainerState.UNKNOWN: ("?", "dim"),
 }
 
 def get_status_style(

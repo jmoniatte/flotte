@@ -9,6 +9,7 @@ from flotte.__main__ import main
 from flotte.app import FlotteApp
 from flotte.config import Config, PreflightResult, Project
 from flotte.models import Container, Worktree
+from flotte.models.container import ContainerState
 from flotte.widgets import WebLink
 from textual.widgets import Button, ContentSwitcher, Static
 
@@ -75,6 +76,7 @@ class MainTests(unittest.TestCase):
                     container_table = app.query_one("#container-table")
                     self.assertEqual(container_table.cursor_type, "none")
                     self.assertEqual(container_table.header_height, 2)
+                    self.assertEqual(container_table.columns["indicator"].width, 3)
                     self.assertEqual(container_table.columns["service"].width, 20)
                     self.assertEqual(container_table.columns["ports"].width, 10)
                     self.assertEqual(container_table.columns["state"].width, 12)
@@ -88,6 +90,7 @@ class MainTests(unittest.TestCase):
                     )
                     worktree = Worktree("feature", Path("/tmp/feature"))
                     web_container = Container("nginx")
+                    web_container.state = ContainerState.EXITED
                     web_container.ports = ["3200"]
                     worktree.containers[web_container.service] = web_container
                     worktree.git_status = {
@@ -104,6 +107,7 @@ class MainTests(unittest.TestCase):
                     self.assertFalse(container_table.display)
                     worktree.has_polled = True
                     app._update_container_view()
+                    await pilot.pause()
                     self.assertFalse(app.query_one("#container-loading", Static).display)
                     self.assertTrue(container_table.display)
                     app._update_breadcrumb()

@@ -1,4 +1,5 @@
 from textual.reactive import reactive
+from rich.align import Align
 from rich.text import Text
 
 from ..models import Worktree, Container, ContainerState
@@ -28,7 +29,8 @@ class ContainerTable(DashedHeaderDataTable):
         self.zebra_stripes = False
 
         # Define columns
-        self.add_column("Service", key="service", width=20)
+        self.add_column("", key="indicator", width=3)
+        self.add_column("Container", key="service", width=20)
         self.add_column("Port", key="ports", width=10)
         self.add_column("State", key="state", width=12)
         self.add_column("Uptime", key="status", width=20)
@@ -51,6 +53,7 @@ class ContainerTable(DashedHeaderDataTable):
     def _add_container_row(self, container: Container) -> None:
         """Add a row for a container."""
         self.add_row(
+            self._format_indicator(container.state),
             container.service,
             ", ".join(container.ports) if container.ports else "-",
             self._format_state(container.state),
@@ -62,6 +65,11 @@ class ContainerTable(DashedHeaderDataTable):
         """Format state with color coding."""
         _, color = get_status_style(state, self.app.theme_colors)
         return Text(state.value.title(), style=color)
+
+    def _format_indicator(self, state: ContainerState) -> Align:
+        """Format the compact status light shown before each service."""
+        icon, color = get_status_style(state, self.app.theme_colors)
+        return Align.center(Text(icon or "?", style=color))
 
     def update_container(self, container: Container) -> None:
         """
@@ -75,6 +83,7 @@ class ContainerTable(DashedHeaderDataTable):
             row_key = container.service
 
             # Update cells
+            self.update_cell(row_key, "indicator", self._format_indicator(container.state))
             self.update_cell(row_key, "ports", ", ".join(container.ports) if container.ports else "-")
             self.update_cell(row_key, "state", self._format_state(container.state))
             self.update_cell(row_key, "status", container.status)
