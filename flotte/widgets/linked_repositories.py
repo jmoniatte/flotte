@@ -45,6 +45,7 @@ class LinkedRepositoryRow(Vertical):
         self.index = index
 
     def compose(self):
+        yield Static("", classes="linked-repository-separator")
         with Horizontal(classes="linked-repository-heading"):
             yield Static(self.repository_name, classes="linked-repository-title")
             yield Static("", classes="linked-repository-git-status")

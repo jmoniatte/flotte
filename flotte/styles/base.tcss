@@ -1101,6 +1101,12 @@ LinkedRepositories {
     height: auto;
 }
 
+.linked-repository-separator {
+    height: 1;
+    width: 100%;
+    border-top: solid $gutter 30%;
+}
+
 .linked-repository-title {
     width: auto;
     color: $yellow;
@@ -1123,7 +1129,7 @@ LinkedRepositories {
 }
 
 .linked-repository-url {
-    width: 1fr;
+    width: auto;
     color: $blue;
     text-style: none;
     background: transparent;
