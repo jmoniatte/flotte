@@ -36,7 +36,7 @@ else
   i3-msg "workspace $num:$PROJECT_NAME"
   i3-msg "append_layout $LAYOUT"
 
-  alacritty --class Alacritty,ride_claude --working-directory "$PROJECT_PATH" -e bash -lic 'claude --dangerously-skip-permissions; exec bash' &
+  alacritty --class Alacritty,ride_claude --working-directory "$PROJECT_PATH" -e bash -lic 'claude; exec bash' &
   alacritty --class Alacritty,ride_editor --working-directory "$PROJECT_PATH" -e bash -lic 'nvim; exec bash' &
   alacritty --class Alacritty,ride_logs --working-directory "$PROJECT_PATH" -e bash -lic 'trap "" INT; ./ride.rb logs; exec bash' &
 fi
