@@ -922,14 +922,20 @@ class FlotteApp(App):
             started_at = perf_counter()
             result = await self.linked_worktree_manager.create_link(worktree, repository_name)
             if result.state == "error":
-                self.log_store.record_elapsed(worktree.name, f"Link {repository_name}", started_at, False)
+                self.log_store.record_elapsed(
+                    worktree.name, f"Linked {repository_name}", started_at, False
+                )
                 self.notify(f"Link setup failed: {result.error}", severity="error")
             else:
-                self.log_store.record_elapsed(worktree.name, f"Link {repository_name}", started_at, True)
+                self.log_store.record_elapsed(
+                    worktree.name, f"Linked {repository_name}", started_at, True
+                )
                 self.notify(f"Linked {repository_name}", severity="information")
             self._update_container_view(refresh_linked_repositories=True)
         except Exception:
-            self.log_store.record_elapsed(worktree.name, f"Link {repository_name}", started_at, False)
+            self.log_store.record_elapsed(
+                worktree.name, f"Linked {repository_name}", started_at, False
+            )
             raise
         finally:
             self._release_operation_lock()
@@ -1017,12 +1023,16 @@ class FlotteApp(App):
         try:
             started_at = perf_counter()
             await self.linked_worktree_manager.remove_link(worktree, repository_name)
-            self.log_store.record_elapsed(worktree.name, f"Unlink {repository_name}", started_at, True)
+            self.log_store.record_elapsed(
+                worktree.name, f"Unlinked {repository_name}", started_at, True
+            )
             self.linked_worktree_manager.attach(worktree)
             self._update_container_view(refresh_linked_repositories=True)
             self.notify(f"Unlinked {repository_name}", severity="information")
         except Exception as error:
-            self.log_store.record_elapsed(worktree.name, f"Unlink {repository_name}", started_at, False)
+            self.log_store.record_elapsed(
+                worktree.name, f"Unlinked {repository_name}", started_at, False
+            )
             self.notify(f"Failed to unlink {repository_name}: {error}", severity="error")
         finally:
             self._release_operation_lock()

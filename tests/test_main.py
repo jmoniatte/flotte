@@ -1,6 +1,7 @@
 import contextlib
 import io
 import asyncio
+from datetime import datetime
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
@@ -69,6 +70,30 @@ class MainTests(unittest.TestCase):
             self.assertEqual(action[0], "feature")
             self.assertEqual(action[1], "Stopped rwgps-ui")
             self.assertFalse(action[3])
+
+        asyncio.run(exercise())
+
+    def test_link_and_unlink_logs_use_past_tense(self) -> None:
+        async def exercise() -> None:
+            app = Mock()
+            app.linked_worktree_manager.create_link = AsyncMock(
+                return_value=Mock(state="running")
+            )
+            app.linked_worktree_manager.remove_link = AsyncMock()
+            worktree = Worktree("feature", Path("/tmp/feature"))
+
+            await FlotteApp._create_link(app, worktree, "rwgps-ui")
+            self.assertEqual(
+                app.log_store.record_elapsed.call_args.args[1],
+                "Linked rwgps-ui",
+            )
+
+            app.log_store.record_elapsed.reset_mock()
+            await FlotteApp._delete_link(app, worktree, "rwgps-ui")
+            self.assertEqual(
+                app.log_store.record_elapsed.call_args.args[1],
+                "Unlinked rwgps-ui",
+            )
 
         asyncio.run(exercise())
 
@@ -250,7 +275,7 @@ class MainTests(unittest.TestCase):
                         await pilot.pause()
 
                         app.log_store.record(
-                            worktree.name, "Create worktree", 0.1, True
+                            worktree.name, "Created worktree", 0.1, True
                         )
                         with app.log_store.path_for(worktree.name).open("a") as log_file:
                             log_file.write("malformed\n")
@@ -271,7 +296,7 @@ class MainTests(unittest.TestCase):
                         )
                         self.assertEqual(
                             app.screen.query_one("#worktree-log-datetime", Static).render().plain,
-                            "DateTime",
+                            f"DateTime {datetime.now().astimezone().tzname() or 'Local'}",
                         )
                         self.assertEqual(
                             app.screen.query_one("#worktree-log-label", Static).render().plain,

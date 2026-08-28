@@ -1,6 +1,7 @@
 from pathlib import Path
 from collections.abc import Callable
 import csv
+from datetime import datetime, tzinfo
 
 from textual.app import ComposeResult
 from textual import events, on
@@ -16,6 +17,25 @@ from textual.strip import Strip
 from .. import REPOSITORY_URL, __version__
 from ..services.worktree_log import WorktreeLogStore
 from ..widgets import DashedTableFooter, WebLink
+
+
+def _local_timezone_name() -> str:
+    return datetime.now().astimezone().tzname() or "Local"
+
+
+def _format_local_timestamp(timestamp: str, local_timezone: tzinfo | None = None) -> str | None:
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    localized = (
+        parsed.astimezone()
+        if local_timezone is None
+        else parsed.astimezone(local_timezone)
+    )
+    return localized.strftime("%Y-%m-%d %H:%M:%S")
 
 
 class HoverRichLog(RichLog):
@@ -91,7 +111,9 @@ class WorktreeLogScreen(Screen):
                 yield Static(">", classes="log-breadcrumb-separator")
                 yield Static("Logs", id="log-breadcrumb-current")
             with Horizontal(id="worktree-log-header"):
-                yield Static("DateTime", id="worktree-log-datetime")
+                yield Static(
+                    f"DateTime {_local_timezone_name()}", id="worktree-log-datetime"
+                )
                 yield Static("Log", id="worktree-log-label")
             yield DashedTableFooter(id="worktree-log-rule")
             yield HoverRichLog(wrap=False, markup=False, auto_scroll=False, id="worktree-log")
@@ -138,7 +160,10 @@ class WorktreeLogScreen(Screen):
             duration = WorktreeLogStore.format_duration(float(duration_seconds))
         except ValueError:
             return None
-        rendered = Text(f"{timestamp:<22}")
+        local_timestamp = _format_local_timestamp(timestamp)
+        if local_timestamp is None:
+            return None
+        rendered = Text(f"{local_timestamp:<22}")
         rendered.append(
             action,
             style=self.app.theme_colors.green

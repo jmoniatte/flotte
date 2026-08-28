@@ -68,7 +68,17 @@ class WorktreeCreatorTests(unittest.TestCase):
         )
         self.assertEqual(progress[0], "Creating git worktree...")
         self.assertEqual(progress[-1], "Running command 1/1: setup...")
-        self.assertEqual(log_store.record_elapsed.call_count, 6)
+        self.assertEqual(
+            [call.args[1] for call in log_store.record_elapsed.call_args_list],
+            [
+                "Created worktree",
+                "Cloned volume database",
+                "Tagged images",
+                "Copied bind mount bind",
+                "Copied extra path extra",
+                "Ran post-create command: setup",
+            ],
+        )
 
     def test_create_without_cloning_still_runs_post_create_commands(self) -> None:
         worktree = Worktree("feature", Path("/tmp/feature"), "feature")

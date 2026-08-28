@@ -43,7 +43,7 @@ class WorktreeCreator:
         worktree = await self.manager.create_worktree(branch_name, base_branch)
         self.log_store.record_elapsed(
             worktree.name,
-            "Create worktree",
+            "Created worktree",
             started_at,
             True,
         )
@@ -75,7 +75,7 @@ class WorktreeCreator:
             )
             self.log_store.record_elapsed(
                 worktree.name,
-                f"Clone volume {volume}",
+                f"Cloned volume {volume}",
                 started_at,
                 success,
             )
@@ -94,7 +94,7 @@ class WorktreeCreator:
             )
             self.log_store.record_elapsed(
                 worktree.name,
-                "Tag images",
+                "Tagged images",
                 started_at,
                 not failures,
             )
@@ -153,7 +153,7 @@ class WorktreeCreator:
             )
             self.log_store.record_elapsed(
                 worktree.name,
-                f"Copy {description} {relative_path}",
+                f"Copied {description} {relative_path}",
                 started_at,
                 success,
             )
@@ -180,7 +180,7 @@ class WorktreeCreator:
             )
             self.log_store.record_elapsed(
                 worktree.name,
-                f"Run post-create command: {command}",
+                f"Ran post-create command: {command}",
                 started_at,
                 success,
             )

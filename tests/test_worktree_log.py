@@ -13,7 +13,7 @@ class WorktreeLogStoreTests(unittest.TestCase):
             with patch("flotte.services.worktree_log.LOG_DIR", Path(directory)):
                 store = WorktreeLogStore("ridewithgps")
                 store.record(
-                    "feature/login", "Clone volume\n  mysql", 1.2, True
+                    "feature/login", "Cloned volume\n  mysql", 1.2, True
                 )
                 log_path = store.path_for("feature/login")
 
@@ -25,7 +25,7 @@ class WorktreeLogStoreTests(unittest.TestCase):
                     entries[0]["timestamp"],
                     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",
                 )
-                self.assertEqual(entries[0]["action"], "Clone volume mysql")
+                self.assertEqual(entries[0]["action"], "Cloned volume mysql")
                 self.assertEqual(entries[0]["status"], "success")
                 self.assertEqual(entries[0]["duration_seconds"], "1.200000")
 
@@ -39,5 +39,5 @@ class WorktreeLogStoreTests(unittest.TestCase):
             with patch("flotte.services.worktree_log.LOG_DIR", log_dir):
                 store = WorktreeLogStore("ridewithgps")
                 with self.assertLogs("flotte.services.worktree_log", level="WARNING"):
-                    store.record("feature", "Create worktree", 1.2, True)
+                    store.record("feature", "Created worktree", 1.2, True)
                     store.remove("feature")
