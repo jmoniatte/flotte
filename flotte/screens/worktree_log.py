@@ -16,7 +16,7 @@ from textual.strip import Strip
 
 from .. import REPOSITORY_URL, __version__
 from ..services.worktree_log import WorktreeLogStore
-from ..widgets import DashedTableFooter, WebLink
+from ..widgets import DashedTableFooter, HeaderNotification, WebLink
 
 
 def _local_timezone_name() -> str:
@@ -101,6 +101,8 @@ class WorktreeLogScreen(Screen):
             with Vertical(id="app-title-group"):
                 yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
                 yield Static(f"v{__version__}", id="app-subtitle")
+            yield Static("", classes="header-notification-spacer")
+            yield HeaderNotification()
             yield Static("", id="header-spacer")
             yield Static(self.project_name, id="project-name")
         with Vertical(id="worktree-log-screen"):

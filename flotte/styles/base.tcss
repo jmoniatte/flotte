@@ -27,11 +27,15 @@ ModalScreen {
 }
 
 #app-title-group {
-    width: 1fr;
+    width: auto;
     height: auto;
 }
 
 #header-spacer {
+    width: 1fr;
+}
+
+.header-notification-spacer {
     width: 1fr;
 }
 
@@ -51,6 +55,25 @@ ModalScreen {
 #app-subtitle {
     width: auto;
     color: $comment;
+}
+
+HeaderNotification {
+    width: 40%;
+    height: auto;
+    max-height: 2;
+    padding: 0 1;
+}
+
+HeaderNotification.-information {
+    color: $green;
+}
+
+HeaderNotification.-warning {
+    color: $yellow;
+}
+
+HeaderNotification.-error {
+    color: $red;
 }
 
 #project-selector {

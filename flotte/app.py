@@ -1,11 +1,14 @@
 import asyncio
 from functools import partial
+from getpass import getuser
 from pathlib import Path
+from random import choice
 from time import perf_counter
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Container, Horizontal, Vertical
+from textual.notifications import Notification, SeverityLevel
 from textual.widgets import Button, ContentSwitcher, Static, Select
 from textual import events, on, work
 
@@ -42,9 +45,39 @@ from .widgets import (
     LinkedRepositories,
     LinkedRepositoryAction,
     DashedTableFooter,
+    HeaderNotification,
     WebLink,
 )
 from . import REPOSITORY_URL, __version__
+
+GREETING_TEMPLATES = (
+    "Hello {name}",
+    "Bonjour {name}",
+    "Hola {name}",
+    "Ciao {name}",
+    "Hallo {name}",
+    "Olá {name}",
+    "Dia dhuit {name}",
+    "Hei {name}",
+    "Cześć {name}",
+    "Ahoj {name}",
+    "Szia {name}",
+    "Salut {name}",
+    "Merhaba {name}",
+    "Γεια σου {name}",
+    "Привет {name}",
+    "Привіт {name}",
+    "你好 {name}",
+    "こんにちは {name}",
+    "안녕하세요 {name}",
+    "नमस्ते {name}",
+)
+
+
+def _random_greeting() -> str:
+    account_name = getuser().strip()
+    display_name = account_name[:1].upper() + account_name[1:]
+    return choice(GREETING_TEMPLATES).format(name=display_name)
 
 
 class FlotteApp(App):
@@ -69,6 +102,38 @@ class FlotteApp(App):
         Binding("escape", "escape", show=False),
         Binding("b", "back_to_worktrees", show=False),
     ]
+
+    def notify(
+        self,
+        message: str,
+        *,
+        title: str = "",
+        severity: SeverityLevel = "information",
+        timeout: float | None = None,
+        markup: bool = True,
+    ) -> None:
+        notification = Notification(
+            message,
+            title,
+            severity,
+            self.NOTIFICATION_TIMEOUT if timeout is None else timeout,
+            markup=markup,
+        )
+        self.call_later(self._show_notification, notification)
+
+    def _show_notification(self, notification: Notification) -> None:
+        for screen in reversed(self.screen_stack):
+            notifications = list(screen.query(HeaderNotification))
+            if notifications:
+                notifications[0].show_notification(notification)
+                return
+        super().notify(
+            notification.message,
+            title=notification.title,
+            severity=notification.severity,
+            timeout=max(notification.time_left, 0),
+            markup=notification.markup,
+        )
 
     def __init__(self):
         # Load config first to determine theme
@@ -161,6 +226,8 @@ class FlotteApp(App):
             with Vertical(id="app-title-group"):
                 yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
                 yield Static(f"v{__version__}", id="app-subtitle")
+            yield Static("", classes="header-notification-spacer")
+            yield HeaderNotification()
             yield Static("", id="header-spacer")
             yield Select(
                 options=[(p.name, p) for p in self.config.projects],
@@ -369,7 +436,7 @@ class FlotteApp(App):
         self._show_worktree_list()
         self._activate_current_project()
 
-        self.notify("Welcome!")
+        self.notify(_random_greeting(), markup=False)
 
     async def refresh_worktrees(self) -> None:
         """Discover and display all worktrees."""

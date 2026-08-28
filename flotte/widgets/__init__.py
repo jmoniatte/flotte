@@ -4,6 +4,7 @@ from .worktree_header import WorktreeHeader, WorktreeChanged, WorktreeOpened
 from .linked_repositories import LinkedRepositories, LinkedRepositoryAction
 from .web_link import WebLink
 from .table_rules import DashedTableFooter
+from .header_notification import HeaderNotification
 
 __all__ = [
     "ContainerControls",
@@ -15,4 +16,5 @@ __all__ = [
     "LinkedRepositoryAction",
     "WebLink",
     "DashedTableFooter",
+    "HeaderNotification",
 ]

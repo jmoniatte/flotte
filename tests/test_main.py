@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import unittest
 
 from flotte.__main__ import main
-from flotte.app import FlotteApp
+from flotte.app import FlotteApp, GREETING_TEMPLATES
 from flotte.config import Config, PreflightResult, Project
 from flotte.models import Container, GitStatus, Worktree
 from flotte.models.container import ContainerState
@@ -137,9 +137,55 @@ class MainTests(unittest.TestCase):
                 patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
                 patch("flotte.models.project.Project.start_polling"),
                 patch("flotte.models.project.Project.shutdown", new_callable=AsyncMock),
+                patch("flotte.app.getuser", return_value="jean"),
+                patch(
+                    "flotte.app.choice", return_value="Bonjour {name}"
+                ) as greeting_choice,
             ):
                 app = FlotteApp()
-                async with app.run_test(size=(100, 30)) as pilot:
+                async with app.run_test(size=(100, 30), notifications=True) as pilot:
+                    await pilot.pause()
+                    notification = app.screen.query_one("HeaderNotification")
+                    self.assertEqual(notification.render().plain, "Bonjour Jean")
+                    self.assertEqual(len(GREETING_TEMPLATES), 20)
+                    greeting_choice.assert_called_once_with(GREETING_TEMPLATES)
+
+                    app.notify("First notification", timeout=30)
+                    app.notify("Latest notification", timeout=30)
+                    await pilot.pause()
+                    notifications = list(app.screen.query("HeaderNotification"))
+                    self.assertEqual(len(notifications), 1)
+                    notification = notifications[0]
+                    self.assertEqual(notification.render().plain, "Latest notification")
+                    screenshot = app.export_screenshot()
+                    self.assertIn("Latest&#160;notification", screenshot)
+                    self.assertEqual(list(app.screen.query("Toast")), [])
+                    self.assertGreaterEqual(
+                        notification.region.x,
+                        app.query_one("#app-title").region.right,
+                    )
+                    self.assertLessEqual(
+                        notification.region.right,
+                        app.query_one("#project-selector").region.x,
+                    )
+                    self.assertEqual(
+                        notification.region.y,
+                        app.query_one("#app-title").region.y,
+                    )
+                    left_gap = (
+                        notification.region.x
+                        - app.query_one("#app-title-group").region.right
+                    )
+                    right_gap = (
+                        app.query_one("#project-selector").region.x
+                        - notification.region.right
+                    )
+                    self.assertLessEqual(abs(left_gap - right_gap), 1)
+                    self.assertGreater(
+                        notification.content_region.width,
+                        len("Latest notification"),
+                    )
+
                     switcher = app.query_one("#view-switcher", ContentSwitcher)
                     self.assertEqual(switcher.current, "list-view")
                     list_title_y = app.query_one("#worktrees-title").region.y
