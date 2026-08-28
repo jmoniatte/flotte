@@ -6,8 +6,7 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Static
 from textual.app import ComposeResult
 
-from ..services import WorktreeManager
-from ..services import LinkedWorktreeManager
+from ..services import LinkedRepositoryController, WorktreeManager
 from ..models import Worktree
 
 
@@ -29,12 +28,12 @@ class DeleteWorktreeScreen(ModalScreen[DeleteWorktreeResult | None]):
         self,
         worktree: Worktree,
         worktree_manager: WorktreeManager,
-        linked_worktree_manager: LinkedWorktreeManager | None = None,
+        linked_repository_controller: LinkedRepositoryController | None = None,
     ):
         super().__init__()
         self.worktree = worktree
         self.worktree_manager = worktree_manager
-        self.linked_worktree_manager = linked_worktree_manager
+        self.linked_repository_controller = linked_repository_controller
         self._is_deleting = False
 
     def compose(self) -> ComposeResult:
@@ -105,9 +104,9 @@ class DeleteWorktreeScreen(ModalScreen[DeleteWorktreeResult | None]):
                 self.worktree
             )
 
-            if self.linked_worktree_manager:
+            if self.linked_repository_controller:
                 self._update_status("Removing linked worktrees...")
-                await self.linked_worktree_manager.remove_links(self.worktree)
+                await self.linked_repository_controller.remove_all(self.worktree)
 
             # Remove worktree directory
             self._update_status("Removing worktree...")

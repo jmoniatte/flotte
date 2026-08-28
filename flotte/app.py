@@ -21,6 +21,8 @@ from .models.worktree import WorktreeStatus
 from .messages import OperationCompleted, WorktreeStatusChanged
 from .services import (
     DockerManager,
+    LinkedOperationOutcome,
+    LinkedRepositoryController,
     LinkedWorktreeManager,
     WorktreeCreationResult,
     WorktreeCreator,
@@ -178,7 +180,7 @@ class FlotteApp(App):
         )
         self.project = Project() if config_project else None
         self.worktree_manager = None
-        self.linked_worktree_manager = None
+        self.linked_repository_controller: LinkedRepositoryController | None = None
         self.selected_worktree = None
 
         if config_project is None:
@@ -192,8 +194,10 @@ class FlotteApp(App):
             post_create_commands=config_project.post_create_commands,
         )
         if config_project.linked_repositories:
-            self.linked_worktree_manager = LinkedWorktreeManager(
-                config_project.linked_repositories
+            manager = LinkedWorktreeManager(config_project.linked_repositories)
+            self.linked_repository_controller = LinkedRepositoryController(
+                manager,
+                self.log_store,
             )
 
     def compose(self) -> ComposeResult:
@@ -426,9 +430,9 @@ class FlotteApp(App):
         # Discover worktrees via WorktreeManager
         discovered = await self.worktree_manager.discover_worktrees()
 
-        if self.linked_worktree_manager:
+        if self.linked_repository_controller:
             for worktree in discovered:
-                self.linked_worktree_manager.attach(worktree)
+                self.linked_repository_controller.attach(worktree)
 
         # Copy discovered worktrees to Project model
         self.project.worktrees.clear()
@@ -665,8 +669,8 @@ class FlotteApp(App):
                     return
                 git_status, linked_statuses = await asyncio.gather(
                     get_git_status(wt.path),
-                    self.linked_worktree_manager.linked_statuses(wt)
-                    if self.linked_worktree_manager else self._empty_linked_statuses(),
+                    self.linked_repository_controller.statuses(wt)
+                    if self.linked_repository_controller else self._empty_linked_statuses(),
                 )
                 if self._git_fetch_queued:
                     continue
@@ -925,8 +929,8 @@ class FlotteApp(App):
         """Finish worktree creation after modal is done."""
         if not self.project:
             return
-        if self.linked_worktree_manager:
-            self.linked_worktree_manager.attach(worktree)
+        if self.linked_repository_controller:
+            self.linked_repository_controller.attach(worktree)
         # Add the worktree to our project model
         self.project.worktrees[worktree.name] = worktree
         self._sync_worktree_ui()
@@ -959,7 +963,7 @@ class FlotteApp(App):
         self.run_worker(self._prepare_delete(wt))
 
     def _request_create_link(self, repository_name: str) -> None:
-        if not self.selected_worktree or not self.linked_worktree_manager:
+        if not self.selected_worktree or not self.linked_repository_controller:
             return
         if not self._acquire_operation_lock("link", self.selected_worktree.name):
             return
@@ -971,29 +975,16 @@ class FlotteApp(App):
 
     async def _create_link(self, worktree: Worktree, repository_name: str) -> None:
         try:
-            started_at = perf_counter()
-            result = await self.linked_worktree_manager.create_link(worktree, repository_name)
-            if result.state == "error":
-                self.log_store.record_elapsed(
-                    worktree.name, f"Linked {repository_name}", started_at, False
-                )
-                self.notify(f"Link setup failed: {result.error}", severity="error")
-            else:
-                self.log_store.record_elapsed(
-                    worktree.name, f"Linked {repository_name}", started_at, True
-                )
-                self.notify(f"Linked {repository_name}", severity="information")
-            self._update_container_view(refresh_linked_repositories=True)
-        except Exception:
-            self.log_store.record_elapsed(
-                worktree.name, f"Linked {repository_name}", started_at, False
+            outcome = await self.linked_repository_controller.link(
+                worktree, repository_name
             )
-            raise
+            self._update_container_view(refresh_linked_repositories=True)
+            self._notify_linked_outcome(outcome)
         finally:
             self._release_operation_lock()
 
     def _request_link_lifecycle(self, action: str, repository_name: str) -> None:
-        if not self.selected_worktree or not self.linked_worktree_manager:
+        if not self.selected_worktree or not self.linked_repository_controller:
             return
         if not self._acquire_operation_lock(f"{action}-linked", self.selected_worktree.name):
             return
@@ -1009,46 +1000,33 @@ class FlotteApp(App):
         repository_name: str,
         action: str,
     ) -> None:
-        operations = {
-            "start": self.linked_worktree_manager.start_link,
-            "stop": self.linked_worktree_manager.stop_link,
-            "restart": self.linked_worktree_manager.restart_link,
-        }
-        messages = {
-            "start": ("Started", "Failed to start"),
-            "stop": ("Stopped", "Failed to stop"),
-            "restart": ("Restarted", "Failed to restart"),
-        }
-        started_at = perf_counter()
         try:
-            result = await operations[action](worktree, repository_name)
-            self.log_store.record_elapsed(
-                worktree.name,
-                f"{messages[action][0]} {repository_name} (PID: {result.pid})",
-                started_at,
-                True,
+            outcome = await self.linked_repository_controller.run_lifecycle(
+                worktree,
+                repository_name,
+                action,
             )
-            self._update_container_view(refresh_linked_repositories=True)
-            self.notify(f"{messages[action][0]} {repository_name}", severity="information")
-        except Exception as error:
-            self.log_store.record_elapsed(
-                worktree.name,
-                f"{messages[action][0]} {repository_name}",
-                started_at,
-                False,
-            )
-            self.notify(f"{messages[action][1]} {repository_name}: {error}", severity="error")
+            if outcome.succeeded:
+                self._update_container_view(refresh_linked_repositories=True)
+            self._notify_linked_outcome(outcome)
         finally:
             self._release_operation_lock()
 
+    def _notify_linked_outcome(self, outcome: LinkedOperationOutcome) -> None:
+        self.notify(
+            outcome.message,
+            severity="information" if outcome.succeeded else "error",
+        )
+
     def _request_delete_link(self, repository_name: str) -> None:
-        if not self.selected_worktree or not self.linked_worktree_manager:
+        if not self.selected_worktree or not self.linked_repository_controller:
             return
         self.run_worker(self._prepare_delete_link(self.selected_worktree, repository_name))
 
     async def _prepare_delete_link(self, worktree: Worktree, repository_name: str) -> None:
-        status = (await self.linked_worktree_manager.linked_statuses(worktree)).get(repository_name)
-        if status and status.has_changes:
+        if await self.linked_repository_controller.has_changes(
+            worktree, repository_name
+        ):
             self.notify(f"Clean {repository_name} before deleting", severity="warning")
             return
         self._clear_action_focus()
@@ -1073,19 +1051,12 @@ class FlotteApp(App):
 
     async def _delete_link(self, worktree: Worktree, repository_name: str) -> None:
         try:
-            started_at = perf_counter()
-            await self.linked_worktree_manager.remove_link(worktree, repository_name)
-            self.log_store.record_elapsed(
-                worktree.name, f"Unlinked {repository_name}", started_at, True
+            outcome = await self.linked_repository_controller.unlink(
+                worktree, repository_name
             )
-            self.linked_worktree_manager.attach(worktree)
-            self._update_container_view(refresh_linked_repositories=True)
-            self.notify(f"Unlinked {repository_name}", severity="information")
-        except Exception as error:
-            self.log_store.record_elapsed(
-                worktree.name, f"Unlinked {repository_name}", started_at, False
-            )
-            self.notify(f"Failed to unlink {repository_name}: {error}", severity="error")
+            if outcome.succeeded:
+                self._update_container_view(refresh_linked_repositories=True)
+            self._notify_linked_outcome(outcome)
         finally:
             self._release_operation_lock()
 
@@ -1109,15 +1080,12 @@ class FlotteApp(App):
                 return
 
             git_status = await get_git_status(wt.path)
-            linked_statuses = {}
-            if self.linked_worktree_manager:
-                linked_statuses = await self.linked_worktree_manager.linked_statuses(wt)
             has_changes = git_status.has_changes
-
-            dirty_links = []
-            for repository_name, linked_status in linked_statuses.items():
-                if linked_status.has_changes:
-                    dirty_links.append(repository_name)
+            dirty_links = (
+                await self.linked_repository_controller.changed_repositories(wt)
+                if self.linked_repository_controller
+                else []
+            )
 
             if dirty_links:
                 self.notify(
@@ -1214,7 +1182,11 @@ class FlotteApp(App):
 
         self._clear_action_focus()
         self.push_screen(
-            DeleteWorktreeScreen(wt, self.worktree_manager, self.linked_worktree_manager),
+            DeleteWorktreeScreen(
+                wt,
+                self.worktree_manager,
+                self.linked_repository_controller,
+            ),
             callback=lambda result: self._on_delete_result(result)
         )
 
