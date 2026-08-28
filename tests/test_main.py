@@ -9,7 +9,7 @@ import unittest
 
 from flotte.__main__ import main
 from flotte.app import FlotteApp, GREETING_TEMPLATES
-from flotte.config import Config, PreflightResult, Project
+from flotte.config import Config, LinkedRepository, PreflightResult, Project
 from flotte.models import Container, GitStatus, Worktree
 from flotte.models.container import ContainerState
 from flotte.screens import WorktreeLogScreen
@@ -256,7 +256,17 @@ class MainTests(unittest.TestCase):
         asyncio.run(exercise())
 
     def test_preflight_problems_follow_the_selected_project(self) -> None:
-        valid = Project("valid", "/tmp/valid", "/tmp/worktrees/{worktree}")
+        valid = Project(
+            "valid",
+            "/tmp/valid",
+            "/tmp/worktrees/{worktree}",
+            linked_repositories=(
+                LinkedRepository(
+                    "/tmp/linked",
+                    "/tmp/linked-worktrees/{worktree}",
+                ),
+            ),
+        )
         invalid = Project("invalid", "/tmp/missing", "/tmp/worktrees/{worktree}")
         config = Config(projects=[valid, invalid])
         problem = "invalid: repository does not exist: /tmp/missing"
@@ -276,7 +286,21 @@ class MainTests(unittest.TestCase):
                 app = FlotteApp()
                 async with app.run_test():
                     self.assertFalse(app.query_one("#project-problems", Static).display)
+                    previous_project = app.project
+                    app.selected_worktree = Worktree("selected", Path("/tmp/selected"))
+                    self.assertIsNotNone(app.linked_worktree_manager)
+
                     app.switch_project(invalid)
+
+                    self.assertIs(app.current_config_project, invalid)
+                    self.assertIsNot(app.project, previous_project)
+                    self.assertIsNone(app.selected_worktree)
+                    self.assertEqual(app.log_store.project_name, "invalid")
+                    self.assertEqual(
+                        app.worktree_manager.main_repo_path,
+                        Path("/tmp/missing").resolve(),
+                    )
+                    self.assertIsNone(app.linked_worktree_manager)
                     self.assertEqual(
                         app.query_one("#project-problems", Static).render().plain,
                         problem,

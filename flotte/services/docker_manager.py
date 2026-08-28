@@ -37,6 +37,7 @@ async def get_all_containers_by_project() -> dict[str, list[dict]]:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
     except asyncio.TimeoutError:
         proc.kill()
+        await proc.communicate()
         return {}
 
     if proc.returncode != 0:
@@ -70,7 +71,7 @@ async def get_all_containers_by_project() -> dict[str, list[dict]]:
 
 
 class DockerManager:
-    """Read Docker Compose configuration for one worktree."""
+    """Run Docker Compose commands for one worktree."""
 
     def __init__(self, worktree_path: Path, project_name: str):
         """
@@ -117,7 +118,16 @@ class DockerManager:
             )
         except asyncio.TimeoutError:
             proc.kill()
+            await proc.communicate()
             return (-1, "", "Command timed out")
+
+    async def start(self) -> tuple[int, str, str]:
+        """Start the worktree's containers."""
+        return await self._run_compose("up", "-d", timeout=300.0)
+
+    async def stop(self) -> tuple[int, str, str]:
+        """Stop the worktree's containers."""
+        return await self._run_compose("down", timeout=300.0)
 
     async def get_services(self) -> list[str]:
         """Get all service names defined in the compose file."""

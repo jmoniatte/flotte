@@ -20,8 +20,8 @@ from .models.project import Project
 from .models.worktree import WorktreeStatus
 from .messages import OperationCompleted, WorktreeStatusChanged
 from .services import (
+    DockerManager,
     LinkedWorktreeManager,
-    RideWrapper,
     WorktreeCreationResult,
     WorktreeCreator,
     WorktreeLogStore,
@@ -154,36 +154,8 @@ class FlotteApp(App):
 
         super().__init__()
 
-        # Current config project (for selector UI)
-        self.current_config_project: ConfigProject | None = None
-        if self.config.projects:
-            self.current_config_project = self.config.projects[0]
-        self.log_store = WorktreeLogStore(
-            self.current_config_project.name if self.current_config_project else "flotte"
-        )
-
-        # Project model (owns worktrees and polling)
-        self.project: Project | None = None
-        if self.current_config_project:
-            self.project = Project()
-
-        # WorktreeManager for discovery and lifecycle operations
-        self.worktree_manager: WorktreeManager | None = None
-        self.linked_worktree_manager: LinkedWorktreeManager | None = None
-        if self.current_config_project:
-            self.worktree_manager = WorktreeManager(
-                main_repo_path=Path(self.current_config_project.repository_path),
-                worktree_path_template=self.current_config_project.worktree_path,
-                clone_paths=self.current_config_project.clone_paths,
-                env_file=self.current_config_project.env_file,
-                post_create_commands=self.current_config_project.post_create_commands,
-            )
-            if self.current_config_project.linked_repositories:
-                self.linked_worktree_manager = LinkedWorktreeManager(
-                    self.current_config_project.linked_repositories
-                )
-
-        self.selected_worktree: Worktree | None = None
+        initial_project = self.config.projects[0] if self.config.projects else None
+        self._configure_project_runtime(initial_project)
 
         # Git status fetch state (serializes fetches, one subprocess at a time)
         self._git_fetch_running: bool = False
@@ -195,6 +167,34 @@ class FlotteApp(App):
         self._operation_in_progress: bool = False
         self._operation_type: str | None = None  # "create", "delete", "start", "stop", "restart"
         self._operation_target: str | None = None  # worktree name
+
+    def _configure_project_runtime(
+        self, config_project: ConfigProject | None
+    ) -> None:
+        """Build the state and services scoped to one configured project."""
+        self.current_config_project = config_project
+        self.log_store = WorktreeLogStore(
+            config_project.name if config_project else "flotte"
+        )
+        self.project = Project() if config_project else None
+        self.worktree_manager = None
+        self.linked_worktree_manager = None
+        self.selected_worktree = None
+
+        if config_project is None:
+            return
+
+        self.worktree_manager = WorktreeManager(
+            main_repo_path=Path(config_project.repository_path),
+            worktree_path_template=config_project.worktree_path,
+            clone_paths=config_project.clone_paths,
+            env_file=config_project.env_file,
+            post_create_commands=config_project.post_create_commands,
+        )
+        if config_project.linked_repositories:
+            self.linked_worktree_manager = LinkedWorktreeManager(
+                config_project.linked_repositories
+            )
 
     def compose(self) -> ComposeResult:
         # Show no-config screen if no projects configured.
@@ -360,27 +360,7 @@ class FlotteApp(App):
         if self.project:
             self.project.stop_polling()
 
-        self.current_config_project = config_project
-        self.log_store = WorktreeLogStore(config_project.name)
-
-        # Create new Project model
-        self.project = Project()
-
-        # Reset selection
-        self.selected_worktree = None
-
-        # Create new WorktreeManager for new project
-        self.worktree_manager = WorktreeManager(
-            main_repo_path=Path(config_project.repository_path),
-            worktree_path_template=config_project.worktree_path,
-            clone_paths=config_project.clone_paths,
-            env_file=config_project.env_file,
-            post_create_commands=config_project.post_create_commands,
-        )
-        self.linked_worktree_manager = (
-            LinkedWorktreeManager(config_project.linked_repositories)
-            if config_project.linked_repositories else None
-        )
+        self._configure_project_runtime(config_project)
 
         # Clear UI state
         self._clear_ui_state()
@@ -776,7 +756,9 @@ class FlotteApp(App):
 
         try:
             started_at = perf_counter()
-            returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).start()
+            returncode, stdout, stderr = await DockerManager(
+                wt.path, wt.compose_project_name
+            ).start()
             self.log_store.record_elapsed(
                 wt.name, "Started containers", started_at, returncode == 0
             )
@@ -822,7 +804,9 @@ class FlotteApp(App):
 
         try:
             started_at = perf_counter()
-            returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).stop()
+            returncode, stdout, stderr = await DockerManager(
+                wt.path, wt.compose_project_name
+            ).stop()
             self.log_store.record_elapsed(
                 wt.name, "Stopped containers", started_at, returncode == 0
             )
@@ -869,7 +853,8 @@ class FlotteApp(App):
             wt.start_operation(WorktreeStatus.STOPPING, None)  # No auto-clear
             self._update_container_view()
 
-            returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).stop()
+            docker = DockerManager(wt.path, wt.compose_project_name)
+            returncode, stdout, stderr = await docker.stop()
             if returncode != 0:
                 self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
                 self.log.error(f"Restart (stop phase) failed: {stderr or stdout}")
@@ -881,7 +866,7 @@ class FlotteApp(App):
             wt.start_operation(WorktreeStatus.STARTING, WorktreeStatus.RUNNING)
             self._update_container_view()
 
-            returncode, stdout, stderr = await RideWrapper(wt.path, wt.compose_project_name).start()
+            returncode, stdout, stderr = await docker.start()
             if returncode != 0:
                 self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
                 self.log.error(f"Restart (start phase) failed: {stderr or stdout}")
