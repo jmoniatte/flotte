@@ -17,3 +17,5 @@ class LinkedWorktree:
     can_start: bool = False
     process_status: str = "external"
     git_status: GitStatus | None = None
+    log_path: Path | None = None
+    process_pid: int | None = None

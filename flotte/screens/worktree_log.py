@@ -185,3 +185,125 @@ class WorktreeLogScreen(Screen):
     @on(events.Click, "#log-breadcrumb-worktree")
     def on_worktree_clicked(self) -> None:
         self.show_worktree()
+
+
+class LinkedProcessLogScreen(Screen):
+    """Live output from a process managed for a linked repository."""
+
+    BINDINGS = [
+        Binding("escape", "back", "Back"),
+        Binding("b", "back", "Back"),
+    ]
+    INITIAL_READ_BYTES = 128 * 1024
+    INITIAL_LINES = 200
+
+    def __init__(
+        self,
+        worktree_name: str,
+        repository_name: str,
+        log_path: Path,
+        process_pid: int | None,
+        project_name: str,
+        show_worktrees: Callable[[], None],
+        show_worktree: Callable[[], None],
+    ):
+        super().__init__()
+        self.worktree_name = worktree_name
+        self.repository_name = repository_name
+        self.log_path = log_path
+        self.process_pid = process_pid
+        self.project_name = project_name
+        self.show_worktrees = show_worktrees
+        self.show_worktree = show_worktree
+        self._offset = 0
+        self._identity: tuple[int, int] | None = None
+        self._pending = b""
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="app-header"):
+            with Vertical(id="app-title-group"):
+                yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
+                yield Static(f"v{__version__}", id="app-subtitle")
+            yield Static("", classes="header-notification-spacer")
+            yield HeaderNotification()
+            yield Static("", id="header-spacer")
+            yield Static(self.project_name, id="project-name")
+        with Vertical(id="worktree-log-screen"):
+            with Horizontal(id="log-breadcrumbs"):
+                yield Static("Worktrees", id="log-breadcrumb-worktrees")
+                yield Static(">", classes="log-breadcrumb-separator")
+                yield Static(self.worktree_name, id="log-breadcrumb-worktree")
+                yield Static(">", classes="log-breadcrumb-separator")
+                yield Static(f"{self.repository_name} Logs", id="log-breadcrumb-current")
+            with Horizontal(id="worktree-log-header"):
+                yield Static("Output", id="worktree-log-datetime")
+                pid = f"PID {self.process_pid}" if self.process_pid else "Stopped"
+                yield Static(f"{self.repository_name} · {pid}", id="worktree-log-label")
+            yield DashedTableFooter(id="worktree-log-rule")
+            yield HoverRichLog(wrap=False, markup=False, auto_scroll=True, id="worktree-log")
+
+    def on_mount(self) -> None:
+        self._load_initial()
+        self.set_interval(0.25, self._follow)
+
+    def _load_initial(self) -> None:
+        try:
+            stat = self.log_path.stat()
+            start = max(0, stat.st_size - self.INITIAL_READ_BYTES)
+            with self.log_path.open("rb") as log_file:
+                log_file.seek(start)
+                data = log_file.read()
+        except OSError as error:
+            self.query_one("#worktree-log", RichLog).write(
+                Text(f"Unable to read log: {error}", style=self.app.theme_colors.red)
+            )
+            return
+
+        if start:
+            _, separator, data = data.partition(b"\n")
+            if not separator:
+                data = b""
+        self._identity = (stat.st_dev, stat.st_ino)
+        self._offset = stat.st_size
+        self._write_chunk(data, line_limit=self.INITIAL_LINES)
+
+    def _follow(self) -> None:
+        try:
+            stat = self.log_path.stat()
+            identity = (stat.st_dev, stat.st_ino)
+            if identity != self._identity or stat.st_size < self._offset:
+                self._identity = identity
+                self._offset = 0
+                self._pending = b""
+                self.query_one("#worktree-log", RichLog).write(
+                    Text("Log file restarted", style=self.app.theme_colors.dim)
+                )
+            if stat.st_size == self._offset:
+                return
+            with self.log_path.open("rb") as log_file:
+                log_file.seek(self._offset)
+                data = log_file.read()
+            self._offset += len(data)
+            self._write_chunk(data)
+        except OSError:
+            return
+
+    def _write_chunk(self, data: bytes, line_limit: int | None = None) -> None:
+        parts = (self._pending + data).split(b"\n")
+        self._pending = parts.pop()
+        if line_limit is not None:
+            parts = parts[-line_limit:]
+        log = self.query_one("#worktree-log", RichLog)
+        for line in parts:
+            log.write(line.decode("utf-8", errors="replace"), scroll_end=True)
+
+    def action_back(self) -> None:
+        self.app.pop_screen()
+
+    @on(events.Click, "#log-breadcrumb-worktrees")
+    def on_worktrees_clicked(self) -> None:
+        self.show_worktrees()
+
+    @on(events.Click, "#log-breadcrumb-worktree")
+    def on_worktree_clicked(self) -> None:
+        self.show_worktree()

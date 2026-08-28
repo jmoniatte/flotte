@@ -9,6 +9,7 @@ from flotte.config import LinkedRepository, PortRange
 from flotte.models import Worktree
 from flotte.services.linked_worktree_manager import LinkedWorktreeManager
 from flotte.services.link_state_store import LinkStateStore
+from flotte.services.worktree_log import WorktreeLogStore
 
 
 class LinkedWorktreeManagerTests(unittest.TestCase):
@@ -31,7 +32,8 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
             status_port_env="VITE_PORT",
             status_port_label="Vite",
         )
-        self.manager = LinkedWorktreeManager((self.repository,))
+        self.log_store = WorktreeLogStore("backend", self.root / "logs")
+        self.manager = LinkedWorktreeManager((self.repository,), self.log_store)
         self.manager.link_state = LinkStateStore(self.root / "state.yaml")
 
     def tearDown(self) -> None:
@@ -60,6 +62,12 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         started = asyncio.run(self.manager.start_link(self.primary, self.repository.name))
         self.assertEqual(started.worktree.process_status, "running")
         self.assertGreater(started.pid, 0)
+        self.assertEqual(started.worktree.process_pid, started.pid)
+        self.assertEqual(
+            started.worktree.log_path,
+            self.root / "logs" / "backend" / "feature-test" / "frontend.log",
+        )
+        self.assertIn("Starting linked process", started.worktree.log_path.read_text())
 
         restarted = asyncio.run(self.manager.restart_link(self.primary, self.repository.name))
         self.assertEqual(restarted.worktree.process_status, "running")
@@ -71,6 +79,7 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
 
         asyncio.run(self.manager.remove_links(self.primary))
         self.assertFalse(created.path.exists())
+        self.assertFalse(started.worktree.log_path.exists())
         self.assertFalse((self.root / "workspaces" / "feature-test").exists())
         self.assertEqual(
             self.manager.link_state.get_record(self.manager._key(self.primary, self.repository)),
@@ -99,6 +108,8 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
             )
 
         self.assertIs(popen.call_args.kwargs["stdin"], subprocess.DEVNULL)
+        self.assertIsNot(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
+        self.assertIs(popen.call_args.kwargs["stderr"], subprocess.STDOUT)
 
     def test_main_checkout_process_is_managed_without_removing_the_repository(self) -> None:
         main = Worktree("main", self.frontend, "main", is_main=True)

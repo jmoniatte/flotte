@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import logging
 from pathlib import Path
 import re
+import shutil
 from time import perf_counter
 
 LOG_DIR = Path.home() / ".local" / "state" / "flotte" / "logs"
@@ -12,8 +13,9 @@ logger = logging.getLogger(__name__)
 class WorktreeLogStore:
     """Persist a worktree's lifecycle history."""
 
-    def __init__(self, project_name: str):
+    def __init__(self, project_name: str, log_dir: Path | None = None):
         self.project_name = self._slug(project_name)
+        self.log_dir = log_dir or LOG_DIR
 
     @staticmethod
     def _slug(value: str) -> str:
@@ -25,7 +27,19 @@ class WorktreeLogStore:
         return " ".join(value.split())
 
     def path_for(self, worktree_name: str) -> Path:
-        return LOG_DIR / f"{self.project_name}-{self._slug(worktree_name)}.csv"
+        return self.directory_for(worktree_name) / "flotte.csv"
+
+    def directory_for(self, worktree_name: str) -> Path:
+        return self.log_dir / self.project_name / self._slug(worktree_name)
+
+    def linked_path_for(self, worktree_name: str, repository_name: str) -> Path:
+        return self.directory_for(worktree_name) / f"{self._slug(repository_name)}.log"
+
+    def remove_linked(self, worktree_name: str, repository_name: str) -> None:
+        try:
+            self.linked_path_for(worktree_name, repository_name).unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Unable to remove linked process log", exc_info=True)
 
     def record(
         self,
@@ -77,6 +91,8 @@ class WorktreeLogStore:
 
     def remove(self, worktree_name: str) -> None:
         try:
-            self.path_for(worktree_name).unlink(missing_ok=True)
+            shutil.rmtree(self.directory_for(worktree_name))
+        except FileNotFoundError:
+            pass
         except OSError:
             logger.warning("Unable to remove worktree log", exc_info=True)

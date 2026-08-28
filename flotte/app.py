@@ -36,6 +36,7 @@ from .screens import (
     DeleteWorktreeScreen,
     DeleteWorktreeResult,
     HelpScreen,
+    LinkedProcessLogScreen,
     WorktreeLogScreen,
 )
 from .widgets import (
@@ -194,7 +195,10 @@ class FlotteApp(App):
             post_create_commands=config_project.post_create_commands,
         )
         if config_project.linked_repositories:
-            manager = LinkedWorktreeManager(config_project.linked_repositories)
+            manager = LinkedWorktreeManager(
+                config_project.linked_repositories,
+                self.log_store,
+            )
             self.linked_repository_controller = LinkedRepositoryController(
                 manager,
                 self.log_store,
@@ -595,6 +599,7 @@ class FlotteApp(App):
             "start": partial(self._request_link_lifecycle, "start"),
             "stop": partial(self._request_link_lifecycle, "stop"),
             "restart": partial(self._request_link_lifecycle, "restart"),
+            "logs": self._open_linked_logs,
             "unlink": self._request_delete_link,
         }
         handler = handlers.get(event.action)
@@ -973,6 +978,33 @@ class FlotteApp(App):
             exclusive=False,
         )
 
+    def _open_linked_logs(self, repository_name: str) -> None:
+        if not self.selected_worktree:
+            return
+        linked = next(
+            (
+                item
+                for item in self.selected_worktree.linked_worktrees
+                if item.repository_name == repository_name
+            ),
+            None,
+        )
+        if linked is None or linked.log_path is None or not linked.log_path.exists():
+            self.notify(f"No logs available for {repository_name}", severity="warning")
+            return
+        self._clear_action_focus()
+        self.push_screen(
+            LinkedProcessLogScreen(
+                worktree_name=self.selected_worktree.name,
+                repository_name=repository_name,
+                log_path=linked.log_path,
+                process_pid=linked.process_pid,
+                project_name=self.current_config_project.name,
+                show_worktrees=self._show_worktree_list_from_logs,
+                show_worktree=self._show_worktree_details_from_logs,
+            )
+        )
+
     async def _create_link(self, worktree: Worktree, repository_name: str) -> None:
         try:
             outcome = await self.linked_repository_controller.link(
@@ -1235,6 +1267,7 @@ class FlotteApp(App):
         if not self.selected_worktree:
             return
         log_path = self.log_store.path_for(self.selected_worktree.name)
+        self._clear_action_focus()
         self.push_screen(
             WorktreeLogScreen(
                 self.selected_worktree.name,

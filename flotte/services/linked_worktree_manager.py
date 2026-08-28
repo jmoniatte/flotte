@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..config import LinkedRepository
@@ -13,6 +14,7 @@ from .git_status import get_git_status
 from .link_state_store import LinkStateStore
 from .process_identity import capture_process_identity, matches_process_identity
 from .worktree_manager import WorktreeManager
+from .worktree_log import WorktreeLogStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,8 +26,13 @@ class LinkedProcessResult:
 class LinkedWorktreeManager:
     """Create, discover, configure, and remove configured companion worktrees."""
 
-    def __init__(self, repositories: tuple[LinkedRepository, ...]):
+    def __init__(
+        self,
+        repositories: tuple[LinkedRepository, ...],
+        log_store: WorktreeLogStore,
+    ):
         self.repositories = repositories
+        self.log_store = log_store
         self.link_state = LinkStateStore()
         self.managers = {
             repository.name: WorktreeManager(
@@ -52,6 +59,7 @@ class LinkedWorktreeManager:
                 ports = {name: int(port) for name, port in record.get("ports", {}).items()}
                 ports.update(self._status_port(repository, path))
                 process_status = self._process_status(record, bool(repository.start_command))
+                log_path = self.log_store.linked_path_for(primary.name, repository.name)
                 primary.linked_worktrees.append(LinkedWorktree(
                     repository_name=repository.name,
                     path=path,
@@ -62,12 +70,15 @@ class LinkedWorktreeManager:
                     open_url_path=self._open_url_path(repository, ports),
                     can_start=bool(repository.start_command),
                     process_status=process_status,
+                    log_path=log_path if log_path.exists() else None,
+                    process_pid=int(record["pid"]) if process_status == "running" else None,
                 ))
             elif primary.is_main:
                 path = Path(repository.repository_path)
                 if path.exists():
                     ports = self._status_port(repository, path)
                     process_status = "stopped" if repository.start_command else "external"
+                    log_path = self.log_store.linked_path_for(primary.name, repository.name)
                     primary.linked_worktrees.append(LinkedWorktree(
                         repository_name=repository.name,
                         path=path,
@@ -77,6 +88,7 @@ class LinkedWorktreeManager:
                         open_url_path=self._open_url_path(repository, ports),
                         can_start=bool(repository.start_command),
                         process_status=process_status,
+                        log_path=log_path if log_path.exists() else None,
                     ))
             else:
                 primary.linked_worktrees.append(LinkedWorktree(repository.name))
@@ -173,22 +185,35 @@ class LinkedWorktreeManager:
         if self._is_process_running(record.get("pid")):
             raise RuntimeError(f"{repository.name} is externally managed")
         self._run_commands(repository.pre_start_commands, primary, linked_path, ports)
-        process = subprocess.Popen(
-            ["sh", "-c", repository.start_command],
-            cwd=linked_path,
-            env=self._command_env(primary, linked_path, ports),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
+        log_path = self.log_store.linked_path_for(primary.name, repository.name)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
+            "+00:00", "Z"
         )
+        separator = b"\n" if log_path.exists() and log_path.stat().st_size else b""
+        with log_path.open("ab", buffering=0) as log_file:
+            log_file.write(separator + f"[{timestamp}] Starting linked process\n".encode())
+            process = subprocess.Popen(
+                ["sh", "-c", repository.start_command],
+                cwd=linked_path,
+                env=self._command_env(primary, linked_path, ports),
+                stdin=subprocess.DEVNULL,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
         identity = capture_process_identity(process.pid)
         if identity is None:
             process.terminate()
             process.wait()
             raise RuntimeError(f"Could not verify the {repository.name} process identity")
         self._processes[key] = process
-        self.link_state.update_record(key, pid=process.pid, process_identity=identity)
+        self.link_state.update_record(
+            key,
+            pid=process.pid,
+            process_identity=identity,
+            log_path=str(log_path),
+        )
         return process.pid
 
     @staticmethod
@@ -399,6 +424,7 @@ class LinkedWorktreeManager:
         await asyncio.to_thread(self._stop_process, key, record)
         if primary.is_main:
             self.link_state.release(key)
+            self.log_store.remove_linked(primary.name, repository.name)
             return
         path_value = record.get("path")
         if path_value:
@@ -422,3 +448,4 @@ class LinkedWorktreeManager:
                     raise RuntimeError(f"Failed to remove {repository.name} worktree: {error}")
                 self.managers[repository.name].prune_empty_worktree_parents(path)
         self.link_state.release(key)
+        self.log_store.remove_linked(primary.name, repository.name)

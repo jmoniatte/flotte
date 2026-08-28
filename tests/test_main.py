@@ -10,14 +10,69 @@ import unittest
 from flotte.__main__ import main
 from flotte.app import FlotteApp, GREETING_TEMPLATES
 from flotte.config import Config, LinkedRepository, PreflightResult, Project
-from flotte.models import Container, GitStatus, Worktree
+from flotte.models import Container, GitStatus, LinkedWorktree, Worktree
 from flotte.models.container import ContainerState
-from flotte.screens import WorktreeLogScreen
+from flotte.screens import LinkedProcessLogScreen, WorktreeLogScreen
 from flotte.widgets import WebLink
 from textual.widgets import Button, ContentSwitcher, RichLog, Static
 
 
 class MainTests(unittest.TestCase):
+    def test_linked_logs_open_inside_flotte(self) -> None:
+        async def exercise() -> None:
+            config = Config(
+                projects=[Project("test", "/tmp/test", "/tmp/worktrees/{worktree}")],
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                linked_path = Path(directory) / "frontend"
+                linked_path.mkdir()
+                log_path = Path(directory) / "frontend.log"
+                log_path.write_text("ready\n")
+                with (
+                    patch("flotte.app.load_config", return_value=config),
+                    patch(
+                        "flotte.app.preflight_config",
+                        return_value=PreflightResult(
+                            tuple(config.projects), ((config.projects[0], ()),)
+                        ),
+                    ),
+                    patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
+                    patch("flotte.models.project.Project.start_polling"),
+                    patch("flotte.models.project.Project.shutdown", new_callable=AsyncMock),
+                ):
+                    app = FlotteApp()
+                    async with app.run_test() as pilot:
+                        worktree = Worktree("feature", Path(directory), "feature")
+                        worktree.linked_worktrees = [
+                            LinkedWorktree(
+                                "frontend",
+                                path=linked_path,
+                                log_path=log_path,
+                                process_pid=12345,
+                            )
+                        ]
+                        app.selected_worktree = worktree
+
+                        app._open_linked_logs("frontend")
+                        await pilot.pause()
+
+                        self.assertIsInstance(app.screen, LinkedProcessLogScreen)
+                        self.assertEqual(
+                            app.screen.query_one("#worktree-log-label", Static).render().plain,
+                            "frontend · PID 12345",
+                        )
+                        log = app.screen.query_one("#worktree-log", RichLog)
+                        self.assertEqual(len(log.lines), 1)
+                        with log_path.open("a") as log_file:
+                            log_file.write("changed\n")
+                        await pilot.pause(0.4)
+                        self.assertEqual(len(log.lines), 2)
+                        log_path.write_text("replacement\n")
+                        await pilot.pause(0.4)
+                        self.assertEqual(len(log.lines), 4)
+
+        asyncio.run(exercise())
+
     def test_no_config_screen_uses_yaml_guidance(self) -> None:
         async def exercise() -> None:
             config = Config()

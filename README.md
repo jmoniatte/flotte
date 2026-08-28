@@ -122,6 +122,10 @@ branch, assigns its Vite port, and installs dependencies. Choose **Start** to la
 server; **Stop** and **Restart** then manage it. The start command must stay in the foreground so
 Flotte can track it.
 
+Flotte stores linked-process output under
+`~/.local/state/flotte/logs/<project>/<worktree>/<repository>.log`. Choose **Logs** to view and
+follow that output inside Flotte.
+
 Choose **Unlink** to remove the paired worktree and release its ports. Flotte refuses to unlink a
 repository with uncommitted changes.
 

@@ -8,7 +8,7 @@ from flotte.services.worktree_log import WorktreeLogStore
 
 
 class WorktreeLogStoreTests(unittest.TestCase):
-    def test_record_and_remove_use_one_file_per_worktree(self) -> None:
+    def test_record_and_remove_use_one_directory_per_worktree(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with patch("flotte.services.worktree_log.LOG_DIR", Path(directory)):
                 store = WorktreeLogStore("ridewithgps")
@@ -17,7 +17,10 @@ class WorktreeLogStoreTests(unittest.TestCase):
                 )
                 log_path = store.path_for("feature/login")
 
-                self.assertEqual(log_path.name, "ridewithgps-feature-login.csv")
+                self.assertEqual(
+                    log_path,
+                    Path(directory) / "ridewithgps" / "feature-login" / "flotte.csv",
+                )
                 self.assertTrue(log_path.is_file())
                 with log_path.open(newline="") as log_file:
                     entries = list(csv.DictReader(log_file))
@@ -28,9 +31,26 @@ class WorktreeLogStoreTests(unittest.TestCase):
                 self.assertEqual(entries[0]["action"], "Cloned volume mysql")
                 self.assertEqual(entries[0]["status"], "success")
                 self.assertEqual(entries[0]["duration_seconds"], "1.200000")
+                linked_path = store.linked_path_for("feature/login", "frontend")
+                linked_path.write_text("server output\n")
 
                 store.remove("feature/login")
-                self.assertFalse(log_path.exists())
+                self.assertFalse(log_path.parent.exists())
+
+    def test_linked_log_paths_share_the_worktree_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = WorktreeLogStore("Ride With GPS", Path(directory))
+
+            linked_path = store.linked_path_for("feature/login", "Acme Web")
+            linked_path.parent.mkdir(parents=True)
+            linked_path.write_text("server output\n")
+
+            self.assertEqual(
+                linked_path,
+                Path(directory) / "ride-with-gps" / "feature-login" / "acme-web.log",
+            )
+            store.remove_linked("feature/login", "Acme Web")
+            self.assertFalse(linked_path.exists())
 
     def test_log_write_errors_do_not_raise(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
