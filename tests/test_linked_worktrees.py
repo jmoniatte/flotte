@@ -44,7 +44,8 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         self.assertTrue(created.path and created.path.exists())
         self.assertEqual(created.path, self.root / "workspaces" / "feature-test" / "frontend")
         self.assertIn("dev_server", created.ports)
-        self.assertEqual(created.process_status, "running")
+        self.assertEqual(created.process_status, "stopped")
+        self.assertFalse((created.path / ".env.local").exists())
 
         (created.path / ".env.local").write_text("VITE_PORT=55100\n")
         self.manager.attach(self.primary)
@@ -54,7 +55,11 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         self.assertEqual(retried.path, created.path)
         self.assertEqual(retried.ports["dev_server"], created.ports["dev_server"])
         self.assertEqual(retried.ports["Vite"], 55100)
-        self.assertEqual(retried.process_status, "running")
+        self.assertEqual(retried.process_status, "stopped")
+
+        started = asyncio.run(self.manager.start_link(self.primary, self.repository.name))
+        self.assertEqual(started.worktree.process_status, "running")
+        self.assertGreater(started.pid, 0)
 
         restarted = asyncio.run(self.manager.restart_link(self.primary, self.repository.name))
         self.assertEqual(restarted.worktree.process_status, "running")

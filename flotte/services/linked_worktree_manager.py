@@ -124,7 +124,6 @@ class LinkedWorktreeManager:
             )
             self._run_commands(repository.post_create_commands, primary, linked_path, ports)
             ports.update(self._status_port(repository, linked_path))
-            self._start_process(primary, repository, linked_path, ports, key)
             process_status = self._process_status(
                 self.link_state.get_record(key), bool(repository.start_command)
             )

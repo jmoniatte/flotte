@@ -118,9 +118,9 @@ projects:
 ```
 
 Select a primary worktree and choose **Link**. Flotte creates the linked worktree on the same
-branch, assigns its Vite port, installs dependencies, and starts the dev server. **Start**,
-**Stop**, and **Restart** then manage that server. The start command must stay in the foreground
-so Flotte can track it.
+branch, assigns its Vite port, and installs dependencies. Choose **Start** to launch the dev
+server; **Stop** and **Restart** then manage it. The start command must stay in the foreground so
+Flotte can track it.
 
 Choose **Unlink** to remove the paired worktree and release its ports. Flotte refuses to unlink a
 repository with uncommitted changes.
