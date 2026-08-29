@@ -730,6 +730,12 @@ LinkedProcessLogScreen {
     text-style: bold;
 }
 
+#linked-process-log-pid {
+    width: auto;
+    margin-left: 1;
+    color: $comment;
+}
+
 #worktree-log {
     height: 1fr;
     background: transparent;

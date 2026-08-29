@@ -1,10 +1,16 @@
 from datetime import timedelta, timezone
 import unittest
 
-from flotte.screens.worktree_log import _format_local_timestamp
+from flotte.screens.worktree_log import _format_local_timestamp, _format_process_output
 
 
 class WorktreeLogScreenTests(unittest.TestCase):
+    def test_formats_ansi_process_output_as_styled_text(self) -> None:
+        rendered = _format_process_output(b"\x1b[31mError\x1b[0m")
+
+        self.assertEqual(rendered.plain, "Error")
+        self.assertTrue(rendered.spans)
+
     def test_formats_utc_timestamp_in_requested_timezone(self) -> None:
         pacific_daylight_time = timezone(timedelta(hours=-7), "PDT")
 

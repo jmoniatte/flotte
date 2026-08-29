@@ -38,6 +38,10 @@ def _format_local_timestamp(timestamp: str, local_timezone: tzinfo | None = None
     return localized.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _format_process_output(line: bytes) -> Text:
+    return Text.from_ansi(line.decode("utf-8", errors="replace"))
+
+
 class HoverRichLog(RichLog):
     """RichLog that highlights the line under the mouse pointer."""
 
@@ -235,11 +239,8 @@ class LinkedProcessLogScreen(Screen):
                 yield Static(self.worktree_name, id="log-breadcrumb-worktree")
                 yield Static(">", classes="log-breadcrumb-separator")
                 yield Static(f"{self.repository_name} Logs", id="log-breadcrumb-current")
-            with Horizontal(id="worktree-log-header"):
-                yield Static("Output", id="worktree-log-datetime")
                 pid = f"PID {self.process_pid}" if self.process_pid else "Stopped"
-                yield Static(f"{self.repository_name} · {pid}", id="worktree-log-label")
-            yield DashedTableFooter(id="worktree-log-rule")
+                yield Static(f"· {pid}", id="linked-process-log-pid")
             yield HoverRichLog(wrap=False, markup=False, auto_scroll=True, id="worktree-log")
 
     def on_mount(self) -> None:
@@ -295,7 +296,7 @@ class LinkedProcessLogScreen(Screen):
             parts = parts[-line_limit:]
         log = self.query_one("#worktree-log", RichLog)
         for line in parts:
-            log.write(line.decode("utf-8", errors="replace"), scroll_end=True)
+            log.write(_format_process_output(line), scroll_end=True)
 
     def action_back(self) -> None:
         self.app.pop_screen()

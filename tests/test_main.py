@@ -58,8 +58,8 @@ class MainTests(unittest.TestCase):
 
                         self.assertIsInstance(app.screen, LinkedProcessLogScreen)
                         self.assertEqual(
-                            app.screen.query_one("#worktree-log-label", Static).render().plain,
-                            "frontend · PID 12345",
+                            app.screen.query_one("#linked-process-log-pid", Static).render().plain,
+                            "· PID 12345",
                         )
                         log = app.screen.query_one("#worktree-log", RichLog)
                         self.assertEqual(len(log.lines), 1)

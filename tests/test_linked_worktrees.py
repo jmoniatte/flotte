@@ -67,7 +67,7 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
             started.worktree.log_path,
             self.root / "logs" / "backend" / "feature-test" / "frontend.log",
         )
-        self.assertIn("Starting linked process", started.worktree.log_path.read_text())
+        self.assertTrue(started.worktree.log_path.is_file())
 
         restarted = asyncio.run(self.manager.restart_link(self.primary, self.repository.name))
         self.assertEqual(restarted.worktree.process_status, "running")
@@ -76,6 +76,8 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         stopped = asyncio.run(self.manager.stop_link(self.primary, self.repository.name))
         self.assertEqual(stopped.worktree.process_status, "stopped")
         self.assertEqual(stopped.pid, restarted.pid)
+        self.assertIsNone(stopped.worktree.log_path)
+        self.assertFalse(started.worktree.log_path.exists())
 
         asyncio.run(self.manager.remove_links(self.primary))
         self.assertFalse(created.path.exists())
@@ -86,8 +88,11 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
             {},
         )
 
-    def test_started_process_does_not_inherit_terminal_input(self) -> None:
+    def test_started_process_uses_dedicated_io(self) -> None:
         process = Mock(pid=12345)
+        log_path = self.log_store.linked_path_for(self.primary.name, self.repository.name)
+        log_path.parent.mkdir(parents=True)
+        log_path.write_text("previous run\n")
         identity = {
             "pid": 12345,
             "process_group": 12345,
@@ -110,6 +115,7 @@ class LinkedWorktreeManagerTests(unittest.TestCase):
         self.assertIs(popen.call_args.kwargs["stdin"], subprocess.DEVNULL)
         self.assertIsNot(popen.call_args.kwargs["stdout"], subprocess.DEVNULL)
         self.assertIs(popen.call_args.kwargs["stderr"], subprocess.STDOUT)
+        self.assertEqual(log_path.read_bytes(), b"")
 
     def test_main_checkout_process_is_managed_without_removing_the_repository(self) -> None:
         main = Worktree("main", self.frontend, "main", is_main=True)

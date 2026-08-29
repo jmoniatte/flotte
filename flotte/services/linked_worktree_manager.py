@@ -5,7 +5,6 @@ import os
 import signal
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 from ..config import LinkedRepository
@@ -187,12 +186,7 @@ class LinkedWorktreeManager:
         self._run_commands(repository.pre_start_commands, primary, linked_path, ports)
         log_path = self.log_store.linked_path_for(primary.name, repository.name)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
-            "+00:00", "Z"
-        )
-        separator = b"\n" if log_path.exists() and log_path.stat().st_size else b""
-        with log_path.open("ab", buffering=0) as log_file:
-            log_file.write(separator + f"[{timestamp}] Starting linked process\n".encode())
+        with log_path.open("wb", buffering=0) as log_file:
             process = subprocess.Popen(
                 ["sh", "-c", repository.start_command],
                 cwd=linked_path,
@@ -212,7 +206,6 @@ class LinkedWorktreeManager:
             key,
             pid=process.pid,
             process_identity=identity,
-            log_path=str(log_path),
         )
         return process.pid
 
@@ -342,6 +335,7 @@ class LinkedWorktreeManager:
             raise RuntimeError(f"{repository_name} is externally managed")
         pid = int(record["pid"])
         await asyncio.to_thread(self._stop_process, key, record)
+        self.log_store.remove_linked(primary.name, repository.name)
         self.attach(primary)
         worktree = next(
             link
