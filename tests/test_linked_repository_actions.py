@@ -28,7 +28,7 @@ class LinkedRepositoryActionsTests(unittest.TestCase):
                     process_status="running",
                     log_path=Path("/tmp/frontend.log"),
                 ),
-                {"stop", "restart", "logs", "unlink"},
+                {"stop", "restart", "unlink"},
             ),
             (
                 LinkedWorktree("Frontend", path=Path("/tmp/frontend"), can_start=True, process_status="external"),

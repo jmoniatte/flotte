@@ -12,13 +12,73 @@ from flotte.app import FlotteApp, GREETING_TEMPLATES
 from flotte.config import Config, LinkedRepository, PreflightResult, Project
 from flotte.models import Container, GitStatus, LinkedWorktree, Worktree
 from flotte.models.container import ContainerState
-from flotte.screens import LinkedProcessLogScreen, WorktreeLogScreen
+from flotte.screens import LogsScreen
 from flotte.widgets import WebLink
-from textual.widgets import Button, ContentSwitcher, RichLog, Static
+from textual.widgets import Button, ContentSwitcher, RichLog, Static, TabbedContent
 
 
 class MainTests(unittest.TestCase):
-    def test_linked_logs_open_inside_flotte(self) -> None:
+    def test_container_logs_load_recent_output_and_stop_when_hidden(self) -> None:
+        async def exercise() -> None:
+            config = Config(
+                projects=[
+                    Project(
+                        "test",
+                        "/tmp/test",
+                        "/tmp/worktrees/{worktree}",
+                        container_log_services=("rails", "mariadb"),
+                    )
+                ],
+            )
+            stream_closed = asyncio.Event()
+
+            async def stream_logs(_manager, tail=200, services=()):
+                self.assertEqual(tail, 200)
+                self.assertEqual(services, ("rails", "mariadb"))
+                try:
+                    yield b"existing container output"
+                    await asyncio.Future()
+                finally:
+                    stream_closed.set()
+
+            with (
+                patch("flotte.app.load_config", return_value=config),
+                patch(
+                    "flotte.app.preflight_config",
+                    return_value=PreflightResult(
+                        tuple(config.projects), ((config.projects[0], ()),)
+                    ),
+                ),
+                patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
+                patch("flotte.models.project.Project.start_polling"),
+                patch("flotte.models.project.Project.shutdown", new_callable=AsyncMock),
+                patch(
+                    "flotte.services.docker_manager.DockerManager.stream_logs",
+                    stream_logs,
+                ),
+            ):
+                app = FlotteApp()
+                async with app.run_test() as pilot:
+                    app.selected_worktree = Worktree(
+                        "feature",
+                        Path("/tmp/feature"),
+                        compose_project_name="test-feature",
+                    )
+                    app.action_show_logs()
+                    await pilot.pause()
+                    tabs = app.screen.query_one("#logs-tabs", TabbedContent)
+                    tabs.active = "containers"
+                    await pilot.pause()
+
+                    log = app.screen.query_one("#containers-log", RichLog)
+                    self.assertEqual(len(log.lines), 1)
+                    tabs.active = "flotte"
+                    await pilot.pause()
+                    self.assertTrue(stream_closed.is_set())
+
+        asyncio.run(exercise())
+
+    def test_unified_logs_follow_linked_process_output(self) -> None:
         async def exercise() -> None:
             config = Config(
                 projects=[Project("test", "/tmp/test", "/tmp/worktrees/{worktree}")],
@@ -53,15 +113,17 @@ class MainTests(unittest.TestCase):
                         ]
                         app.selected_worktree = worktree
 
-                        app._open_linked_logs("frontend")
+                        app.action_show_logs()
                         await pilot.pause()
 
-                        self.assertIsInstance(app.screen, LinkedProcessLogScreen)
+                        self.assertIsInstance(app.screen, LogsScreen)
+                        app.screen.query_one("#logs-tabs", TabbedContent).active = "linked-0"
+                        await pilot.pause()
                         self.assertEqual(
-                            app.screen.query_one("#linked-process-log-pid", Static).render().plain,
-                            "· PID 12345",
+                            app.screen.query_one("#log-breadcrumb-current", Static).render().plain,
+                            "Logs · frontend · PID 12345",
                         )
-                        log = app.screen.query_one("#worktree-log", RichLog)
+                        log = app.screen.query_one("#linked-0-log", RichLog)
                         self.assertEqual(len(log.lines), 1)
                         with log_path.open("a") as log_file:
                             log_file.write("changed\n")
@@ -69,7 +131,7 @@ class MainTests(unittest.TestCase):
                         self.assertEqual(len(log.lines), 2)
                         log_path.write_text("replacement\n")
                         await pilot.pause(0.4)
-                        self.assertEqual(len(log.lines), 4)
+                        self.assertEqual(len(log.lines), 1)
 
         asyncio.run(exercise())
 
@@ -335,7 +397,7 @@ class MainTests(unittest.TestCase):
                         self.assertFalse(app.query_one("#btn-logs", Button).disabled)
                         app.action_show_logs()
                         await pilot.pause()
-                        self.assertIsInstance(app.screen, WorktreeLogScreen)
+                        self.assertIsInstance(app.screen, LogsScreen)
                         app.pop_screen()
                         await pilot.pause()
 
@@ -350,7 +412,7 @@ class MainTests(unittest.TestCase):
 
                         app.action_show_logs()
                         await pilot.pause()
-                        self.assertIsInstance(app.screen, WorktreeLogScreen)
+                        self.assertIsInstance(app.screen, LogsScreen)
                         self.assertIn(
                             "Logs",
                             app.screen.query_one("#log-breadcrumb-current", Static).render().plain,
@@ -367,7 +429,7 @@ class MainTests(unittest.TestCase):
                             app.screen.query_one("#worktree-log-label", Static).render().plain,
                             "Log",
                         )
-                        log = app.screen.query_one("#worktree-log", RichLog)
+                        log = app.screen.query_one("#flotte-log", RichLog)
                         self.assertEqual(len(log.lines), 2)
                         await pilot.click("#log-breadcrumb-worktree")
                         await pilot.pause()

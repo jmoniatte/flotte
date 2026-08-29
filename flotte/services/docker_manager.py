@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 import json
 from pathlib import Path
 
@@ -135,3 +136,34 @@ class DockerManager:
         if returncode != 0:
             return []
         return [line.strip() for line in stdout.strip().split("\n") if line.strip()]
+
+    async def stream_logs(
+        self, tail: int = 200, services: tuple[str, ...] = ()
+    ) -> AsyncIterator[bytes]:
+        """Yield recent and live Docker Compose output until the consumer stops."""
+        proc = await asyncio.create_subprocess_exec(
+            *self._compose_args(),
+            "logs",
+            "--follow",
+            "--tail",
+            str(tail),
+            *services,
+            cwd=self.worktree_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        try:
+            assert proc.stdout is not None
+            while line := await proc.stdout.readline():
+                yield line.removesuffix(b"\n")
+        finally:
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                except ProcessLookupError:
+                    pass
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()

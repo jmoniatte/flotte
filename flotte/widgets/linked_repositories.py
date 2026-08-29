@@ -22,8 +22,6 @@ def available_actions(linked: LinkedWorktree, worktree: Worktree) -> frozenset[s
         actions.add("start")
     if can_control and linked.process_status == "running":
         actions.update(("stop", "restart"))
-    if linked.log_path is not None:
-        actions.add("logs")
     if can_manage and linked.path is not None:
         actions.add("unlink")
     return frozenset(actions)
@@ -69,11 +67,6 @@ class LinkedRepositoryRow(Vertical):
                 )
             yield WebLink(classes="linked-repository-url")
             yield Static("", classes="spacer")
-            yield Button(
-                "Logs",
-                id=f"linked-logs-{self.index}",
-                classes="linked-logs-button",
-            )
             unlink_button = Button(
                 "Unlink",
                 id=f"linked-unlink-{self.index}",
@@ -88,7 +81,6 @@ class LinkedRepositoryRow(Vertical):
         start_button = self.query_one(f"#linked-start-{self.index}", Button)
         stop_button = self.query_one(f"#linked-stop-{self.index}", Button)
         restart_button = self.query_one(f"#linked-restart-{self.index}", Button)
-        logs_button = self.query_one(f"#linked-logs-{self.index}", Button)
         unlink_button = self.query_one(f"#linked-unlink-{self.index}", Button)
         url_widget = self.query_one(".linked-repository-url", WebLink)
         git_widget = self.query_one(".linked-repository-git-status", Static)
@@ -103,7 +95,6 @@ class LinkedRepositoryRow(Vertical):
         start_button.disabled = linked.process_status != "stopped"
         stop_button.disabled = linked.process_status != "running"
         restart_button.disabled = linked.process_status != "running"
-        logs_button.display = "logs" in actions
         unlink_button.display = "unlink" in actions
 
         url = (

@@ -1,14 +1,27 @@
 from datetime import timedelta, timezone
 import unittest
 
-from flotte.screens.worktree_log import _format_local_timestamp, _format_process_output
+from flotte.screens.worktree_log import (
+    _format_container_output,
+    _format_local_timestamp,
+    _format_process_output,
+)
 
 
-class WorktreeLogScreenTests(unittest.TestCase):
+class LogsScreenTests(unittest.TestCase):
     def test_formats_ansi_process_output_as_styled_text(self) -> None:
         rendered = _format_process_output(b"\x1b[31mError\x1b[0m")
 
         self.assertEqual(rendered.plain, "Error")
+        self.assertTrue(rendered.spans)
+
+    def test_replaces_compose_container_prefix_with_service_name(self) -> None:
+        rendered = _format_container_output(
+            b"rwgps-user-byline_rails  | \x1b[32mReady\x1b[0m",
+            {"rwgps-user-byline_rails": "rails"},
+        )
+
+        self.assertEqual(rendered.plain, "rails | Ready")
         self.assertTrue(rendered.spans)
 
     def test_formats_utc_timestamp_in_requested_timezone(self) -> None:

@@ -54,6 +54,7 @@ class Project:
     # Only ".env" is auto-loaded by docker compose; other values need --env-file.
     env_file: str = ".env"
     clone_paths: tuple[str, ...] = ()
+    container_log_services: tuple[str, ...] = ()
     linked_repositories: tuple[LinkedRepository, ...] = ()
 
 
@@ -166,6 +167,14 @@ def _commands(value: object) -> tuple[str, ...]:
     return tuple(str(command) for command in value if str(command).strip())
 
 
+def _container_log_services(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, list):
+        return ()
+    return tuple(str(service).strip() for service in value if str(service).strip())
+
+
 def _linked_repositories(value: object) -> tuple[LinkedRepository, ...]:
     if not isinstance(value, list):
         return ()
@@ -264,6 +273,9 @@ def load_config() -> Config:
                     ride_command=str(proj_data.get("ride_command", "")),
                     env_file=str(proj_data.get("env_file") or ".env"),
                     clone_paths=tuple(clone_paths_list),  # flat list of relative paths
+                    container_log_services=_container_log_services(
+                        proj_data.get("container_log_services", [])
+                    ),
                     linked_repositories=_linked_repositories(proj_data.get("linked_repositories", [])),
                 ))
 
@@ -295,6 +307,10 @@ def save_config(config: Config) -> None:
                 proj_dict["post_create_commands"] = list(project.post_create_commands)
             if project.clone_paths:
                 proj_dict["clone_paths"] = list(project.clone_paths)
+            if project.container_log_services:
+                proj_dict["container_log_services"] = list(
+                    project.container_log_services
+                )
             if project.linked_repositories:
                 proj_dict["linked_repositories"] = [
                     {

@@ -21,6 +21,10 @@ projects:
     # Docker compose only auto-loads .env; anything else must be passed
     # to compose with --env-file by your own tooling.
     env_file: .env
+    # Optional Docker Compose services shown in the Containers log tab.
+    container_log_services:
+      - rails
+      - mariadb
     # Optional worktrees created on demand from a primary worktree.
     # Commands receive FLOTTE_PRIMARY_PATH, FLOTTE_LINKED_PATH,
     # FLOTTE_WORKTREE_NAME, FLOTTE_BRANCH, and FLOTTE_PORT_<NAME>.

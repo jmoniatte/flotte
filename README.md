@@ -69,6 +69,9 @@ projects:
   - name: Acme API
     repository_path: /var/www/acme-api
     worktree_path: /var/www/worktrees/{worktree}/acme-api
+    container_log_services:
+      - rails
+      - mariadb
 ```
 
 Each project requires:
@@ -84,6 +87,8 @@ Optional fields:
 - `env_file`: Worktree environment file read and written by Flotte. Defaults to `.env`.
 - `clone_paths`: Files or directories copied from the main checkout when cloning volumes and bind
   mounts.
+- `container_log_services`: Docker Compose services shown in the Containers log tab. By default,
+  all services are shown.
 - `linked_repositories`: Companion repositories paired with the project.
 
 The global `theme` can be `onedark` (default) or `onelight`.
@@ -123,8 +128,9 @@ server; **Stop** and **Restart** then manage it. The start command must stay in 
 Flotte can track it.
 
 Flotte stores linked-process output under
-`~/.local/state/flotte/logs/<project>/<worktree>/<repository>.log`. Choose **Logs** to view and
-follow that output inside Flotte.
+`~/.local/state/flotte/logs/<project>/<worktree>/<repository>.log`. The worktree **Logs** screen
+shows Flotte operations, current Docker Compose output, and retained linked-process output in
+separate tabs.
 
 Choose **Unlink** to remove the paired worktree and release its ports. Flotte refuses to unlink a
 repository with uncommitted changes.

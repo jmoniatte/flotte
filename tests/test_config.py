@@ -86,7 +86,17 @@ class ConfigTests(unittest.TestCase):
             ports=(PortRange("vite", 5100, 5199),),
             pre_start_commands=("./configure-link",),
         )
-        config = Config(projects=[Project("Backend", "/projects/backend", "/projects/backend-{worktree}", linked_repositories=(repository,))])
+        config = Config(
+            projects=[
+                Project(
+                    "Backend",
+                    "/projects/backend",
+                    "/projects/backend-{worktree}",
+                    container_log_services=("rails", "mariadb"),
+                    linked_repositories=(repository,),
+                )
+            ]
+        )
 
         with tempfile.TemporaryDirectory() as directory:
             config_dir = Path(directory)
@@ -104,4 +114,10 @@ class ConfigTests(unittest.TestCase):
             ("./configure-link",),
         )
         self.assertEqual(loaded.projects[0].linked_repositories[0].name, "frontend")
+        self.assertEqual(
+            loaded.projects[0].container_log_services, ("rails", "mariadb")
+        )
+        self.assertEqual(
+            saved["projects"][0]["container_log_services"], ["rails", "mariadb"]
+        )
         self.assertNotIn("name", saved["projects"][0]["linked_repositories"][0])

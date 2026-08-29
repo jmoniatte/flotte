@@ -692,8 +692,7 @@ HelpScreen #help-repository:hover {
     background: transparent;
 }
 
-WorktreeLogScreen,
-LinkedProcessLogScreen {
+LogsScreen {
     background: $bg;
 }
 
@@ -730,19 +729,53 @@ LinkedProcessLogScreen {
     text-style: bold;
 }
 
-#linked-process-log-pid {
-    width: auto;
-    margin-left: 1;
-    color: $comment;
-}
-
-#worktree-log {
+.logs-output {
     height: 1fr;
     background: transparent;
     color: $fg;
     border: none;
     padding: 0;
     scrollbar-size: 0 0;
+}
+
+#logs-tabs {
+    height: 1fr;
+}
+
+#logs-tabs Tabs {
+    height: 1;
+    background: transparent;
+    margin-bottom: 1;
+}
+
+#logs-tabs Tab {
+    background: transparent;
+    color: $blue;
+    padding: 0 1;
+}
+
+#logs-tabs Tab.-active {
+    color: $yellow;
+    text-style: bold;
+}
+
+#logs-tabs Tab:hover {
+    color: $blue;
+    text-style: underline;
+}
+
+#logs-tabs Tab.-active:hover {
+    color: $yellow;
+    text-style: bold;
+}
+
+#logs-tabs Underline {
+    background: transparent;
+}
+
+#logs-tabs TabPane {
+    height: 1fr;
+    padding: 0;
 }
 
 #worktree-log-header {
@@ -1238,26 +1271,6 @@ LinkedRepositories {
 
 .linked-repository-lifecycle .linked-restart-button:focus {
     background: $yellow;
-    color: $bg-dark;
-    text-style: bold;
-}
-
-.linked-logs-button {
-    width: auto;
-    min-width: 0;
-    margin: 0 1 0 0;
-    padding: 0 2;
-    border: none;
-    background: $bg-light;
-    color: $fg;
-}
-
-.linked-logs-button:hover {
-    background: $gutter;
-}
-
-.linked-logs-button:focus {
-    background: $blue;
     color: $bg-dark;
     text-style: bold;
 }
