@@ -8,6 +8,7 @@ from textual.message import Message
 from rich.align import Align
 from rich.text import Text
 
+from ..shortcuts import ACTIONS, GENERAL
 from ..formatters import format_git_status, format_web_url
 from ..models import GitStatus, Worktree, WorktreeStatus
 from ..theme import get_status_style
@@ -34,8 +35,9 @@ class WorktreeTable(DashedHeaderDataTable):
     """DataTable for worktrees with status, name, URL, git status."""
 
     BINDINGS = DataTable.BINDINGS + [
-        Binding("j", "cursor_down", "Down", show=False),
-        Binding("k", "cursor_up", "Up", show=False),
+        Binding("enter", "select_cursor", "Open worktree", show=False, group=ACTIONS),
+        Binding("j", "cursor_down", "Move down", show=False, group=GENERAL),
+        Binding("k", "cursor_up", "Move up", show=False, group=GENERAL),
     ]
 
     def __init__(self, **kwargs):

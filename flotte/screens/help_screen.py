@@ -3,17 +3,27 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Static
 from textual.app import ComposeResult
 
+from .. import shortcuts as shortcut_help
 from .. import REPOSITORY_URL, __version__
 from ..widgets.table_rules import DashedTableFooter
 from ..widgets.web_link import WebLink
+from ..widgets.worktree_header import WorktreeTable
 
 
 class HelpScreen(ModalScreen):
-    """Modal screen showing keyboard shortcuts."""
+    """Modal screen listing every documented keyboard shortcut."""
 
     BINDINGS = [
         ("escape", "dismiss", "Close"),
     ]
+
+    def _sections(self) -> list[tuple[str, tuple[shortcut_help.Shortcut, ...]]]:
+        """Read the shortcuts off the bindings, so the two cannot drift."""
+        sources = (WorktreeTable.BINDINGS, self.app.BINDINGS)
+        return [
+            (section, shortcut_help.for_section(section, *sources))
+            for section in shortcut_help.SECTIONS
+        ]
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -21,41 +31,13 @@ class HelpScreen(ModalScreen):
             yield Static("", id="title-separator")
 
             with Horizontal(id="help-sections"):
-                with Vertical(id="help-actions", classes="help-section"):
-                    yield Static("ACTIONS", classes="section-title")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("enter", classes="shortcut-key")
-                        yield Static("Open selected worktree", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("n", classes="shortcut-key")
-                        yield Static("Create worktree", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("d", classes="shortcut-key")
-                        yield Static("Delete worktree", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("s", classes="shortcut-key")
-                        yield Static("Start services", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("x", classes="shortcut-key")
-                        yield Static("Stop services", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("r", classes="shortcut-key")
-                        yield Static("Refresh status", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("R", classes="shortcut-key")
-                        yield Static("Go Ride", classes="shortcut-desc")
-
-                with Vertical(id="help-general", classes="help-section"):
-                    yield Static("GENERAL", classes="section-title")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("q", classes="shortcut-key")
-                        yield Static("Quit", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("b / esc", classes="shortcut-key")
-                        yield Static("Back to worktrees", classes="shortcut-desc")
-                    with Horizontal(classes="shortcut-row"):
-                        yield Static("?", classes="shortcut-key")
-                        yield Static("Show help", classes="shortcut-desc")
+                for section, shortcuts in self._sections():
+                    with Vertical(id=f"help-{section.lower()}", classes="help-section"):
+                        yield Static(section.upper(), classes="section-title")
+                        for shortcut in shortcuts:
+                            with Horizontal(classes="shortcut-row"):
+                                yield Static(shortcut.key, classes="shortcut-key")
+                                yield Static(shortcut.description, classes="shortcut-desc")
 
             yield DashedTableFooter(id="help-sections-separator")
             yield Static("Manage docker-compose projects across git worktrees", id="help-tagline")

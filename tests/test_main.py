@@ -12,9 +12,11 @@ from flotte.app import FlotteApp, GREETING_TEMPLATES
 from flotte.config import Config, LinkedRepository, PreflightResult, Project
 from flotte.models import Container, GitStatus, LinkedWorktree, Worktree
 from flotte.models.container import ContainerState
-from flotte.screens import LogsScreen
-from flotte.widgets import WebLink
-from textual.widgets import Button, ContentSwitcher, RichLog, Static, TabbedContent
+from flotte.screens import HelpScreen, LogsScreen
+from flotte.widgets import WebLink, WorktreeHeader
+from flotte.widgets.worktree_header import WorktreeTable
+from flotte import shortcuts
+from textual.widgets import Button, ContentSwitcher, DataTable, RichLog, Static, TabbedContent
 
 
 class MainTests(unittest.TestCase):
@@ -446,5 +448,152 @@ class MainTests(unittest.TestCase):
                             app.query_one("#view-switcher", ContentSwitcher).current,
                             "list-view",
                         )
+
+        asyncio.run(exercise())
+
+    @staticmethod
+    def _single_project_config() -> Config:
+        return Config(
+            projects=[Project("test", "/tmp/test", "/tmp/worktrees/{worktree}")]
+        )
+
+    def _patched_app(self, config: Config):
+        return (
+            patch("flotte.app.load_config", return_value=config),
+            patch(
+                "flotte.app.preflight_config",
+                return_value=PreflightResult(
+                    tuple(config.projects), ((config.projects[0], ()),)
+                ),
+            ),
+            patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
+            patch.object(FlotteApp, "_fetch_git_status", new_callable=AsyncMock),
+            patch("flotte.models.project.Project.start_polling"),
+            patch("flotte.models.project.Project.shutdown", new_callable=AsyncMock),
+        )
+
+    def test_an_operation_locks_only_its_own_worktree(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test() as pilot:
+                    first = Worktree("feature", Path("/tmp/feature"))
+                    second = Worktree("bugfix", Path("/tmp/bugfix"))
+                    app.project.worktrees.update({wt.name: wt for wt in (first, second)})
+                    app.selected_worktree = first
+                    await pilot.pause()
+
+                    self.assertTrue(app._acquire_operation_lock("start", first.name))
+                    self.assertTrue(app._acquire_operation_lock("start", second.name))
+                    self.assertFalse(app._acquire_operation_lock("stop", first.name))
+                    self.assertTrue(app._is_worktree_busy(first.name))
+                    self.assertTrue(app.query_one("#btn-ride", Button).disabled)
+
+                    # Controls follow the selected worktree, not the busiest one
+                    app.selected_worktree = second
+                    app._release_operation_lock(second.name)
+                    self.assertFalse(app.query_one("#btn-ride", Button).disabled)
+                    self.assertFalse(app._is_worktree_busy(second.name))
+                    self.assertTrue(app._is_worktree_busy(first.name))
+                    self.assertTrue(app._is_any_operation_running())
+
+                    app._release_operation_lock(first.name)
+                    app._release_operation_lock(first.name)  # idempotent
+                    self.assertFalse(app._is_any_operation_running())
+
+        asyncio.run(exercise())
+
+    def test_list_git_statuses_are_read_concurrently(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test() as pilot:
+                    worktrees = [
+                        Worktree(f"wt-{index}", Path(f"/tmp/wt-{index}"))
+                        for index in range(3)
+                    ]
+                    app.project.worktrees.update({wt.name: wt for wt in worktrees})
+                    app.query_one("#worktree-header", WorktreeHeader).refresh_worktrees(
+                        worktrees
+                    )
+                    await pilot.pause()
+
+                    in_flight = 0
+                    peak = 0
+                    all_started = asyncio.Event()
+
+                    async def fake_git_status(path: Path) -> GitStatus:
+                        nonlocal in_flight, peak
+                        in_flight += 1
+                        peak = max(peak, in_flight)
+                        if in_flight == len(worktrees):
+                            all_started.set()
+                        # A serial fetch never releases this, so the wait times out
+                        await all_started.wait()
+                        in_flight -= 1
+                        return GitStatus(staged=1)
+
+                    with patch("flotte.app.get_git_status", new=fake_git_status):
+                        await asyncio.wait_for(
+                            app._fetch_list_git_statuses(), timeout=10
+                        )
+
+                    self.assertEqual(peak, len(worktrees))
+                    self.assertEqual(
+                        [wt.git_status for wt in worktrees],
+                        [GitStatus(staged=1)] * len(worktrees),
+                    )
+
+        asyncio.run(exercise())
+
+    def test_help_screen_documents_every_binding(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test(size=(100, 34)) as pilot:
+                    await pilot.pause()
+                    await pilot.press("?")
+                    await pilot.pause()
+                    self.assertIsInstance(app.screen, HelpScreen)
+
+                    documented = {}
+                    for row in app.screen.query(".shortcut-row"):
+                        key, description = row.query(Static)
+                        documented[key.render().plain] = description
+                    self.assertEqual(
+                        [title.render().plain for title in app.screen.query(".section-title")],
+                        ["ACTIONS", "GENERAL"],
+                    )
+
+                    # Focus movement is the only deliberately undocumented binding
+                    table_extras = WorktreeTable.BINDINGS[len(DataTable.BINDINGS):]
+                    for binding in list(FlotteApp.BINDINGS) + list(table_extras):
+                        if binding.key in ("tab", "shift+tab"):
+                            self.assertNotIn(binding.key, documented)
+                            continue
+                        key = binding.key_display or binding.key
+                        self.assertIn(key, documented, key)
+                        self.assertEqual(
+                            documented[key].render().plain, binding.description, key
+                        )
+                        # A longer description than the column would be clipped
+                        self.assertLessEqual(
+                            len(binding.description),
+                            documented[key].region.width,
+                            key,
+                        )
+
+                    self.assertEqual(documented["o"].render().plain, "Open web URL")
+                    self.assertIn("j", documented)
+                    self.assertEqual(shortcuts.SECTIONS, ("Actions", "General"))
 
         asyncio.run(exercise())

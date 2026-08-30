@@ -627,20 +627,20 @@ HelpScreen .section-title {
 }
 
 HelpScreen #help-sections {
-    height: 9;
+    height: auto;
 }
 
 HelpScreen .help-section {
-    height: 9;
+    height: auto;
 }
 
 HelpScreen #help-actions {
-    width: 30;
-    margin-right: 3;
+    width: 32;
+    margin-right: 2;
 }
 
 HelpScreen #help-general {
-    width: 27;
+    width: 32;
 }
 
 HelpScreen #help-sections-separator {
