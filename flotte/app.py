@@ -215,6 +215,9 @@ class FlotteApp(App):
         self._list_git_fetch_running: bool = False
         self._list_git_fetch_queued: bool = False
 
+        # Kept on the app so the logs screen reopens with the same choice
+        self.wrap_logs: bool = False
+
         # One operation per worktree; different worktrees operate concurrently
         self._operations: dict[str, str] = {}  # worktree name -> "start", "stop", ...
 
@@ -1266,6 +1269,7 @@ class FlotteApp(App):
                 self.current_config_project.name,
                 self._show_worktree_list_from_logs,
                 self._show_worktree_details_from_logs,
+                wrap=self.wrap_logs,
             )
         )
 

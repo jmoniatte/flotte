@@ -739,6 +739,17 @@ LogsScreen {
     text-style: bold;
 }
 
+#log-breadcrumbs .spacer {
+    width: 1fr;
+}
+
+#log-breadcrumbs Checkbox {
+    width: auto;
+    height: 1;
+    padding: 0;
+    margin: 0;
+}
+
 .logs-output {
     height: 1fr;
     background: transparent;
@@ -1001,12 +1012,46 @@ CreateWorktreeScreen SelectOverlay > .option-list--option-highlighted {
 }
 
 /* Checkboxes */
+
+Checkbox {
+    background: transparent;
+    border: none;
+}
+
+/* An empty slot when off, a filled green one when on */
+Checkbox > .toggle--button {
+    color: $bg-light;
+    background: $bg-light;
+}
+
+Checkbox.-on > .toggle--button {
+    color: $bg-dark;
+    background: $green;
+}
+
+/* The slot alone reports the state. Recolouring the label would read as
+   disabled, which is what a dimmed label means everywhere else. */
+Checkbox > .toggle--label {
+    color: $fg;
+    background: transparent;
+}
+
+/* Focus and hover leave the label exactly as it reads at rest; this rule
+   exists only to cancel the block cursor and hover block Textual adds */
+Checkbox:focus > .toggle--label {
+    color: $fg;
+    background: transparent;
+    text-style: none;
+}
+
+Checkbox:blur:hover > .toggle--label {
+    background: transparent;
+}
+
 CreateWorktreeScreen Checkbox {
     height: auto;
     padding: 0;
     margin: 0 0 0 0;
-    background: transparent;
-    border: none;
 }
 
 CreateWorktreeScreen #dialog-buttons {

@@ -21,10 +21,20 @@ from flotte.models.container import ContainerState
 from flotte.models.worktree import WorktreeStatus
 from flotte.services.docker_manager import DockerManager
 from flotte.screens import HelpScreen, LogsScreen
+from flotte.screens.create_worktree import CreateWorktreeScreen
 from flotte.widgets import AppHeader, WebLink, WorktreeHeader
 from flotte.widgets.worktree_header import WorktreeTable
 from flotte import shortcuts
-from textual.widgets import Button, ContentSwitcher, DataTable, RichLog, Static, TabbedContent
+from textual.widgets import (
+    Button,
+    Checkbox,
+    ContentSwitcher,
+    DataTable,
+    RichLog,
+    Static,
+    TabbedContent,
+    Tabs,
+)
 
 
 class MainTests(unittest.TestCase):
@@ -823,5 +833,124 @@ class MainTests(unittest.TestCase):
                         app.log_store.record_elapsed.call_args.args
                     )
                     self.assertEqual((action, succeeded), ("Started containers", True))
+
+        asyncio.run(exercise())
+
+    def test_wrap_checkbox_rewraps_the_log_and_is_remembered(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with tempfile.TemporaryDirectory() as directory:
+                with contextlib.ExitStack() as stack:
+                    for patcher in self._patched_app(config):
+                        stack.enter_context(patcher)
+                    stack.enter_context(
+                        patch("flotte.services.worktree_log.LOG_DIR", Path(directory))
+                    )
+                    app = FlotteApp()
+                    async with app.run_test(size=(80, 30)) as pilot:
+                        worktree = Worktree("feature", Path("/tmp/feature"))
+                        app.selected_worktree = worktree
+                        app.log_store.record(worktree.name, "x" * 300, 0.1, True)
+
+                        app.action_show_logs()
+                        await pilot.pause()
+                        log = app.screen.query_one("#flotte-log", RichLog)
+                        wrap_box = app.screen.query_one("#wrap-logs", Checkbox)
+
+                        # The tabs keep the focus even though the box comes first
+                        self.assertIsInstance(app.focused, Tabs)
+                        self.assertFalse(wrap_box.value)
+                        self.assertFalse(any(item.wrap for item in app.screen.query(RichLog)))
+                        unwrapped = len(log.lines)
+
+                        await pilot.click("#wrap-logs")
+                        await pilot.pause()
+                        await asyncio.sleep(0.2)
+
+                        self.assertTrue(all(item.wrap for item in app.screen.query(RichLog)))
+                        self.assertTrue(app.wrap_logs)
+                        self._assert_checkbox_states_differ(wrap_box)
+
+                        # Neither hover nor focus restyles the label
+                        app.screen.query_one(Tabs).focus()
+                        await pilot.pause()
+                        resting = self._label_style(wrap_box)
+
+                        await pilot.hover("#wrap-logs")
+                        await pilot.pause()
+                        self.assertEqual(self._label_style(wrap_box), resting)
+
+                        wrap_box.focus()
+                        await pilot.pause()
+                        self.assertEqual(self._label_style(wrap_box), resting)
+                        # The already-written line was re-rendered, not left alone
+                        self.assertGreater(len(log.lines), unwrapped)
+
+                        app.pop_screen()
+                        await pilot.pause()
+                        app.action_show_logs()
+                        await pilot.pause()
+                        self.assertTrue(app.screen.query_one("#wrap-logs", Checkbox).value)
+                        self.assertTrue(app.screen.query_one("#flotte-log", RichLog).wrap)
+
+        asyncio.run(exercise())
+
+    def _assert_checkbox_states_differ(self, box: Checkbox) -> None:
+        """The slot reports the state on its own, and the label never moves."""
+        self.assertTrue(box.value)
+        on_button = box.get_component_styles("toggle--button")
+        on_slot = (on_button.color, on_button.background)
+        on_label = self._label_style(box)
+        # A filled slot when on: the mark contrasts with the slot behind it
+        self.assertNotEqual(on_button.color, on_button.background)
+
+        box.value = False
+        off_button = box.get_component_styles("toggle--button")
+        off_slot = (off_button.color, off_button.background)
+        # An empty slot when off: the mark is hidden against the slot
+        self.assertEqual(off_button.color, off_button.background)
+        self.assertNotEqual(on_slot, off_slot)
+        # Label colour means disabled elsewhere, so it is not a state channel
+        self.assertEqual(self._label_style(box), on_label)
+        box.value = True
+
+    @staticmethod
+    def _label_style(wrap_box: Checkbox) -> tuple:
+        label = wrap_box.get_component_styles("toggle--label")
+        return (label.color, label.background, label.text_style)
+
+    def test_the_clone_checkbox_reads_the_same_way_as_the_wrap_one(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                stack.enter_context(
+                    patch.object(
+                        CreateWorktreeScreen, "_load_branches", new_callable=AsyncMock
+                    )
+                )
+                app = FlotteApp()
+                async with app.run_test(size=(80, 30)) as pilot:
+                    await pilot.pause()
+                    app.action_new_worktree()
+                    await pilot.pause()
+
+                    clone_box = app.screen.query_one("#clone-data", Checkbox)
+                    self.assertTrue(clone_box.value)
+                    self._assert_checkbox_states_differ(clone_box)
+
+                    # Neither focus nor hover restyles the label
+                    app.screen.query_one("#branch-input").focus()
+                    await pilot.pause()
+                    resting = self._label_style(clone_box)
+
+                    await pilot.hover("#clone-data")
+                    await pilot.pause()
+                    self.assertEqual(self._label_style(clone_box), resting)
+
+                    clone_box.focus()
+                    await pilot.pause()
+                    self.assertEqual(self._label_style(clone_box), resting)
 
         asyncio.run(exercise())

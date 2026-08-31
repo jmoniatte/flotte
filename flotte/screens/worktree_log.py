@@ -9,7 +9,7 @@ from textual import events, on
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import RichLog, Static, TabbedContent, TabPane
+from textual.widgets import Checkbox, RichLog, Static, TabbedContent, TabPane, Tabs
 from textual.worker import Worker
 from rich.text import Text
 
@@ -75,6 +75,7 @@ class LogsScreen(Screen):
         project_name: str,
         show_worktrees: Callable[[], None],
         show_worktree: Callable[[], None],
+        wrap: bool = False,
     ):
         super().__init__()
         self.worktree_name = worktree_name
@@ -88,6 +89,7 @@ class LogsScreen(Screen):
             if linked.log_path is not None and linked.log_path.exists()
         ]
         self.project_name = project_name
+        self.wrap = wrap
         self.show_worktrees = show_worktrees
         self.show_worktree = show_worktree
         self._linked_by_tab = {
@@ -109,6 +111,8 @@ class LogsScreen(Screen):
                 yield Static(self.worktree_name, id="log-breadcrumb-worktree")
                 yield Static(">", classes="log-breadcrumb-separator")
                 yield Static("Logs", id="log-breadcrumb-current")
+                yield Static("", classes="spacer")
+                yield Checkbox("Wrap", value=self.wrap, id="wrap-logs")
             with TabbedContent(initial="flotte", id="logs-tabs"):
                 with TabPane("Flotte", id="flotte"):
                     with Horizontal(id="worktree-log-header"):
@@ -119,7 +123,7 @@ class LogsScreen(Screen):
                         yield Static("Log", id="worktree-log-label")
                     yield DashedTableFooter(id="worktree-log-rule")
                     yield RichLog(
-                        wrap=False,
+                        wrap=self.wrap,
                         markup=False,
                         auto_scroll=False,
                         id="flotte-log",
@@ -127,7 +131,7 @@ class LogsScreen(Screen):
                     )
                 with TabPane("Containers", id="containers"):
                     yield RichLog(
-                        wrap=False,
+                        wrap=self.wrap,
                         markup=False,
                         auto_scroll=True,
                         id="containers-log",
@@ -136,7 +140,7 @@ class LogsScreen(Screen):
                 for tab_id, linked in self._linked_by_tab.items():
                     with TabPane(linked.repository_name, id=tab_id):
                         yield RichLog(
-                            wrap=False,
+                            wrap=self.wrap,
                             markup=False,
                             auto_scroll=True,
                             id=f"{tab_id}-log",
@@ -144,11 +148,27 @@ class LogsScreen(Screen):
                         )
 
     def on_mount(self) -> None:
+        # The wrap checkbox comes first in the DOM; the tabs still own the focus
+        self.query_one(Tabs).focus()
         self._activate_tab("flotte")
         self.set_interval(0.25, self._follow_linked)
 
     def on_unmount(self) -> None:
         self._stop_docker_stream()
+
+    @on(Checkbox.Changed, "#wrap-logs")
+    def on_wrap_toggled(self, event: Checkbox.Changed) -> None:
+        """Reload the tab; lines keep the wrapping they were written with."""
+        self.wrap = event.value
+        self.app.wrap_logs = event.value
+        for log in self.query(RichLog):
+            log.wrap = event.value
+        self._reload_active_tab()
+
+    def _reload_active_tab(self) -> None:
+        tab_id = self._active_tab
+        self._active_tab = ""
+        self._activate_tab(tab_id)
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         if event.tabbed_content.id == "logs-tabs" and event.pane.id:
