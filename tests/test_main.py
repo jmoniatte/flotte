@@ -1,6 +1,7 @@
 import contextlib
 import io
 import asyncio
+import threading
 from datetime import datetime
 import tempfile
 from pathlib import Path
@@ -657,5 +658,52 @@ class MainTests(unittest.TestCase):
                         app.screen.query_one("HeaderNotification").render().plain,
                         "Bonjour Jean",
                     )
+
+        asyncio.run(exercise())
+
+    def test_preflight_runs_after_the_first_paint(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            running = threading.Event()
+            release = threading.Event()
+
+            def slow_preflight(loaded: Config) -> PreflightResult:
+                running.set()
+                release.wait(10)
+                return PreflightResult(
+                    tuple(loaded.projects), ((loaded.projects[0], ("docker is down",)),)
+                )
+
+            with (
+                patch("flotte.app.load_config", return_value=config),
+                patch("flotte.app.preflight_config", new=slow_preflight),
+                patch.object(FlotteApp, "refresh_worktrees", new_callable=AsyncMock),
+                patch("flotte.models.project.Project.start_polling"),
+                patch(
+                    "flotte.models.project.Project.shutdown", new_callable=AsyncMock
+                ),
+            ):
+                app = FlotteApp()
+                self.assertFalse(running.is_set())  # __init__ must not run it
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await pilot.pause()
+                    self.assertTrue(running.wait(5))
+
+                    # The window is usable while preflight is still out
+                    problems = app.query_one("#project-problems", Static)
+                    self.assertTrue(app.query_one("#worktrees-box").display)
+                    self.assertFalse(problems.display)
+                    self.assertTrue(app.query_one("#btn-new-worktree", Button).display)
+
+                    release.set()
+                    for _ in range(100):
+                        await pilot.pause()
+                        if problems.display:
+                            break
+                        await asyncio.sleep(0.05)
+
+                    self.assertEqual(problems.render().plain, "docker is down")
+                    self.assertFalse(app.query_one("#worktrees-box").display)
+                    self.assertFalse(app.query_one("#btn-new-worktree", Button).display)
 
         asyncio.run(exercise())

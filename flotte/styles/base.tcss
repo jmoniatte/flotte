@@ -126,6 +126,8 @@ HeaderNotification.-error {
 }
 
 #project-problems {
+    /* Hidden until preflight reports; it shows an empty border otherwise */
+    display: none;
     height: auto;
     margin: 1 1;
     padding: 0 1;

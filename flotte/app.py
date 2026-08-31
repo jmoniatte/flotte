@@ -13,7 +13,12 @@ from textual.widgets import Button, ContentSwitcher, Static, Select
 from textual import events, on, work
 
 from .shortcuts import ACTIONS, GENERAL
-from .config import load_config, preflight_config, Project as ConfigProject
+from .config import (
+    load_config,
+    preflight_config,
+    PreflightResult,
+    Project as ConfigProject,
+)
 from .formatters import format_git_status
 from .theme import load_theme_colors
 from .models import GitStatus, Worktree
@@ -153,7 +158,8 @@ class FlotteApp(App):
     def __init__(self):
         # Load config first to determine theme
         self.config = load_config()
-        self.preflight = preflight_config(self.config)
+        # Filled in by a worker once the UI is up; no problems are known before then
+        self.preflight = PreflightResult(tuple(self.config.projects), ())
 
         # Load theme colors for Python code (parsed from same TCSS file)
         self.theme_colors = load_theme_colors(self.config.theme)
@@ -413,6 +419,9 @@ class FlotteApp(App):
             button.display = not problems
             button.disabled = bool(problems)
         if problems:
+            # Preflight can land after a project already started polling
+            if self.project:
+                self.project.stop_polling()
             return
         self.run_worker(self.refresh_worktrees())
         if self.project:
@@ -442,7 +451,7 @@ class FlotteApp(App):
             return
 
         self._show_worktree_list()
-        self._activate_current_project()
+        self.run_worker(self._run_preflight())
 
         if self.config.warnings:
             self.notify(self._config_warning_summary(), severity="warning", markup=False)
@@ -455,6 +464,11 @@ class FlotteApp(App):
         if count == 1:
             return self.config.warnings[0]
         return f"{count} problems in your config file"
+
+    async def _run_preflight(self) -> None:
+        """Validate Docker and the project paths without blocking the first paint."""
+        self.preflight = await asyncio.to_thread(preflight_config, self.config)
+        self._activate_current_project()
 
     async def refresh_worktrees(self) -> None:
         """Discover and display all worktrees."""
