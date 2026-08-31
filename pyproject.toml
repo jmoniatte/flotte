@@ -13,6 +13,10 @@ dependencies = [
 [project.scripts]
 flotte = "flotte.__main__:main"
 
+[dependency-groups]
+# 0.16 turns on a much larger default rule set; adopt it deliberately, not by drift
+dev = ["ruff>=0.15.7,<0.16"]
+
 [build-system]
 requires = ["setuptools>=61.0", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
