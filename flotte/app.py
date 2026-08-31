@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 from functools import partial
 from getpass import getuser
 from pathlib import Path
@@ -45,6 +46,7 @@ from .screens import (
     LogsScreen,
 )
 from .widgets import (
+    AppHeader,
     ContainerControls,
     ContainerTable,
     WorktreeHeader,
@@ -56,7 +58,6 @@ from .widgets import (
     HeaderNotification,
     WebLink,
 )
-from . import REPOSITORY_URL, __version__
 
 GREETING_TEMPLATES = (
     "Hello {name}",
@@ -84,6 +85,36 @@ GREETING_TEMPLATES = (
 
 # Worktrees whose Git column is read concurrently
 LIST_GIT_STATUS_CONCURRENCY = 8
+
+
+@dataclass(frozen=True, slots=True)
+class ComposePhase:
+    """One docker compose call, and the status it puts the worktree in."""
+
+    command: str  # DockerManager method to await
+    pending: WorktreeStatus  # shown while the command runs
+    settled: WorktreeStatus | None  # what polling should confirm; None keeps waiting
+
+
+@dataclass(frozen=True, slots=True)
+class ComposeOperation:
+    """A container lifecycle command as the UI presents it."""
+
+    name: str  # names the lock, the worker, and the failure notification
+    log_action: str  # what the worktree log records
+    phases: tuple[ComposePhase, ...]
+
+
+_START_PHASE = ComposePhase("start", WorktreeStatus.STARTING, WorktreeStatus.RUNNING)
+_STOP_PHASE = ComposePhase("stop", WorktreeStatus.STOPPING, WorktreeStatus.STOPPED)
+# Restarting holds the stopping status until the start phase takes over
+_RESTART_STOP_PHASE = ComposePhase("stop", WorktreeStatus.STOPPING, None)
+
+START_OPERATION = ComposeOperation("start", "Started containers", (_START_PHASE,))
+STOP_OPERATION = ComposeOperation("stop", "Stopped containers", (_STOP_PHASE,))
+RESTART_OPERATION = ComposeOperation(
+    "restart", "Restarted containers", (_RESTART_STOP_PHASE, _START_PHASE)
+)
 
 
 def _random_greeting() -> str:
@@ -251,20 +282,15 @@ class FlotteApp(App):
             return
 
         # Custom header with project selector
-        with Horizontal(id="app-header"):
-            with Vertical(id="app-title-group"):
-                yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
-                yield Static(f"v{__version__}", id="app-subtitle")
-            yield Static("", classes="header-notification-spacer")
-            yield HeaderNotification()
-            yield Static("", id="header-spacer")
-            yield Select(
+        yield AppHeader(
+            Select(
                 options=[(p.name, p) for p in self.config.projects],
                 value=self.current_config_project,
                 id="project-selector",
                 allow_blank=False,
-            )
-            yield Static(self.current_config_project.name, id="project-name")
+            ),
+            Static(self.current_config_project.name, id="project-name"),
+        )
 
         with ContentSwitcher(initial="list-view", id="view-switcher"):
             with Container(id="list-view"):
@@ -802,151 +828,81 @@ class FlotteApp(App):
 
     def action_start_environment(self) -> None:
         """Start Docker environment."""
-        if not self.selected_worktree:
-            return
-
-        wt = self.selected_worktree
-        if not self._acquire_operation_lock("start", wt.name):
-            return
-
-        self.run_worker(self._perform_start(wt), name="op-start", exclusive=False)
-
-    async def _perform_start(self, wt: Worktree) -> None:
-        """Perform environment start. Lock must already be held."""
-        if not self._is_worktree_busy(wt.name):
-            self.log.error("_perform_start called without lock")
-            return
-
-        wt.start_operation(WorktreeStatus.STARTING, WorktreeStatus.RUNNING)
-        self._update_container_view()
-
-        try:
-            started_at = perf_counter()
-            returncode, stdout, stderr = await DockerManager(
-                wt.path, wt.compose_project_name
-            ).start()
-            self.log_store.record_elapsed(
-                wt.name, "Started containers", started_at, returncode == 0
-            )
-            if returncode != 0:
-                self.log.error(f"Start failed: {stderr or stdout}")
-                self.notify(f"Failed to start: {stderr or stdout}", severity="error")
-                wt.clear_operation()
-            # Success: poll will confirm when all services running and post OperationCompleted
-        except asyncio.CancelledError:
-            self.log.warning(f"Start cancelled: {wt.name}")
-            wt.clear_operation()
-            raise
-        except Exception as e:
-            self.log_store.record_elapsed(wt.name, "Started containers", started_at, False)
-            self.log.error(f"Start failed: {e}")
-            self.notify(f"Failed to start: {e}", severity="error")
-            wt.clear_operation()
-        finally:
-            self._release_operation_lock(wt.name)
+        self._run_compose_operation(START_OPERATION)
 
     def action_stop_environment(self) -> None:
         """Stop Docker environment."""
-        if not self.selected_worktree:
-            return
-
-        wt = self.selected_worktree
-        if not self._acquire_operation_lock("stop", wt.name):
-            return
-
-        self.run_worker(self._perform_stop(wt), name="op-stop", exclusive=False)
-
-    async def _perform_stop(self, wt: Worktree) -> None:
-        """Perform environment stop. Lock must already be held."""
-        if not self._is_worktree_busy(wt.name):
-            self.log.error("_perform_stop called without lock")
-            return
-
-        wt.start_operation(WorktreeStatus.STOPPING, WorktreeStatus.STOPPED)
-        self._update_container_view()
-
-        try:
-            started_at = perf_counter()
-            returncode, stdout, stderr = await DockerManager(
-                wt.path, wt.compose_project_name
-            ).stop()
-            self.log_store.record_elapsed(
-                wt.name, "Stopped containers", started_at, returncode == 0
-            )
-            if returncode != 0:
-                self.log.error(f"Stop failed: {stderr or stdout}")
-                self.notify(f"Failed to stop: {stderr or stdout}", severity="error")
-                wt.clear_operation()
-            # Success: poll will confirm when all services stopped and post OperationCompleted
-        except asyncio.CancelledError:
-            self.log.warning(f"Stop cancelled: {wt.name}")
-            wt.clear_operation()
-            raise
-        except Exception as e:
-            self.log_store.record_elapsed(wt.name, "Stopped containers", started_at, False)
-            self.log.error(f"Stop failed: {e}")
-            self.notify(f"Failed to stop: {e}", severity="error")
-            wt.clear_operation()
-        finally:
-            self._release_operation_lock(wt.name)
+        self._run_compose_operation(STOP_OPERATION)
 
     def action_restart_environment(self) -> None:
         """Restart Docker environment."""
+        self._run_compose_operation(RESTART_OPERATION)
+
+    def _run_compose_operation(self, operation: ComposeOperation) -> None:
+        """Claim the selected worktree, then run the command in the background."""
         if not self.selected_worktree:
             return
 
         wt = self.selected_worktree
-        if not self._acquire_operation_lock("restart", wt.name):
+        if not self._acquire_operation_lock(operation.name, wt.name):
             return
 
-        self.run_worker(self._perform_restart(wt), name="op-restart", exclusive=False)
+        self.run_worker(
+            self._perform_compose_operation(wt, operation),
+            name=f"op-{operation.name}",
+            exclusive=False,
+        )
 
-    async def _perform_restart(self, wt: Worktree) -> None:
-        """Perform environment restart. Lock must already be held."""
+    async def _perform_compose_operation(
+        self, wt: Worktree, operation: ComposeOperation
+    ) -> None:
+        """Run each phase in turn, stopping at the first failure.
+
+        Lock must already be held.
+        """
         if not self._is_worktree_busy(wt.name):
-            self.log.error("_perform_restart called without lock")
+            self.log.error(f"{operation.name} ran without its lock")
             return
 
         started_at = perf_counter()
+        docker = DockerManager(wt.path, wt.compose_project_name)
         try:
-            # Phase 1: Stop
-            wt.start_operation(WorktreeStatus.STOPPING, None)  # No auto-clear
-            self._update_container_view()
+            for phase in operation.phases:
+                wt.start_operation(phase.pending, phase.settled)
+                self._update_container_view()
 
-            docker = DockerManager(wt.path, wt.compose_project_name)
-            returncode, stdout, stderr = await docker.stop()
-            if returncode != 0:
-                self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
-                self.log.error(f"Restart (stop phase) failed: {stderr or stdout}")
-                self.notify(f"Failed to restart: {stderr or stdout}", severity="error")
-                wt.clear_operation()
-                return  # Don't proceed to start
+                returncode, stdout, stderr = await getattr(docker, phase.command)()
+                if returncode != 0:
+                    self._fail_compose_operation(
+                        wt, operation, started_at, stderr or stdout
+                    )
+                    return
 
-            # Phase 2: Start
-            wt.start_operation(WorktreeStatus.STARTING, WorktreeStatus.RUNNING)
-            self._update_container_view()
-
-            returncode, stdout, stderr = await docker.start()
-            if returncode != 0:
-                self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
-                self.log.error(f"Restart (start phase) failed: {stderr or stdout}")
-                self.notify(f"Failed to restart: {stderr or stdout}", severity="error")
-                wt.clear_operation()
-            else:
-                self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, True)
-            # Success: poll will confirm when all containers running and post OperationCompleted
-
+            self.log_store.record_elapsed(
+                wt.name, operation.log_action, started_at, True
+            )
+            # Polling confirms the settled status and posts OperationCompleted
         except asyncio.CancelledError:
-            self.log.warning(f"Restart cancelled: {wt.name}")
+            self.log.warning(f"{operation.name} cancelled: {wt.name}")
             wt.clear_operation()
             raise
         except Exception as e:
-            self.log_store.record_elapsed(wt.name, "Restarted containers", started_at, False)
-            self.log.error(f"Restart failed: {e}")
-            self.notify(f"Failed to restart: {e}", severity="error")
-            wt.clear_operation()
+            self._fail_compose_operation(wt, operation, started_at, str(e))
         finally:
             self._release_operation_lock(wt.name)
+
+    def _fail_compose_operation(
+        self,
+        wt: Worktree,
+        operation: ComposeOperation,
+        started_at: float,
+        reason: str,
+    ) -> None:
+        """Report a failed phase and let the worktree settle back."""
+        self.log_store.record_elapsed(wt.name, operation.log_action, started_at, False)
+        self.log.error(f"{operation.name} failed: {reason}")
+        self.notify(f"Failed to {operation.name}: {reason}", severity="error")
+        wt.clear_operation()
 
     def action_new_worktree(self) -> None:
         """Handle New button - opens dialog."""

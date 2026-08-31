@@ -5,16 +5,23 @@ import threading
 from datetime import datetime
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 import unittest
 
 from flotte.__main__ import main
-from flotte.app import FlotteApp, GREETING_TEMPLATES
+from flotte.app import (
+    FlotteApp,
+    GREETING_TEMPLATES,
+    RESTART_OPERATION,
+    START_OPERATION,
+)
 from flotte.config import Config, LinkedRepository, PreflightResult, Project
 from flotte.models import Container, GitStatus, LinkedWorktree, Worktree
 from flotte.models.container import ContainerState
+from flotte.models.worktree import WorktreeStatus
+from flotte.services.docker_manager import DockerManager
 from flotte.screens import HelpScreen, LogsScreen
-from flotte.widgets import WebLink, WorktreeHeader
+from flotte.widgets import AppHeader, WebLink, WorktreeHeader
 from flotte.widgets.worktree_header import WorktreeTable
 from flotte import shortcuts
 from textual.widgets import Button, ContentSwitcher, DataTable, RichLog, Static, TabbedContent
@@ -424,6 +431,10 @@ class MainTests(unittest.TestCase):
                             app.screen.query_one("#project-name", Static).render().plain,
                             "test",
                         )
+                        # Both screens mount the same header widget
+                        self.assertIsInstance(
+                            app.screen.query_one("#app-header"), AppHeader
+                        )
                         self.assertEqual(
                             app.screen.query_one("#worktree-log-datetime", Static).render().plain,
                             f"DateTime {datetime.now().astimezone().tzname() or 'Local'}",
@@ -705,5 +716,112 @@ class MainTests(unittest.TestCase):
                     self.assertEqual(problems.render().plain, "docker is down")
                     self.assertFalse(app.query_one("#worktrees-box").display)
                     self.assertFalse(app.query_one("#btn-new-worktree", Button).display)
+
+        asyncio.run(exercise())
+
+    async def _run_operation(self, app, pilot, operation, results):
+        """Drive one compose operation with canned docker results."""
+        calls: list[str] = []
+
+        async def fake_command(name: str):
+            calls.append(name)
+            return results[name]
+
+        wt = Worktree("feature", Path("/tmp/feature"))
+        app.project.worktrees[wt.name] = wt
+        app.selected_worktree = wt
+        app.log_store = Mock()
+        await pilot.pause()
+
+        with (
+            patch.object(
+                DockerManager, "start", lambda self: fake_command("start")
+            ),
+            patch.object(DockerManager, "stop", lambda self: fake_command("stop")),
+        ):
+            app._run_compose_operation(operation)
+            for _ in range(100):
+                await pilot.pause()
+                if not app._is_worktree_busy(wt.name):
+                    break
+                await asyncio.sleep(0.02)
+
+        return wt, calls
+
+    def test_restart_runs_stop_then_start_and_logs_once(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test() as pilot:
+                    wt, calls = await self._run_operation(
+                        app,
+                        pilot,
+                        RESTART_OPERATION,
+                        {"stop": (0, "", ""), "start": (0, "", "")},
+                    )
+
+                    self.assertEqual(calls, ["stop", "start"])
+                    self.assertFalse(app._is_worktree_busy(wt.name))
+                    # Polling still has to confirm the worktree came up
+                    self.assertEqual(wt.status, WorktreeStatus.STARTING)
+                    app.log_store.record_elapsed.assert_called_once()
+                    name, action, _, succeeded = (
+                        app.log_store.record_elapsed.call_args.args
+                    )
+                    self.assertEqual((name, action, succeeded), (wt.name, "Restarted containers", True))
+
+        asyncio.run(exercise())
+
+    def test_a_failed_phase_stops_the_operation(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test(notifications=True) as pilot:
+                    wt, calls = await self._run_operation(
+                        app,
+                        pilot,
+                        RESTART_OPERATION,
+                        {"stop": (1, "", "no such project"), "start": (0, "", "")},
+                    )
+
+                    self.assertEqual(calls, ["stop"])  # start never runs
+                    self.assertFalse(app._is_worktree_busy(wt.name))
+                    self.assertIsNone(wt.clear_operation())  # already cleared
+                    self.assertEqual(
+                        app.screen.query_one("HeaderNotification").render().plain,
+                        "Failed to restart: no such project",
+                    )
+                    _, action, _, succeeded = (
+                        app.log_store.record_elapsed.call_args.args
+                    )
+                    self.assertEqual((action, succeeded), ("Restarted containers", False))
+
+        asyncio.run(exercise())
+
+    def test_start_uses_one_phase_and_releases_the_lock(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test() as pilot:
+                    wt, calls = await self._run_operation(
+                        app, pilot, START_OPERATION, {"start": (0, "", "")}
+                    )
+
+                    self.assertEqual(calls, ["start"])
+                    self.assertEqual(wt.status, WorktreeStatus.STARTING)
+                    self.assertFalse(app._is_any_operation_running())
+                    _, action, _, succeeded = (
+                        app.log_store.record_elapsed.call_args.args
+                    )
+                    self.assertEqual((action, succeeded), ("Started containers", True))
 
         asyncio.run(exercise())

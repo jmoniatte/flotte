@@ -13,11 +13,10 @@ from textual.widgets import RichLog, Static, TabbedContent, TabPane
 from textual.worker import Worker
 from rich.text import Text
 
-from .. import REPOSITORY_URL, __version__
 from ..models import LinkedWorktree
 from ..services.docker_manager import DockerManager
 from ..services.worktree_log import WorktreeLogStore
-from ..widgets import DashedTableFooter, HeaderNotification, WebLink
+from ..widgets import AppHeader, DashedTableFooter
 
 
 def _local_timezone_name() -> str:
@@ -102,14 +101,7 @@ class LogsScreen(Screen):
         self._docker_worker: Worker[None] | None = None
 
     def compose(self) -> ComposeResult:
-        with Horizontal(id="app-header"):
-            with Vertical(id="app-title-group"):
-                yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
-                yield Static(f"v{__version__}", id="app-subtitle")
-            yield Static("", classes="header-notification-spacer")
-            yield HeaderNotification()
-            yield Static("", id="header-spacer")
-            yield Static(self.project_name, id="project-name")
+        yield AppHeader(Static(self.project_name, id="project-name"))
         with Vertical(id="worktree-log-screen"):
             with Horizontal(id="log-breadcrumbs"):
                 yield Static("Worktrees", id="log-breadcrumb-worktrees")

@@ -5,6 +5,7 @@ from .linked_repositories import LinkedRepositories, LinkedRepositoryAction
 from .web_link import WebLink
 from .table_rules import DashedTableFooter
 from .header_notification import HeaderNotification
+from .app_header import AppHeader
 
 __all__ = [
     "ContainerControls",
@@ -17,4 +18,5 @@ __all__ = [
     "WebLink",
     "DashedTableFooter",
     "HeaderNotification",
+    "AppHeader",
 ]
