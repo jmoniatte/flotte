@@ -235,6 +235,11 @@ class FlotteApp(App):
                             "and worktree_path.",
                             id="no-config-help"
                         )
+                        if self.config.warnings:
+                            yield Static(
+                                "\n".join(self.config.warnings),
+                                id="no-config-warnings",
+                            )
                     with Horizontal(id="dialog-buttons"):
                         yield Button("Quit", id="quit-btn", variant="error")
             return
@@ -258,6 +263,10 @@ class FlotteApp(App):
         with ContentSwitcher(initial="list-view", id="view-switcher"):
             with Container(id="list-view"):
                 yield Static("Worktrees", id="worktrees-title")
+                if self.config.warnings:
+                    yield Static(
+                        "\n".join(self.config.warnings), id="config-warnings"
+                    )
                 yield Static("", id="project-problems")
                 with Container(id="worktrees-box"):
                     yield WorktreeHeader(id="worktree-header")
@@ -435,7 +444,17 @@ class FlotteApp(App):
         self._show_worktree_list()
         self._activate_current_project()
 
-        self.notify(_random_greeting(), markup=False)
+        if self.config.warnings:
+            self.notify(self._config_warning_summary(), severity="warning", markup=False)
+        else:
+            self.notify(_random_greeting(), markup=False)
+
+    def _config_warning_summary(self) -> str:
+        """A short header line; the list view carries the detail."""
+        count = len(self.config.warnings)
+        if count == 1:
+            return self.config.warnings[0]
+        return f"{count} problems in your config file"
 
     async def refresh_worktrees(self) -> None:
         """Discover and display all worktrees."""

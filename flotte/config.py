@@ -1,12 +1,9 @@
 import yaml
-import logging
 import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
 
 
 # Configuration paths
@@ -67,6 +64,9 @@ class Config:
 
     # Projects list
     projects: list[Project] = field(default_factory=list)
+
+    # Why entries in the config file were skipped; the UI shows these
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -159,6 +159,17 @@ def preflight_config(config: Config) -> PreflightResult:
     return PreflightResult(tuple(config.projects), tuple(project_problems))
 
 
+def _warn(warnings: list[str], message: str) -> None:
+    """Record a config problem for the UI to show."""
+    warnings.append(message)
+
+
+def _entry_label(index: int, entry: object) -> str:
+    """Name an entry the way the user would recognize it in their YAML."""
+    name = entry.get("name") if isinstance(entry, dict) else None
+    return f'"{name}"' if name else f"entry {index + 1}"
+
+
 def _commands(value: object) -> tuple[str, ...]:
     if isinstance(value, str):
         value = [value]
@@ -175,22 +186,25 @@ def _container_log_services(value: object) -> tuple[str, ...]:
     return tuple(str(service).strip() for service in value if str(service).strip())
 
 
-def _linked_repositories(value: object) -> tuple[LinkedRepository, ...]:
+def _linked_repositories(
+    value: object, warnings: list[str], project_label: str
+) -> tuple[LinkedRepository, ...]:
     if not isinstance(value, list):
         return ()
 
     repositories: list[LinkedRepository] = []
     required = ("repository_path", "worktree_path")
-    for item in value:
+    for index, item in enumerate(value):
+        where = f"Project {project_label}, linked repository {_entry_label(index, item)}"
         if not isinstance(item, dict):
-            logger.warning("Skipping invalid linked repository entry: %s", item)
+            _warn(warnings, f"{where}: not a mapping. Skipped.")
             continue
         missing = [field for field in required if field not in item]
         if missing:
-            logger.warning("Skipping linked repository missing fields %s: %s", missing, item)
+            _warn(warnings, f"{where}: missing {', '.join(missing)}. Skipped.")
             continue
         if "{worktree}" not in str(item["worktree_path"]):
-            logger.warning("Skipping linked repository without {worktree} in worktree_path: %s", item)
+            _warn(warnings, f"{where}: worktree_path must contain {{worktree}}. Skipped.")
             continue
 
         ports: list[PortRange] = []
@@ -198,15 +212,15 @@ def _linked_repositories(value: object) -> tuple[LinkedRepository, ...]:
         if isinstance(raw_ports, dict):
             for name, port_range in raw_ports.items():
                 if not isinstance(port_range, str) or "-" not in port_range:
-                    logger.warning("Skipping invalid port range for %s: %s", name, port_range)
+                    _warn(warnings, f"{where}: port {name} must read \"start-end\". Skipped.")
                     continue
                 try:
                     start, end = (int(part.strip()) for part in port_range.split("-", 1))
                 except ValueError:
-                    logger.warning("Skipping invalid port range for %s: %s", name, port_range)
+                    _warn(warnings, f"{where}: port {name} must read \"start-end\". Skipped.")
                     continue
                 if not 1 <= start <= end <= 65535:
-                    logger.warning("Skipping out-of-range ports for %s: %s", name, port_range)
+                    _warn(warnings, f"{where}: port {name} is outside 1-65535. Skipped.")
                     continue
                 ports.append(PortRange(str(name), start, end))
 
@@ -239,7 +253,11 @@ def load_config() -> Config:
         with open(CONFIG_FILE, "r") as f:
             data = yaml.safe_load(f)
 
+        if data is None:
+            _warn(config.warnings, "The config file is empty.")
+            return config
         if not isinstance(data, dict):
+            _warn(config.warnings, "The config file must be a YAML mapping.")
             return config
 
         # Load global settings
@@ -248,17 +266,23 @@ def load_config() -> Config:
 
         # Load projects array
         required_fields = ("name", "repository_path", "worktree_path")
-        if "projects" in data and isinstance(data["projects"], list):
-            for proj_data in data["projects"]:
+        if "projects" in data and not isinstance(data["projects"], list):
+            _warn(config.warnings, "projects: must be a list of project entries.")
+        elif "projects" in data:
+            for index, proj_data in enumerate(data["projects"]):
+                where = f"Project {_entry_label(index, proj_data)}"
                 if not isinstance(proj_data, dict):
-                    logger.warning(f"Skipping invalid project entry: {proj_data}")
+                    _warn(config.warnings, f"{where}: not a mapping. Skipped.")
                     continue
                 missing = [f for f in required_fields if f not in proj_data]
                 if missing:
-                    logger.warning(f"Skipping project missing required fields {missing}: {proj_data}")
+                    _warn(config.warnings, f"{where}: missing {', '.join(missing)}. Skipped.")
                     continue
                 if "{worktree}" not in str(proj_data["worktree_path"]):
-                    logger.warning("Skipping project without {worktree} in worktree_path: %s", proj_data)
+                    _warn(
+                        config.warnings,
+                        f"{where}: worktree_path must contain {{worktree}}. Skipped.",
+                    )
                     continue
                 raw_clone_paths = proj_data.get("clone_paths", [])
                 clone_paths_list: list[str] = []
@@ -276,13 +300,17 @@ def load_config() -> Config:
                     container_log_services=_container_log_services(
                         proj_data.get("container_log_services", [])
                     ),
-                    linked_repositories=_linked_repositories(proj_data.get("linked_repositories", [])),
+                    linked_repositories=_linked_repositories(
+                        proj_data.get("linked_repositories", []),
+                        config.warnings,
+                        _entry_label(index, proj_data),
+                    ),
                 ))
 
     except yaml.YAMLError as e:
-        logger.warning(f"Invalid config file: {e}")
+        _warn(config.warnings, f"The config file is not valid YAML: {e}")
     except Exception as e:
-        logger.warning(f"Error loading config: {e}")
+        _warn(config.warnings, f"The config file could not be read: {e}")
 
     return config
 

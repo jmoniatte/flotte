@@ -79,6 +79,69 @@ class ConfigTests(unittest.TestCase):
             ("test: worktree_path must include {worktree}",),
         )
 
+    def test_load_reports_why_each_entry_was_skipped(self) -> None:
+        text = """
+theme: onedark
+projects:
+  - name: Kept
+    repository_path: /projects/kept
+    worktree_path: /projects/kept-{worktree}
+    linked_repositories:
+      - repository_path: /projects/ui
+        worktree_path: /projects/ui-no-placeholder
+      - repository_path: /projects/api
+        worktree_path: /projects/api-{worktree}
+        ports:
+          vite: "not-a-range"
+  - name: No Placeholder
+    repository_path: /projects/other
+    worktree_path: /projects/other
+  - repository_path: /projects/nameless
+    worktree_path: /projects/nameless-{worktree}
+  - just a string
+"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            config_file = Path(directory) / "config.yaml"
+            config_file.write_text(text)
+            with patch("flotte.config.CONFIG_FILE", config_file):
+                config = load_config()
+
+        self.assertEqual([project.name for project in config.projects], ["Kept"])
+        self.assertEqual(
+            config.warnings,
+            [
+                'Project "Kept", linked repository entry 1: worktree_path must '
+                "contain {worktree}. Skipped.",
+                'Project "Kept", linked repository entry 2: port vite must read '
+                '"start-end". Skipped.',
+                'Project "No Placeholder": worktree_path must contain {worktree}. '
+                "Skipped.",
+                "Project entry 3: missing name. Skipped.",
+                "Project entry 4: not a mapping. Skipped.",
+            ],
+        )
+        # The valid linked repository survives its own bad port
+        self.assertEqual(
+            [linked.name for linked in config.projects[0].linked_repositories], ["api"]
+        )
+
+    def test_load_reports_an_unreadable_config_without_raising(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_file = Path(directory) / "config.yaml"
+            config_file.write_text("projects: [oops\n")
+            with patch("flotte.config.CONFIG_FILE", config_file):
+                broken = load_config()
+
+            config_file.write_text("")
+            with patch("flotte.config.CONFIG_FILE", config_file):
+                empty = load_config()
+
+        self.assertEqual(broken.projects, [])
+        self.assertEqual(len(broken.warnings), 1)
+        self.assertTrue(broken.warnings[0].startswith("The config file is not valid YAML"))
+        self.assertEqual(empty.warnings, ["The config file is empty."])
+
     def test_save_preserves_linked_repository_pre_start_commands(self) -> None:
         repository = LinkedRepository(
             repository_path="/projects/frontend",

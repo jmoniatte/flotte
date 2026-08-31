@@ -597,3 +597,65 @@ class MainTests(unittest.TestCase):
                     self.assertEqual(shortcuts.SECTIONS, ("Actions", "General"))
 
         asyncio.run(exercise())
+
+    def test_config_warnings_reach_the_no_config_screen(self) -> None:
+        async def exercise() -> None:
+            config = Config(warnings=["Project entry 1: not a mapping. Skipped."])
+            with (
+                patch("flotte.app.load_config", return_value=config),
+                patch(
+                    "flotte.app.preflight_config",
+                    return_value=PreflightResult((), ()),
+                ),
+            ):
+                app = FlotteApp()
+                async with app.run_test():
+                    self.assertEqual(
+                        app.query_one("#no-config-warnings", Static).render().plain,
+                        "Project entry 1: not a mapping. Skipped.",
+                    )
+
+        asyncio.run(exercise())
+
+    def test_config_warnings_show_beside_a_loaded_project(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            config.warnings = ["First problem.", "Second problem."]
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test(size=(100, 30), notifications=True) as pilot:
+                    await pilot.pause()
+                    self.assertEqual(
+                        app.query_one("#config-warnings", Static).render().plain,
+                        "First problem.\nSecond problem.",
+                    )
+                    # The warning takes the greeting's place in the header
+                    self.assertEqual(
+                        app.screen.query_one("HeaderNotification").render().plain,
+                        "2 problems in your config file",
+                    )
+
+        asyncio.run(exercise())
+
+    def test_a_clean_config_greets_and_shows_no_warning_panel(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                stack.enter_context(
+                    patch("flotte.app.choice", return_value="Bonjour {name}")
+                )
+                stack.enter_context(patch("flotte.app.getuser", return_value="jean"))
+                app = FlotteApp()
+                async with app.run_test(size=(100, 30), notifications=True) as pilot:
+                    await pilot.pause()
+                    self.assertEqual(list(app.query("#config-warnings")), [])
+                    self.assertEqual(
+                        app.screen.query_one("HeaderNotification").render().plain,
+                        "Bonjour Jean",
+                    )
+
+        asyncio.run(exercise())

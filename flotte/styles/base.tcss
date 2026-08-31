@@ -133,6 +133,14 @@ HeaderNotification.-error {
     border-left: solid $red;
 }
 
+#config-warnings {
+    height: auto;
+    margin: 1 1;
+    padding: 0 1;
+    color: $yellow;
+    border-left: solid $yellow;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    WORKTREES BOX
    ═══════════════════════════════════════════════════════════════════════ */
@@ -1367,6 +1375,11 @@ Toast.-error {
 
 #no-config-help {
     color: $comment;
+    margin-top: 1;
+}
+
+#no-config-warnings {
+    color: $yellow;
     margin-top: 1;
 }
 
