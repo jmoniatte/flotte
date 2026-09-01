@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ..config import LinkedRepository
 from ..models import GitStatus, LinkedWorktree, Worktree
-from .git_status import get_git_status
+from .git_status import get_git_status, get_git_status_strict
 from .link_state_store import LinkStateStore
 from .process_identity import capture_process_identity, matches_process_identity
 from .worktree_manager import WorktreeManager
@@ -37,7 +37,6 @@ class LinkedWorktreeManager:
             repository.name: WorktreeManager(
                 main_repo_path=Path(repository.repository_path),
                 worktree_path_template=repository.worktree_path,
-                manage_environment=False,
             )
             for repository in repositories
         }
@@ -118,10 +117,7 @@ class LinkedWorktreeManager:
             if existing_path and existing_path.exists():
                 linked_path = existing_path
             else:
-                exists = subprocess.run(
-                    ["git", "-C", str(manager.main_repo_path), "show-ref", "--verify", "--quiet", f"refs/heads/{primary.branch}"],
-                    capture_output=True,
-                ).returncode == 0
+                exists = manager.git.branch_exists(primary.branch)
                 linked_path = manager.create_worktree_sync(
                     primary.branch,
                     base_branch=None if exists else "HEAD",
@@ -385,7 +381,12 @@ class LinkedWorktreeManager:
                 message = result.stderr.decode("utf-8", errors="replace").strip()
                 raise RuntimeError(message or f"Link command failed: {command}")
 
-    async def linked_statuses(self, primary: Worktree) -> dict[str, GitStatus]:
+    async def linked_statuses(
+        self,
+        primary: Worktree,
+        *,
+        strict: bool = False,
+    ) -> dict[str, GitStatus]:
         """Return git status keyed by linked repository name for delete preflight."""
         status_requests: list[tuple[str, Path]] = []
         for linked in primary.linked_worktrees:
@@ -394,8 +395,9 @@ class LinkedWorktreeManager:
             if linked.repository_name in self.managers:
                 status_requests.append((linked.repository_name, linked.path))
 
+        read_status = get_git_status_strict if strict else get_git_status
         statuses = await asyncio.gather(
-            *(get_git_status(path) for _, path in status_requests)
+            *(read_status(path) for _, path in status_requests)
         )
         return {
             repository_name: status
@@ -432,13 +434,12 @@ class LinkedWorktreeManager:
                     path,
                     ports,
                 )
-                result = await asyncio.to_thread(
-                    subprocess.run,
-                    ["git", "-C", repository.repository_path, "worktree", "remove", "--force", str(path)],
-                    capture_output=True,
+                returncode, _, error = await asyncio.to_thread(
+                    self.managers[repository.name].git.remove_worktree,
+                    path,
+                    force=True,
                 )
-                if result.returncode != 0:
-                    error = result.stderr.decode("utf-8", errors="replace").strip()
+                if returncode != 0:
                     raise RuntimeError(f"Failed to remove {repository.name} worktree: {error}")
                 self.managers[repository.name].prune_empty_worktree_parents(path)
         self.link_state.release(key)

@@ -1177,6 +1177,30 @@ DeleteWorktreeScreen #cancel-btn:focus {
     text-style: bold;
 }
 
+DeleteWorktreeScreen #discard-btn {
+    background: $yellow 30%;
+    color: $yellow;
+}
+
+DeleteWorktreeScreen #discard-btn:hover,
+DeleteWorktreeScreen #discard-btn:focus {
+    background: $yellow;
+    color: $bg-dark;
+    text-style: bold;
+}
+
+DeleteWorktreeScreen #commit-btn {
+    background: $blue 30%;
+    color: $blue;
+}
+
+DeleteWorktreeScreen #commit-btn:hover,
+DeleteWorktreeScreen #commit-btn:focus {
+    background: $blue;
+    color: $bg-dark;
+    text-style: bold;
+}
+
 DeleteWorktreeScreen #delete-btn {
     background: $red 30%;
     color: $red;

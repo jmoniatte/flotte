@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 from flotte.models import GitStatus, LinkedWorktree, Worktree
 from flotte.services.linked_repository_controller import LinkedRepositoryController
@@ -88,3 +88,10 @@ class LinkedRepositoryControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((log[1], log[3]), ("Unlinked rwgps-ui", True))
         self.assertTrue(has_changes)
         self.assertEqual(changed, ["rwgps-ui"])
+        self.assertEqual(
+            self.manager.linked_statuses.await_args_list,
+            [
+                call(self.worktree, strict=False),
+                call(self.worktree, strict=True),
+            ],
+        )

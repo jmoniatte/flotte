@@ -1,7 +1,13 @@
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from flotte.models import GitStatus
-from flotte.services.git_status import parse_porcelain
+from flotte.services.git_status import (
+    get_git_status_strict_sync,
+    get_git_status_sync,
+    parse_porcelain,
+)
 
 
 class GitStatusTests(unittest.TestCase):
@@ -30,3 +36,39 @@ class GitStatusTests(unittest.TestCase):
 
         self.assertFalse(clean.has_changes)
         self.assertTrue(changed.has_changes)
+
+    def test_status_reads_changes_and_upstream_divergence_through_git_client(self) -> None:
+        with patch(
+            "flotte.services.git_status.GitClient.run",
+            side_effect=((0, " M changed.py\n", ""), (0, "2 3\n", "")),
+        ) as run:
+            status = get_git_status_sync(Path("/tmp/worktree"))
+
+        self.assertEqual(status, GitStatus(unstaged=1, ahead=3, behind=2))
+        self.assertEqual(
+            [item.args for item in run.call_args_list],
+            [
+                ("status", "--porcelain"),
+                ("rev-list", "--left-right", "--count", "@{upstream}...HEAD"),
+            ],
+        )
+
+    def test_strict_status_rejects_a_failed_worktree_inspection(self) -> None:
+        with patch(
+            "flotte.services.git_status.GitClient.run",
+            return_value=(-1, "", "git unavailable"),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Could not inspect /tmp/worktree: git unavailable",
+            ):
+                get_git_status_strict_sync(Path("/tmp/worktree"))
+
+        with patch(
+            "flotte.services.git_status.GitClient.run",
+            return_value=(-1, "", "git unavailable"),
+        ):
+            self.assertEqual(
+                get_git_status_sync(Path("/tmp/worktree")),
+                GitStatus(),
+            )

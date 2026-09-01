@@ -28,8 +28,13 @@ class LinkedRepositoryController:
     def attach(self, worktree: Worktree) -> None:
         self._manager.attach(worktree)
 
-    async def statuses(self, worktree: Worktree) -> dict[str, GitStatus]:
-        return await self._manager.linked_statuses(worktree)
+    async def statuses(
+        self,
+        worktree: Worktree,
+        *,
+        strict: bool = False,
+    ) -> dict[str, GitStatus]:
+        return await self._manager.linked_statuses(worktree, strict=strict)
 
     async def remove_all(self, worktree: Worktree) -> None:
         await self._manager.remove_links(worktree)
@@ -125,5 +130,5 @@ class LinkedRepositoryController:
         return bool(status and status.has_changes)
 
     async def changed_repositories(self, worktree: Worktree) -> list[str]:
-        statuses = await self.statuses(worktree)
+        statuses = await self.statuses(worktree, strict=True)
         return [name for name, status in statuses.items() if status.has_changes]

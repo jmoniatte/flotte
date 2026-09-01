@@ -6,6 +6,7 @@ from .web_link import WebLink
 from .table_rules import DashedTableFooter
 from .header_notification import HeaderNotification
 from .app_header import AppHeader
+from .views import WorktreeDetailView, WorktreeListView
 
 __all__ = [
     "ContainerControls",
@@ -19,4 +20,6 @@ __all__ = [
     "DashedTableFooter",
     "HeaderNotification",
     "AppHeader",
+    "WorktreeDetailView",
+    "WorktreeListView",
 ]

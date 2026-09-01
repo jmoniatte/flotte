@@ -12,14 +12,17 @@ from flotte.__main__ import main
 from flotte.app import (
     FlotteApp,
     GREETING_TEMPLATES,
-    RESTART_OPERATION,
-    START_OPERATION,
 )
 from flotte.config import Config, LinkedRepository, PreflightResult, Project
 from flotte.models import Container, GitStatus, LinkedWorktree, Worktree
 from flotte.models.container import ContainerState
 from flotte.models.worktree import WorktreeStatus
 from flotte.services.docker_manager import DockerManager
+from flotte.services.environment_manager import (
+    EnvironmentOperationResult,
+    RESTART_ENVIRONMENT,
+    START_ENVIRONMENT,
+)
 from flotte.screens import HelpScreen, LogsScreen
 from flotte.screens.create_worktree import CreateWorktreeScreen
 from flotte.widgets import AppHeader, WebLink, WorktreeHeader
@@ -171,6 +174,7 @@ class MainTests(unittest.TestCase):
                     self.assertIn("projects:", help_text)
                     self.assertNotIn("[[projects]]", help_text)
                     self.assertIn("worktree_path", help_text)
+                    app.action_new_worktree()
 
         asyncio.run(exercise())
 
@@ -506,25 +510,51 @@ class MainTests(unittest.TestCase):
                     second = Worktree("bugfix", Path("/tmp/bugfix"))
                     app.project.worktrees.update({wt.name: wt for wt in (first, second)})
                     app.selected_worktree = first
+                    releases = {
+                        first.name: asyncio.Event(),
+                        second.name: asyncio.Event(),
+                    }
+
+                    async def perform(worktree, *_args):
+                        await releases[worktree.name].wait()
+                        return EnvironmentOperationResult(True)
+
+                    app.environment_manager.perform = AsyncMock(side_effect=perform)
                     await pilot.pause()
 
-                    self.assertTrue(app._acquire_operation_lock("start", first.name))
-                    self.assertTrue(app._acquire_operation_lock("start", second.name))
-                    self.assertFalse(app._acquire_operation_lock("stop", first.name))
-                    self.assertTrue(app._is_worktree_busy(first.name))
+                    first_task = app.workspace_manager.run_environment(
+                        first,
+                        START_ENVIRONMENT,
+                        app._update_container_view,
+                    )
+                    second_task = app.workspace_manager.run_environment(
+                        second,
+                        START_ENVIRONMENT,
+                        app._update_container_view,
+                    )
+                    duplicate = app.workspace_manager.run_environment(
+                        first,
+                        START_ENVIRONMENT,
+                        app._update_container_view,
+                    )
+                    self.assertIsNotNone(first_task)
+                    self.assertIsNotNone(second_task)
+                    self.assertIsNone(duplicate)
+                    self.assertTrue(app.workspace_manager.is_busy(first.name))
                     self.assertTrue(app.query_one("#btn-ride", Button).disabled)
 
                     # Controls follow the selected worktree, not the busiest one
                     app.selected_worktree = second
-                    app._release_operation_lock(second.name)
+                    releases[second.name].set()
+                    await second_task
                     self.assertFalse(app.query_one("#btn-ride", Button).disabled)
-                    self.assertFalse(app._is_worktree_busy(second.name))
-                    self.assertTrue(app._is_worktree_busy(first.name))
-                    self.assertTrue(app._is_any_operation_running())
+                    self.assertFalse(app.workspace_manager.is_busy(second.name))
+                    self.assertTrue(app.workspace_manager.is_busy(first.name))
+                    self.assertTrue(app.workspace_manager.has_active_operations())
 
-                    app._release_operation_lock(first.name)
-                    app._release_operation_lock(first.name)  # idempotent
-                    self.assertFalse(app._is_any_operation_running())
+                    releases[first.name].set()
+                    await first_task
+                    self.assertFalse(app.workspace_manager.has_active_operations())
 
         asyncio.run(exercise())
 
@@ -741,6 +771,7 @@ class MainTests(unittest.TestCase):
         app.project.worktrees[wt.name] = wt
         app.selected_worktree = wt
         app.log_store = Mock()
+        app.environment_manager.log_store = app.log_store
         await pilot.pause()
 
         with (
@@ -752,7 +783,7 @@ class MainTests(unittest.TestCase):
             app._run_compose_operation(operation)
             for _ in range(100):
                 await pilot.pause()
-                if not app._is_worktree_busy(wt.name):
+                if not app.workspace_manager.is_busy(wt.name):
                     break
                 await asyncio.sleep(0.02)
 
@@ -769,12 +800,12 @@ class MainTests(unittest.TestCase):
                     wt, calls = await self._run_operation(
                         app,
                         pilot,
-                        RESTART_OPERATION,
+                        RESTART_ENVIRONMENT,
                         {"stop": (0, "", ""), "start": (0, "", "")},
                     )
 
                     self.assertEqual(calls, ["stop", "start"])
-                    self.assertFalse(app._is_worktree_busy(wt.name))
+                    self.assertFalse(app.workspace_manager.is_busy(wt.name))
                     # Polling still has to confirm the worktree came up
                     self.assertEqual(wt.status, WorktreeStatus.STARTING)
                     app.log_store.record_elapsed.assert_called_once()
@@ -796,12 +827,12 @@ class MainTests(unittest.TestCase):
                     wt, calls = await self._run_operation(
                         app,
                         pilot,
-                        RESTART_OPERATION,
+                        RESTART_ENVIRONMENT,
                         {"stop": (1, "", "no such project"), "start": (0, "", "")},
                     )
 
                     self.assertEqual(calls, ["stop"])  # start never runs
-                    self.assertFalse(app._is_worktree_busy(wt.name))
+                    self.assertFalse(app.workspace_manager.is_busy(wt.name))
                     self.assertIsNone(wt.clear_operation())  # already cleared
                     self.assertEqual(
                         app.screen.query_one("HeaderNotification").render().plain,
@@ -823,12 +854,12 @@ class MainTests(unittest.TestCase):
                 app = FlotteApp()
                 async with app.run_test() as pilot:
                     wt, calls = await self._run_operation(
-                        app, pilot, START_OPERATION, {"start": (0, "", "")}
+                        app, pilot, START_ENVIRONMENT, {"start": (0, "", "")}
                     )
 
                     self.assertEqual(calls, ["start"])
                     self.assertEqual(wt.status, WorktreeStatus.STARTING)
-                    self.assertFalse(app._is_any_operation_running())
+                    self.assertFalse(app.workspace_manager.has_active_operations())
                     _, action, _, succeeded = (
                         app.log_store.record_elapsed.call_args.args
                     )

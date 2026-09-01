@@ -1,4 +1,6 @@
 import asyncio
+import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -47,6 +49,80 @@ class _LogProcess:
 
 
 class DockerManagerTests(unittest.IsolatedAsyncioTestCase):
+    def test_compose_config_drives_volumes_images_and_bind_mounts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = {
+                "volumes": {"database": {}},
+                "services": {
+                    "web": {
+                        "build": ".",
+                        "volumes": [
+                            {
+                                "type": "bind",
+                                "source": str(root / "files"),
+                                "target": "/app/files",
+                            },
+                            {
+                                "type": "bind",
+                                "source": "/outside",
+                                "target": "/outside",
+                            },
+                        ],
+                    }
+                },
+            }
+            manager = DockerManager(root, "acme")
+            with patch.object(
+                manager,
+                "_run_sync",
+                return_value=(0, json.dumps(config), ""),
+            ) as run:
+                self.assertEqual(manager.get_volumes_sync(), ["database"])
+                self.assertEqual(manager.get_built_services_sync(), ["web"])
+                self.assertEqual(manager.get_bind_mounts_sync(), ["files"])
+
+            self.assertEqual(run.call_count, 3)
+
+    def test_only_volume_metadata_is_cached(self) -> None:
+        manager = DockerManager(Path("/tmp/project"), "acme")
+        first = {
+            "volumes": {"database": {}},
+            "services": {"web": {"build": "."}},
+        }
+        second = {
+            "volumes": {"replacement": {}},
+            "services": {"worker": {"build": "."}},
+        }
+        with patch.object(
+            manager,
+            "_run_sync",
+            side_effect=(
+                (0, json.dumps(first), ""),
+                (0, json.dumps(second), ""),
+            ),
+        ) as run:
+            self.assertEqual(manager.get_volumes_sync(), ["database"])
+            self.assertEqual(manager.get_built_services_sync(), ["worker"])
+            self.assertEqual(manager.get_volumes_sync(), ["database"])
+
+        self.assertEqual(run.call_count, 2)
+
+    def test_failed_volume_config_is_retried(self) -> None:
+        manager = DockerManager(Path("/tmp/project"), "acme")
+        with patch.object(
+            manager,
+            "_run_sync",
+            side_effect=(
+                (1, "", "Docker unavailable"),
+                (0, '{"volumes":{"database":{}}}', ""),
+            ),
+        ) as run:
+            self.assertEqual(manager.get_volumes_sync(), [])
+            self.assertEqual(manager.get_volumes_sync(), ["database"])
+
+        self.assertEqual(run.call_count, 2)
+
     async def test_lifecycle_commands_share_the_compose_runner(self) -> None:
         manager = DockerManager(Path("/tmp/project"), "acme-feature")
         manager._run_compose = AsyncMock(return_value=(0, "", ""))

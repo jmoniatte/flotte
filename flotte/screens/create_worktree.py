@@ -7,7 +7,7 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Input, Select, Checkbox, Button, Static, TabbedContent, TabPane
 from textual.app import ComposeResult
 
-from ..services import WorktreeCreationResult, WorktreeCreator
+from ..services import WorkspaceManager, WorktreeCreationResult
 
 # Failures scroll by while the user watches creation, so they outlast the 5s default
 FAILURE_TOAST_TIMEOUT = 20.0
@@ -30,12 +30,11 @@ class CreateWorktreeScreen(ModalScreen[WorktreeCreationResult | None]):
 
     def __init__(
         self,
-        creator: WorktreeCreator,
+        workspace_manager: WorkspaceManager,
         existing_branches: Collection[str],
     ):
         super().__init__()
-        self.creator = creator
-        self.worktree_manager = creator.manager
+        self.workspace_manager = workspace_manager
         self.existing_branches = frozenset(existing_branches)
         self._is_new_branch_mode: bool = True
 
@@ -75,21 +74,7 @@ class CreateWorktreeScreen(ModalScreen[WorktreeCreationResult | None]):
 
     async def _load_branches(self) -> None:
         """Fetch local git branches and populate both select widgets."""
-        import asyncio
-
-        proc = await asyncio.create_subprocess_exec(
-            "git", "branch", "--format=%(refname:short)",
-            cwd=self.worktree_manager.main_repo_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await proc.communicate()
-
-        branches = []
-        for line in stdout.decode().strip().split("\n"):
-            branch = line.strip()
-            if branch:
-                branches.append(branch)
+        branches = await self.workspace_manager.branches()
 
         # Sort with common branches first
         priority = ["beta", "master", "main", "develop"]
@@ -215,7 +200,7 @@ class CreateWorktreeScreen(ModalScreen[WorktreeCreationResult | None]):
     async def _do_create(self, params: CreateWorktreeParams) -> None:
         """Perform the actual worktree creation."""
         try:
-            result = await self.creator.create(
+            result = await self.workspace_manager.create(
                 params.branch_name,
                 params.base_branch,
                 clone_data=params.clone_data,

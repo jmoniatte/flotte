@@ -9,6 +9,7 @@ from .worktree import Worktree
 
 if TYPE_CHECKING:
     from textual.app import App
+    from ..services.environment_manager import EnvironmentManager
 
 # Reconciliation intervals; docker events wake the loop early on real changes
 POLL_INTERVAL_TRANSIENT = 5.0  # seconds, while an operation is pending
@@ -32,8 +33,9 @@ CONTAINER_STATE_EVENTS = (
 class Project:
     """Own the active worktrees and their container polling loop."""
 
-    def __init__(self):
+    def __init__(self, environment: EnvironmentManager):
         self.worktrees: dict[str, Worktree] = {}
+        self.environment = environment
 
         # Polling state
         self._app: App | None = None
@@ -173,28 +175,24 @@ class Project:
     async def _poll(self) -> None:
         """Poll all worktrees and notify UI of changes."""
         from ..messages import OperationCompleted, WorktreeStatusChanged
-        from ..services.docker_manager import get_all_containers_by_project
-
         async with self._poll_lock:
             worktree_list = list(self.worktrees.values())
             if not worktree_list:
                 return
 
-            # One docker ps call covers every worktree
-            by_project = await get_all_containers_by_project()
-            results = await asyncio.gather(
-                *[
-                    wt.poll(by_project.get(wt.compose_project_name, []))
-                    for wt in worktree_list
-                ]
-            )
+            results = await self.environment.reconcile(worktree_list)
 
             if self._app:
-                for wt, (changed, cleared) in zip(worktree_list, results):
-                    if changed:
-                        self._app.post_message(WorktreeStatusChanged(wt))
-                    if cleared is not None:
-                        self._app.post_message(OperationCompleted(wt, cleared))
+                for result in results:
+                    if result.changed:
+                        self._app.post_message(WorktreeStatusChanged(result.worktree))
+                    if result.completed_operation is not None:
+                        self._app.post_message(
+                            OperationCompleted(
+                                result.worktree,
+                                result.completed_operation,
+                            )
+                        )
 
     def _get_poll_interval(self) -> float:
         """Reconciliation interval: fast during operations, slow when unfocused."""
