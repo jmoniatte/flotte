@@ -1,10 +1,13 @@
 """Configure the runnable environment associated with a worktree."""
 
 import asyncio
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
+
+import yaml
 
 from ..models import Worktree
 from ..models.container import Container
@@ -14,6 +17,8 @@ from .environment_provisioner import EnvironmentProvisioner
 from .worktree_log import WorktreeLogStore
 
 PORT_OFFSET_INCREMENT = 100
+COMPOSE_FILE = "docker-compose.yml"
+_ENV_REFERENCE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,8 +277,9 @@ class EnvironmentManager:
 
     def _port_offset(self, env: dict[str, str]) -> int:
         main_env = self._read_env(self.main_repo_path)
+        is_host_port = self._host_port_matcher()
         for key, value in env.items():
-            if not key.endswith("_PORT") or key not in main_env:
+            if not is_host_port(key) or key not in main_env:
                 continue
             try:
                 return int(value) - int(main_env[key])
@@ -298,12 +304,39 @@ class EnvironmentManager:
             return {}
         return env
 
+    def _host_port_matcher(self) -> Callable[[str], bool]:
+        """Match env keys that set host-side ports in the main compose file.
+
+        Only variables referenced under a service's ``ports`` get offset, so a
+        key like SMTP_PORT that names a remote service is copied unchanged.
+        Without a readable compose file, fall back to the ``_PORT`` suffix.
+        """
+        compose_path = self.main_repo_path / COMPOSE_FILE
+        try:
+            document = yaml.safe_load(compose_path.read_text())
+        except (OSError, yaml.YAMLError):
+            return lambda key: key.endswith("_PORT")
+
+        services = document.get("services") if isinstance(document, dict) else None
+        if not isinstance(services, dict):
+            return lambda key: key.endswith("_PORT")
+
+        keys: set[str] = set()
+        for service in services.values():
+            ports = service.get("ports") if isinstance(service, dict) else None
+            for entry in ports or []:
+                if isinstance(entry, dict):
+                    entry = entry.get("published", "")
+                keys.update(_ENV_REFERENCE.findall(str(entry)))
+        return keys.__contains__
+
     def _write_env(self, worktree_path: Path, project_name: str, offset: int) -> None:
         lines = [f"COMPOSE_PROJECT_NAME={project_name}"]
+        is_host_port = self._host_port_matcher()
         for key, value in self._read_env(self.main_repo_path).items():
             if key == "COMPOSE_PROJECT_NAME":
                 continue
-            if key.endswith("_PORT"):
+            if is_host_port(key):
                 try:
                     value = str(int(value) + offset)
                 except ValueError:

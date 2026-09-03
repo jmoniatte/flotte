@@ -91,11 +91,22 @@ class EnvironmentManagerTests(unittest.TestCase):
             main_path.mkdir()
             existing_path.mkdir()
             created_path.mkdir()
+            (main_path / "docker-compose.yml").write_text(
+                "services:\n"
+                "  app:\n"
+                "    ports:\n"
+                '      - "${APP_PORT:-3000}:3000"\n'
+                "  db:\n"
+                "    ports:\n"
+                "      - target: 5432\n"
+                "        published: $DB_PORT\n"
+            )
             (main_path / ".env").write_text(
-                "COMPOSE_PROJECT_NAME=flotte\nAPP_PORT=3000\nNAME=test\n"
+                "COMPOSE_PROJECT_NAME=flotte\nAPP_PORT=3000\nDB_PORT=5432\n"
+                "SMTP_PORT=587\nNAME=test\n"
             )
             (existing_path / ".env").write_text(
-                "COMPOSE_PROJECT_NAME=flotte-existing\nAPP_PORT=3100\n"
+                "COMPOSE_PROJECT_NAME=flotte-existing\nSMTP_PORT=587\nAPP_PORT=3100\n"
             )
             existing = Worktree("existing", existing_path)
             created = Worktree("created", created_path)
@@ -108,5 +119,6 @@ class EnvironmentManagerTests(unittest.TestCase):
             self.assertEqual(existing.compose_project_name, "flotte-existing")
             self.assertEqual(
                 (created_path / ".env").read_text(),
-                "COMPOSE_PROJECT_NAME=flotte-created\nAPP_PORT=3200\nNAME=test\n",
+                "COMPOSE_PROJECT_NAME=flotte-created\nAPP_PORT=3200\nDB_PORT=5632\n"
+                "SMTP_PORT=587\nNAME=test\n",
             )
