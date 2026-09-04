@@ -112,13 +112,18 @@ class EnvironmentManagerTests(unittest.TestCase):
             created = Worktree("created", created_path)
             manager = EnvironmentManager(main_path)
 
-            manager.configure(created, [existing])
+            with patch.object(
+                EnvironmentManager,
+                "_port_is_free",
+                staticmethod(lambda port: port != 3200),
+            ):
+                manager.configure(created, [existing])
             manager.attach(existing)
 
             self.assertEqual(created.compose_project_name, "flotte-created")
             self.assertEqual(existing.compose_project_name, "flotte-existing")
             self.assertEqual(
                 (created_path / ".env").read_text(),
-                "COMPOSE_PROJECT_NAME=flotte-created\nAPP_PORT=3200\nDB_PORT=5632\n"
+                "COMPOSE_PROJECT_NAME=flotte-created\nAPP_PORT=3300\nDB_PORT=5732\n"
                 "SMTP_PORT=587\nNAME=test\n",
             )

@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+import socket
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -271,9 +272,34 @@ class EnvironmentManager:
             if (offset := self._port_offset(self._read_env(worktree.path))) > 0
         }
         candidate = PORT_OFFSET_INCREMENT
-        while candidate in used_offsets:
+        while candidate in used_offsets or not self._offset_is_free(candidate):
             candidate += PORT_OFFSET_INCREMENT
         return candidate
+
+    def _offset_is_free(self, offset: int) -> bool:
+        """Check the host, since other projects and non-flotte services bind ports too."""
+        is_host_port = self._host_port_matcher()
+        for key, value in self._read_env(self.main_repo_path).items():
+            if not is_host_port(key):
+                continue
+            try:
+                port = int(value) + offset
+            except ValueError:
+                continue
+            if port > 65535:
+                return True
+            if not self._port_is_free(port):
+                return False
+        return True
+
+    @staticmethod
+    def _port_is_free(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(("0.0.0.0", port))
+            except OSError:
+                return False
+        return True
 
     def _port_offset(self, env: dict[str, str]) -> int:
         main_env = self._read_env(self.main_repo_path)
