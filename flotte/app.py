@@ -215,6 +215,7 @@ class FlotteApp(App):
             config_project.clone_paths,
             config_project.post_create_commands,
             self.log_store,
+            config_project.compose_files,
         )
         self.project = Project(self.environment_manager)
         if config_project.linked_repositories:
@@ -904,6 +905,7 @@ class FlotteApp(App):
                 DockerManager(
                     self.selected_worktree.path,
                     self.selected_worktree.compose_project_name,
+                    self.current_config_project.compose_files,
                 ),
                 {
                     container.name: container.service

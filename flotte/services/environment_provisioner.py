@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from time import perf_counter
 
+from ..config import DEFAULT_COMPOSE_FILE
 from ..models import Worktree
 from ._process import run_command
 from .docker_manager import DockerManager
@@ -21,13 +22,14 @@ class EnvironmentProvisioner:
         clone_paths: tuple[str, ...],
         post_create_commands: tuple[str, ...],
         log_store: WorktreeLogStore | None,
+        compose_files: tuple[str, ...] = (DEFAULT_COMPOSE_FILE,),
     ) -> None:
         self.main_repo_path = main_repo_path
         self.clone_paths = clone_paths
         self.post_create_commands = post_create_commands
         self.log_store = log_store
         self.git = GitClient(main_repo_path)
-        self.docker = DockerManager(main_repo_path, source_project)
+        self.docker = DockerManager(main_repo_path, source_project, compose_files)
 
     async def provision(
         self,

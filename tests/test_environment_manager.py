@@ -82,6 +82,50 @@ class EnvironmentManagerTests(unittest.TestCase):
             self.assertIsNone(second.completed_operation)
             services.assert_awaited_once_with()
 
+    def test_host_ports_are_collected_from_every_compose_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main_path = root / "main"
+            created_path = root / "created"
+            main_path.mkdir()
+            created_path.mkdir()
+            (main_path / "compose.yml").write_text(
+                "services:\n  app:\n    ports:\n      - \"${APP_PORT}:3000\"\n"
+            )
+            (main_path / "compose.dev.yml").write_text(
+                "services:\n  db:\n    ports:\n      - \"${DB_PORT}:5432\"\n"
+            )
+            (main_path / ".env").write_text(
+                "COMPOSE_PROJECT_NAME=flotte\nAPP_PORT=3000\nDB_PORT=5432\nSMTP_PORT=587\n"
+            )
+            created = Worktree("created", created_path)
+            manager = EnvironmentManager(
+                main_path, compose_files=("compose.yml", "compose.dev.yml")
+            )
+
+            with (
+                patch.object(
+                    EnvironmentManager, "_port_is_free", staticmethod(lambda port: True)
+                ),
+                patch(
+                    "flotte.services.environment_manager.DockerManager.get_services",
+                    AsyncMock(return_value=["app", "db"]),
+                ) as get_services,
+            ):
+                manager.configure(created, [])
+                for path in ("compose.yml", "compose.dev.yml"):
+                    (created_path / path).write_text((main_path / path).read_text())
+                first = asyncio.run(manager._services_for(created))
+                second = asyncio.run(manager._services_for(created))
+
+            self.assertEqual(
+                (created_path / ".env").read_text(),
+                "COMPOSE_PROJECT_NAME=flotte-created\nAPP_PORT=3100\nDB_PORT=5532\n"
+                "SMTP_PORT=587\n",
+            )
+            self.assertEqual((first, second), (["app", "db"], ["app", "db"]))
+            self.assertEqual(get_services.await_count, 1)
+
     def test_configure_allocates_ports_and_attaches_compose_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

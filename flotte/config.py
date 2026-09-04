@@ -9,6 +9,7 @@ from pathlib import Path
 # Configuration paths
 CONFIG_DIR = Path.home() / ".config" / "flotte"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
+DEFAULT_COMPOSE_FILE = "docker-compose.yml"
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,8 @@ class Project:
     # Env file flotte reads and writes per worktree, relative to the worktree root.
     # Only ".env" is auto-loaded by docker compose; other values need --env-file.
     env_file: str = ".env"
+    # Compose files passed to docker compose as -f, relative to the worktree root
+    compose_files: tuple[str, ...] = (DEFAULT_COMPOSE_FILE,)
     clone_paths: tuple[str, ...] = ()
     container_log_services: tuple[str, ...] = ()
     linked_repositories: tuple[LinkedRepository, ...] = ()
@@ -178,6 +181,15 @@ def _commands(value: object) -> tuple[str, ...]:
     return tuple(str(command) for command in value if str(command).strip())
 
 
+def _compose_files(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return (DEFAULT_COMPOSE_FILE,)
+    files = tuple(str(path).strip() for path in value if str(path).strip())
+    return files or (DEFAULT_COMPOSE_FILE,)
+
+
 def _container_log_services(value: object) -> tuple[str, ...]:
     if isinstance(value, str):
         value = value.split(",")
@@ -296,6 +308,7 @@ def load_config() -> Config:
                     post_create_commands=_commands(proj_data.get("post_create_commands", [])),
                     ride_command=str(proj_data.get("ride_command", "")),
                     env_file=str(proj_data.get("env_file") or ".env"),
+                    compose_files=_compose_files(proj_data.get("compose_files")),
                     clone_paths=tuple(clone_paths_list),  # flat list of relative paths
                     container_log_services=_container_log_services(
                         proj_data.get("container_log_services", [])
@@ -333,6 +346,8 @@ def save_config(config: Config) -> None:
             }
             if project.post_create_commands:
                 proj_dict["post_create_commands"] = list(project.post_create_commands)
+            if project.compose_files != (DEFAULT_COMPOSE_FILE,):
+                proj_dict["compose_files"] = list(project.compose_files)
             if project.clone_paths:
                 proj_dict["clone_paths"] = list(project.clone_paths)
             if project.container_log_services:

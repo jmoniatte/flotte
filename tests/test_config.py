@@ -142,6 +142,51 @@ projects:
         self.assertTrue(broken.warnings[0].startswith("The config file is not valid YAML"))
         self.assertEqual(empty.warnings, ["The config file is empty."])
 
+    def test_compose_files_accept_a_string_or_a_list_and_round_trip(self) -> None:
+        text = """
+projects:
+  - name: Listed
+    repository_path: /projects/listed
+    worktree_path: /projects/listed-{worktree}
+    compose_files:
+      - compose.yml
+      - compose.dev.yml
+  - name: Single
+    repository_path: /projects/single
+    worktree_path: /projects/single-{worktree}
+    compose_files: docker/compose.yml
+  - name: Default
+    repository_path: /projects/default
+    worktree_path: /projects/default-{worktree}
+    compose_files: []
+"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            config_dir = Path(directory)
+            config_file = config_dir / "config.yaml"
+            config_file.write_text(text)
+            with (
+                patch("flotte.config.CONFIG_DIR", config_dir),
+                patch("flotte.config.CONFIG_FILE", config_file),
+            ):
+                config = load_config()
+                save_config(config)
+                saved = yaml.safe_load(config_file.read_text())
+                reloaded = load_config()
+
+        listed, single, default = config.projects
+        self.assertEqual(listed.compose_files, ("compose.yml", "compose.dev.yml"))
+        self.assertEqual(single.compose_files, ("docker/compose.yml",))
+        self.assertEqual(default.compose_files, ("docker-compose.yml",))
+        self.assertEqual(
+            saved["projects"][0]["compose_files"], ["compose.yml", "compose.dev.yml"]
+        )
+        self.assertNotIn("compose_files", saved["projects"][2])
+        self.assertEqual(
+            [project.compose_files for project in reloaded.projects],
+            [project.compose_files for project in config.projects],
+        )
+
     def test_save_preserves_linked_repository_pre_start_commands(self) -> None:
         repository = LinkedRepository(
             repository_path="/projects/frontend",

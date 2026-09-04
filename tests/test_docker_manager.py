@@ -84,6 +84,30 @@ class DockerManagerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(run.call_count, 3)
 
+    def test_every_compose_file_is_passed_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "compose.yml").write_text("services: {}\n")
+            manager = DockerManager(
+                root, "acme", ("compose.yml", "compose.override.yml")
+            )
+            expected_prefix = [
+                "docker", "compose",
+                "-f", str(root / "compose.yml"),
+                "-f", str(root / "compose.override.yml"),
+                "-p", "acme",
+            ]
+
+            self.assertEqual(manager._compose_args(), expected_prefix)
+            with patch.object(manager, "_run_sync", return_value=(0, "{}", "")) as run:
+                manager.get_config_sync()
+                manager.cleanup_sync()
+
+            self.assertEqual(
+                run.call_args.args, (*expected_prefix, "config", "--format", "json")
+            )
+            self.assertEqual(run.call_count, 1)  # cleanup skipped: override is missing
+
     def test_only_volume_metadata_is_cached(self) -> None:
         manager = DockerManager(Path("/tmp/project"), "acme")
         first = {

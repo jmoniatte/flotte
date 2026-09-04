@@ -21,7 +21,8 @@ Flotte manages git worktrees with isolated Docker environments:
 
 The main repo must have:
 
-1. **A `docker-compose.yml`** with named volumes (volumes are read dynamically)
+1. **A `docker-compose.yml`** with named volumes (volumes are read dynamically). Set
+   `compose_files` on the project to use other or several files.
 
 2. **A `.env` file** with base port configuration:
    ```bash
@@ -85,6 +86,8 @@ Optional fields:
 - `post_create_commands`: Setup commands run after creating a worktree.
 - `ride_command`: Command used by **Go Ride**. It receives `PROJECT_PATH` and `PROJECT_NAME`.
 - `env_file`: Worktree environment file read and written by Flotte. Defaults to `.env`.
+- `compose_files`: Compose file, or list of files, passed to `docker compose -f` in order,
+  relative to the worktree. Defaults to `docker-compose.yml`.
 - `clone_paths`: Files or directories copied from the main checkout when cloning volumes and bind
   mounts.
 - `container_log_services`: Docker Compose services shown in the Containers log tab. By default,

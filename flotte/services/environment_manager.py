@@ -10,6 +10,7 @@ from time import perf_counter
 
 import yaml
 
+from ..config import DEFAULT_COMPOSE_FILE
 from ..models import Worktree
 from ..models.container import Container
 from ..models.worktree import WorktreeStatus
@@ -18,7 +19,6 @@ from .environment_provisioner import EnvironmentProvisioner
 from .worktree_log import WorktreeLogStore
 
 PORT_OFFSET_INCREMENT = 100
-COMPOSE_FILE = "docker-compose.yml"
 _ENV_REFERENCE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -86,9 +86,11 @@ class EnvironmentManager:
         clone_paths: tuple[str, ...] = (),
         post_create_commands: tuple[str, ...] = (),
         log_store: WorktreeLogStore | None = None,
+        compose_files: tuple[str, ...] = (DEFAULT_COMPOSE_FILE,),
     ) -> None:
         self.main_repo_path = main_repo_path.resolve()
         self.env_file = env_file
+        self.compose_files = compose_files
         self.log_store = log_store
         self.provisioner = EnvironmentProvisioner(
             self.main_repo_path,
@@ -96,6 +98,7 @@ class EnvironmentManager:
             clone_paths,
             post_create_commands,
             log_store,
+            compose_files,
         )
         self._service_cache: dict[Path, tuple[float, list[str]]] = {}
 
@@ -133,13 +136,20 @@ class EnvironmentManager:
             on_progress=on_progress,
         )
 
+    def _docker_for(self, worktree: Worktree) -> DockerManager:
+        return DockerManager(
+            worktree.path,
+            worktree.compose_project_name,
+            self.compose_files,
+        )
+
     async def cleanup(self, worktree: Worktree) -> None:
-        docker = DockerManager(worktree.path, worktree.compose_project_name)
+        docker = self._docker_for(worktree)
         await asyncio.to_thread(docker.cleanup_sync)
         self._service_cache.pop(worktree.path, None)
 
     async def make_worktree_removable(self, worktree: Worktree) -> None:
-        docker = DockerManager(worktree.path, worktree.compose_project_name)
+        docker = self._docker_for(worktree)
         await asyncio.to_thread(docker.make_worktree_removable_sync)
 
     async def perform(
@@ -149,7 +159,7 @@ class EnvironmentManager:
         on_status_changed: Callable[[], None] | None = None,
     ) -> EnvironmentOperationResult:
         started_at = perf_counter()
-        docker = DockerManager(worktree.path, worktree.compose_project_name)
+        docker = self._docker_for(worktree)
         try:
             for phase in operation.phases:
                 worktree.start_operation(phase.pending, phase.settled)
@@ -232,9 +242,10 @@ class EnvironmentManager:
         )
 
     async def _services_for(self, worktree: Worktree) -> list[str]:
-        compose_file = worktree.path / "docker-compose.yml"
         try:
-            mtime = compose_file.stat().st_mtime
+            mtime = max(
+                (worktree.path / path).stat().st_mtime for path in self.compose_files
+            )
         except OSError:
             self._service_cache.pop(worktree.path, None)
             return []
@@ -242,7 +253,7 @@ class EnvironmentManager:
         cached = self._service_cache.get(worktree.path)
         cached_services = cached[1] if cached else []
         if cached is None or mtime != cached[0]:
-            docker = DockerManager(worktree.path, worktree.compose_project_name)
+            docker = self._docker_for(worktree)
             services = await docker.get_services()
             if services:
                 self._service_cache[worktree.path] = (mtime, services)
@@ -331,29 +342,31 @@ class EnvironmentManager:
         return env
 
     def _host_port_matcher(self) -> Callable[[str], bool]:
-        """Match env keys that set host-side ports in the main compose file.
+        """Match env keys that set host-side ports in the main compose files.
 
         Only variables referenced under a service's ``ports`` get offset, so a
         key like SMTP_PORT that names a remote service is copied unchanged.
         Without a readable compose file, fall back to the ``_PORT`` suffix.
         """
-        compose_path = self.main_repo_path / COMPOSE_FILE
-        try:
-            document = yaml.safe_load(compose_path.read_text())
-        except (OSError, yaml.YAMLError):
-            return lambda key: key.endswith("_PORT")
-
-        services = document.get("services") if isinstance(document, dict) else None
-        if not isinstance(services, dict):
-            return lambda key: key.endswith("_PORT")
-
         keys: set[str] = set()
-        for service in services.values():
-            ports = service.get("ports") if isinstance(service, dict) else None
-            for entry in ports or []:
-                if isinstance(entry, dict):
-                    entry = entry.get("published", "")
-                keys.update(_ENV_REFERENCE.findall(str(entry)))
+        readable = False
+        for path in self.compose_files:
+            try:
+                document = yaml.safe_load((self.main_repo_path / path).read_text())
+            except (OSError, yaml.YAMLError):
+                continue
+            services = document.get("services") if isinstance(document, dict) else None
+            if not isinstance(services, dict):
+                continue
+            readable = True
+            for service in services.values():
+                ports = service.get("ports") if isinstance(service, dict) else None
+                for entry in ports or []:
+                    if isinstance(entry, dict):
+                        entry = entry.get("published", "")
+                    keys.update(_ENV_REFERENCE.findall(str(entry)))
+        if not readable:
+            return lambda key: key.endswith("_PORT")
         return keys.__contains__
 
     def _write_env(self, worktree_path: Path, project_name: str, offset: int) -> None:

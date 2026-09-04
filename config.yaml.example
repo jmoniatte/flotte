@@ -21,6 +21,11 @@ projects:
     # Docker compose only auto-loads .env; anything else must be passed
     # to compose with --env-file by your own tooling.
     env_file: .env
+    # Compose files passed to docker compose as -f, in order (default: docker-compose.yml).
+    # A single string also works.
+    compose_files:
+      - compose.yml
+      - compose.override.yml
     # Optional Docker Compose services shown in the Containers log tab.
     container_log_services:
       - rails

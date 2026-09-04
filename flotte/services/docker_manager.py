@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+from ..config import DEFAULT_COMPOSE_FILE
 from ._process import run_command
 
 COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
@@ -77,17 +78,23 @@ async def get_all_containers_by_project() -> dict[str, list[dict]]:
 class DockerManager:
     """Run Docker Compose commands for one worktree."""
 
-    def __init__(self, worktree_path: Path, project_name: str):
+    def __init__(
+        self,
+        worktree_path: Path,
+        project_name: str,
+        compose_files: tuple[str, ...] = (DEFAULT_COMPOSE_FILE,),
+    ):
         """
         Initialize manager for a specific worktree.
 
         Args:
-            worktree_path: Path to worktree containing docker-compose.yml
+            worktree_path: Path to worktree containing the compose files
             project_name: Docker Compose project name (from COMPOSE_PROJECT_NAME)
+            compose_files: Compose files relative to the worktree, passed as -f in order
         """
         self.worktree_path = worktree_path
         self.project_name = project_name
-        self.compose_file = worktree_path / "docker-compose.yml"
+        self.compose_files = [worktree_path / path for path in compose_files]
         self._cached_volumes: list[str] | None = None
 
     def _run_sync(
@@ -103,8 +110,7 @@ class DockerManager:
 
     def _read_config_sync(self) -> dict | None:
         returncode, stdout, _ = self._run_sync(
-            "docker",
-            "compose",
+            *self._compose_args(),
             "config",
             "--format",
             "json",
@@ -223,7 +229,7 @@ class DockerManager:
         return True, ""
 
     def cleanup_sync(self) -> None:
-        if not self.compose_file.exists():
+        if not all(path.exists() for path in self.compose_files):
             return
         returncode, _, stderr = self._run_sync(
             *self._compose_args(),
@@ -261,14 +267,10 @@ class DockerManager:
 
     def _compose_args(self) -> list[str]:
         """Base arguments for all docker compose commands."""
-        return [
-            "docker",
-            "compose",
-            "-f",
-            str(self.compose_file),
-            "-p",
-            self.project_name,
-        ]
+        args = ["docker", "compose"]
+        for path in self.compose_files:
+            args += ["-f", str(path)]
+        return args + ["-p", self.project_name]
 
     async def _run_compose(
         self, *args: str, timeout: float = 60.0
