@@ -26,6 +26,6 @@ where = ["."]
 include = ["flotte*"]
 
 [tool.setuptools.package-data]
-flotte = ["styles/themes/*.tcss"]
+flotte = ["styles/*.tcss", "styles/themes/*.yaml"]
 
 [tool.setuptools_scm]

@@ -189,7 +189,7 @@ WorktreeHeader #worktree-table > .datatable--header-hover {
 
 WorktreeHeader #worktree-table > .datatable--cursor {
     background: $bg-light;
-    color: auto;
+    color: $fg;
     text-style: none;
 }
 
@@ -228,7 +228,7 @@ WorktreeHeader #worktree-table-footer-rule {
 
 #btn-new-worktree:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -243,7 +243,7 @@ WorktreeHeader #worktree-table-footer-rule {
 
 #btn-refresh:focus {
     background: $purple;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -251,18 +251,18 @@ WorktreeHeader #worktree-table-footer-rule {
     width: 1fr;
 }
 
-#btn-help {
+#btn-settings {
     background: $comment 30%;
     color: $comment;
 }
 
-#btn-help:hover {
+#btn-settings:hover {
     background: $comment 50%;
 }
 
-#btn-help:focus {
+#btn-settings:focus {
     background: $fg;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -330,7 +330,7 @@ WorktreeHeader #worktree-table-footer-rule {
 
 #breadcrumbs #btn-ride:focus {
     background: $cyan;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -350,7 +350,7 @@ WorktreeHeader #worktree-table-footer-rule {
 
 #breadcrumbs #btn-logs:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -407,7 +407,7 @@ ContainerControls Button:hover {
 
 ContainerControls Button:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -437,7 +437,7 @@ ContainerControls #btn-container-stop:hover {
 
 ContainerControls #btn-container-stop:focus {
     background: $red;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -462,7 +462,7 @@ ContainerControls #btn-container-restart:hover {
 
 ContainerControls #btn-container-restart:focus {
     background: $yellow;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -531,7 +531,7 @@ ContainerControls #btn-delete-worktree:hover {
 
 ContainerControls #btn-delete-worktree:focus {
     background: $red;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -594,19 +594,19 @@ ModalScreen Button {
 
 ModalScreen Button:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   HELP SCREEN
+   SETTINGS SCREEN
    ═══════════════════════════════════════════════════════════════════════ */
 
-HelpScreen {
+SettingsScreen {
     align: center top;
     background: $bg 80%;
 }
 
-HelpScreen > Vertical {
+SettingsScreen > Vertical {
     width: auto;
     min-width: 64;
     max-width: 70;
@@ -617,86 +617,133 @@ HelpScreen > Vertical {
     padding: 1 2;
 }
 
-HelpScreen Static {
+SettingsScreen Static {
     color: $fg;
 }
 
-HelpScreen #dialog-title {
+SettingsScreen #dialog-title {
     text-style: bold;
     color: $blue;
 }
 
-HelpScreen #title-separator {
+SettingsScreen #title-separator {
     height: 1;
 }
 
-HelpScreen .section-title {
+SettingsScreen #settings-theme-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+SettingsScreen #settings-theme-label {
+    width: 12;
+    height: 1;
+    color: $comment;
+}
+
+SettingsScreen #theme-selector {
+    width: 1fr;
+}
+
+SettingsScreen #theme-selector SelectCurrent {
+    background: transparent;
+    border: none !important;
+    border-bottom: solid $gutter !important;
+    padding: 0 1;
+    color: $fg;
+}
+
+SettingsScreen #theme-selector SelectCurrent:hover,
+SettingsScreen #theme-selector:focus SelectCurrent {
+    border-bottom: solid $blue !important;
+}
+
+SettingsScreen #theme-selector SelectOverlay {
+    background: $bg;
+    border: none;
+    max-height: 12;
+    scrollbar-size: 0 0;
+}
+
+SettingsScreen #theme-selector SelectOverlay > .option-list--option-highlighted {
+    background: $bg-light;
+    color: $fg;
+    text-style: none;
+}
+
+SettingsScreen #settings-theme-separator {
+    height: 1;
+    color: $comment;
+    margin-bottom: 1;
+}
+
+SettingsScreen .section-title {
     text-style: bold;
     color: $fg;
     border-bottom: ascii $gutter;
 }
 
-HelpScreen #help-sections {
+SettingsScreen #shortcuts-sections {
     height: auto;
 }
 
-HelpScreen .help-section {
+SettingsScreen .shortcuts-section {
     height: auto;
 }
 
-HelpScreen #help-actions {
+SettingsScreen #shortcuts-actions {
     width: 32;
     margin-right: 2;
 }
 
-HelpScreen #help-general {
+SettingsScreen #shortcuts-general {
     width: 32;
 }
 
-HelpScreen #help-sections-separator {
+SettingsScreen #shortcuts-separator {
     height: 1;
     color: $comment;
 }
 
-HelpScreen .shortcut-row {
+SettingsScreen .shortcut-row {
     height: 1;
 }
 
-HelpScreen .shortcut-key {
+SettingsScreen .shortcut-key {
     width: 8;
     color: $green;
 }
 
-HelpScreen .shortcut-desc {
+SettingsScreen .shortcut-desc {
     color: $fg;
 }
 
-HelpScreen #help-footer {
+SettingsScreen #settings-footer {
     height: 1;
     align: right middle;
 }
 
-HelpScreen #help-footer-spacer {
+SettingsScreen #settings-footer-spacer {
     height: 1;
 }
 
-HelpScreen #help-footer .spacer {
+SettingsScreen #settings-footer .spacer {
     width: 1fr;
 }
 
-HelpScreen #help-version {
+SettingsScreen #settings-version {
     width: auto;
     margin-left: 1;
     color: $comment;
 }
 
-HelpScreen #help-repository {
+SettingsScreen #settings-repository {
     width: auto;
     color: $blue;
     background: transparent;
 }
 
-HelpScreen #help-repository:hover {
+SettingsScreen #settings-repository:hover {
     color: $blue;
     text-style: underline;
     background: transparent;
@@ -865,7 +912,7 @@ ConfirmDialog #cancel-btn:hover {
 
 ConfirmDialog #cancel-btn:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -880,7 +927,7 @@ ConfirmDialog #confirm-btn:hover {
 
 ConfirmDialog #confirm-btn:focus {
     background: $red;
-    color: white;
+    color: auto;
     text-style: bold;
 }
 
@@ -1025,7 +1072,7 @@ Checkbox > .toggle--button {
 }
 
 Checkbox.-on > .toggle--button {
-    color: $bg-dark;
+    color: auto;
     background: $green;
 }
 
@@ -1079,7 +1126,7 @@ CreateWorktreeScreen #cancel-btn:hover {
 
 CreateWorktreeScreen #cancel-btn:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1094,7 +1141,7 @@ CreateWorktreeScreen #create-btn:hover {
 
 CreateWorktreeScreen #create-btn:focus {
     background: $green;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1173,7 +1220,7 @@ DeleteWorktreeScreen #cancel-btn:hover {
 
 DeleteWorktreeScreen #cancel-btn:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1185,7 +1232,7 @@ DeleteWorktreeScreen #discard-btn {
 DeleteWorktreeScreen #discard-btn:hover,
 DeleteWorktreeScreen #discard-btn:focus {
     background: $yellow;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1197,7 +1244,7 @@ DeleteWorktreeScreen #commit-btn {
 DeleteWorktreeScreen #commit-btn:hover,
 DeleteWorktreeScreen #commit-btn:focus {
     background: $blue;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1212,7 +1259,7 @@ DeleteWorktreeScreen #delete-btn:hover {
 
 DeleteWorktreeScreen #delete-btn:focus {
     background: $red;
-    color: white;
+    color: auto;
     text-style: bold;
 }
 
@@ -1304,7 +1351,7 @@ LinkedRepositories {
 
 .linked-repository-lifecycle Button:focus {
     background: $purple;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1335,7 +1382,7 @@ LinkedRepositories {
 
 .linked-repository-lifecycle .linked-stop-button:focus {
     background: $red;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1350,7 +1397,7 @@ LinkedRepositories {
 
 .linked-repository-lifecycle .linked-restart-button:focus {
     background: $yellow;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1368,7 +1415,7 @@ LinkedRepositories {
 
 .linked-unlink-button:focus {
     background: $red;
-    color: $bg-dark;
+    color: auto;
     text-style: bold;
 }
 
@@ -1390,17 +1437,17 @@ Toast {
 
 Toast.-information {
     background: $green;
-    color: $bg-dark;
+    color: auto;
 }
 
 Toast.-warning {
     background: $yellow;
-    color: $bg-dark;
+    color: auto;
 }
 
 Toast.-error {
     background: $red;
-    color: white;
+    color: auto;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1479,7 +1526,7 @@ Toast.-error {
 
 #no-config-dialog #quit-btn:focus {
     background: $red;
-    color: white;
+    color: auto;
     text-style: bold;
 }
 
@@ -1493,7 +1540,7 @@ Button:disabled {
 /* These selectors override the more-specific action hover and focus rules above. */
 #btn-new-worktree:disabled,
 #btn-refresh:disabled,
-#btn-help:disabled,
+#btn-settings:disabled,
 ContainerControls #btn-container-start:disabled,
 ContainerControls #btn-container-stop:disabled,
 ContainerControls #btn-container-restart:disabled,
@@ -1513,4 +1560,56 @@ ModalScreen #delete-btn:disabled,
     background: $comment 30%;
     color: $comment;
     text-style: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   THEME PICKER
+   ═══════════════════════════════════════════════════════════════════════ */
+
+ThemePicker > Vertical {
+    width: 54;
+    height: 1fr;
+    max-height: 100%;
+    margin-top: 2;
+    margin-bottom: 2;
+}
+
+ThemePicker #theme-filter {
+    width: 1fr;
+    height: 2;
+    margin: 0 0 1 0;
+    padding: 0;
+    background: transparent;
+    color: $fg;
+    border: none !important;
+    border-bottom: solid $gutter !important;
+}
+
+ThemePicker #theme-filter:focus {
+    border-bottom: solid $blue !important;
+}
+
+ThemePicker #theme-table {
+    height: 1fr;
+    background: transparent;
+    border: none;
+    color: $fg;
+    scrollbar-size: 0 0;
+}
+
+ThemePicker #theme-table > .datatable--cursor {
+    background: $bg-light;
+    color: $fg;
+    text-style: none;
+}
+
+ThemePicker #theme-table > .datatable--hover {
+    background: transparent;
+}
+
+ThemePicker #theme-hint {
+    color: $comment;
+    margin-top: 1;
+    border-top: ascii $gutter;
+    padding-top: 1;
 }

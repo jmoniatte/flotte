@@ -26,7 +26,7 @@ class WorktreeListView(Container):
             yield Button("New", id="btn-new-worktree", variant="primary")
             yield Button("Refresh", id="btn-refresh", variant="default")
             yield Static("", classes="spacer")
-            yield Button("Help", id="btn-help", variant="default")
+            yield Button("Settings", id="btn-settings", variant="default")
 
     def show_project_problems(self, problems: Iterable[str]) -> None:
         problems = tuple(problems)

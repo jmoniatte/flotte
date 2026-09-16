@@ -5,13 +5,13 @@ import unittest
 from textual.app import App, ComposeResult
 
 from flotte.models import Worktree
-from flotte.theme import DEFAULT_COLORS
+from flotte.theme import DEFAULT_COLORS, load_palette, palette_to_tcss
 from flotte.widgets.worktree_header import WorktreeHeader, WorktreeOpened, WorktreeTable
 
 
 class WorktreeHeaderApp(App):
     CSS = (
-        Path("flotte/styles/themes/onedark.tcss").read_text()
+        palette_to_tcss(load_palette("onedark"))
         + "\n"
         + Path("flotte/styles/base.tcss").read_text()
     )
@@ -109,3 +109,34 @@ class WorktreeHeaderTests(unittest.TestCase):
                 self.assertEqual(header.selected_worktree.name, "second")
 
         asyncio.run(exercise())
+
+
+class DashedHeaderRuleTests(unittest.TestCase):
+    """The rule under the header is drawn by hand, so it must carry a background."""
+
+    def test_rule_matches_the_surrounding_background(self) -> None:
+        async def main() -> tuple[str, str]:
+            app = WorktreeHeaderApp()
+            async with app.run_test(size=(50, 6)) as pilot:
+                app.query_one(WorktreeHeader).refresh_worktrees(
+                    [Worktree("main", Path("/tmp/main"), is_main=True)]
+                )
+                await pilot.pause()
+                strips = app.screen._compositor.render_strips()
+                rule = next(
+                    segment
+                    for segment in strips[2]
+                    if segment.text.strip().startswith("-")
+                )
+                body = next(
+                    segment for segment in strips[1] if segment.style.bgcolor
+                )
+                return (
+                    rule.style.bgcolor.triplet.hex,
+                    body.style.bgcolor.triplet.hex,
+                )
+
+        rule_background, body_background = asyncio.run(main())
+        palette = load_palette("onedark")
+        self.assertEqual(rule_background, body_background)
+        self.assertEqual(rule_background, palette["bg"])

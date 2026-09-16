@@ -13,14 +13,10 @@ class DashedHeaderDataTable(DataTable):
 
     def render_line(self, y: int) -> Strip:
         if self.show_header and y == self.header_height - 1:
-            return Strip(
-                [
-                    Segment(
-                        "-" * self.size.width,
-                        Style(color=self.app.theme_colors.dim),
-                    )
-                ]
-            )
+            # Build on rich_style so the rule keeps the widget's resolved
+            # background; a bare Style leaves it transparent to the terminal.
+            style = self.rich_style + Style(color=self.app.theme_colors.dim)
+            return Strip([Segment("-" * self.size.width, style)])
         return super().render_line(y)
 
 

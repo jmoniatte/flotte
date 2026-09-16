@@ -13,12 +13,13 @@ from textual import events, on
 
 from .shortcuts import ACTIONS, GENERAL
 from .config import (
+    save_theme,
     load_config,
     preflight_config,
     PreflightResult,
     Project as ConfigProject,
 )
-from .theme import load_theme_colors
+from .theme import load_palette, theme_colors
 from .models import GitStatus, Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
@@ -45,7 +46,8 @@ from .screens import (
     CreateWorktreeScreen,
     DeleteWorktreeScreen,
     DeleteWorktreeResult,
-    HelpScreen,
+    SettingsScreen,
+    ThemePicker,
     LogsScreen,
 )
 from .widgets import (
@@ -118,7 +120,8 @@ class FlotteApp(App):
             key_display="esc",
             group=GENERAL,
         ),
-        Binding("?", "show_help", "Show help", show=False, group=GENERAL),
+        Binding("t", "show_themes", "Change theme", show=False, group=GENERAL),
+        Binding("?", "show_settings", "Show settings", show=False, group=GENERAL),
         Binding("tab", "focus_next", show=False),
         Binding("shift+tab", "focus_previous", show=False),
     ]
@@ -161,17 +164,12 @@ class FlotteApp(App):
         # Filled in by a worker once the UI is up; no problems are known before then
         self.preflight = PreflightResult(tuple(self.config.projects), ())
 
-        # Load theme colors for Python code (parsed from same TCSS file)
-        self.theme_colors = load_theme_colors(self.config.theme)
-
-        # Load and combine CSS: theme (variables) + base (layout rules)
-        styles_dir = Path(__file__).parent / "styles"
-        theme_path = styles_dir / "themes" / f"{self.config.theme}.tcss"
-        if not theme_path.exists():
-            theme_path = styles_dir / "themes" / "onedark.tcss"
-        base_path = styles_dir / "base.tcss"
-        # Concatenate theme variables with base rules so variables are in scope
-        self.CSS = theme_path.read_text() + "\n" + base_path.read_text()
+        # One base16 scheme drives both the TCSS variables and the Rich colors.
+        # The palette is served from get_css_variables rather than baked into
+        # CSS, so apply_theme can swap it without restarting.
+        self._palette = load_palette(self.config.theme)
+        self.theme_colors = theme_colors(self._palette)
+        self.CSS = (Path(__file__).parent / "styles" / "base.tcss").read_text()
 
         super().__init__()
 
@@ -233,6 +231,44 @@ class FlotteApp(App):
             self.log_store,
             self.linked_repository_controller,
         )
+
+    def action_show_themes(self) -> None:
+        """Browse themes, applying each one as the cursor moves."""
+        self.push_screen(ThemePicker(self.config.theme), callback=self._on_theme_chosen)
+
+    def _on_theme_chosen(self, theme_name: str | None) -> None:
+        if theme_name is not None:
+            self.set_theme(theme_name)
+
+    def set_theme(self, theme_name: str) -> None:
+        """Apply a theme and remember it for next launch."""
+        if theme_name == self.config.theme:
+            return
+        self.apply_theme(theme_name)
+        self.config.theme = theme_name
+        save_theme(theme_name)
+        self.notify(f"Theme set to {theme_name}")
+
+    def get_css_variables(self) -> dict[str, str]:
+        """Serve the base16 palette to the stylesheet alongside Textual's own."""
+        return {**super().get_css_variables(), **self._palette}
+
+    def apply_theme(self, theme_name: str) -> None:
+        """Swap the palette and repaint in place."""
+        self._palette = load_palette(theme_name)
+        self.theme_colors = theme_colors(self._palette)
+        self.refresh_css()
+        self._repaint_themed_content()
+
+    def _repaint_themed_content(self) -> None:
+        """Rebuild the Rich renderables that baked in the previous palette."""
+        if self.project is None:
+            return
+        self.query_one(WorktreeListView).refresh_worktrees(
+            list(self.project.worktrees.values())
+        )
+        if self._is_showing_worktree_details():
+            self._refresh_detail_view()
 
     def compose(self) -> ComposeResult:
         # Show no-config screen if no projects configured.
@@ -551,7 +587,7 @@ class FlotteApp(App):
         button_actions = {
             "btn-new-worktree": self.action_new_worktree,
             "btn-refresh": self.action_refresh,
-            "btn-help": self.action_show_help,
+            "btn-settings": self.action_show_settings,
             "btn-container-start": self.action_start_environment,
             "btn-container-stop": self.action_stop_environment,
             "btn-container-restart": self.action_restart_environment,
@@ -888,9 +924,9 @@ class FlotteApp(App):
             self.query_one(WorktreeListView).select_worktree(main_wt)
         self._show_worktree_list()
 
-    def action_show_help(self) -> None:
+    def action_show_settings(self) -> None:
         """Show help screen - '?' key."""
-        self.push_screen(HelpScreen())
+        self.push_screen(SettingsScreen())
 
     def action_show_logs(self) -> None:
         """Show all logs for the selected worktree."""

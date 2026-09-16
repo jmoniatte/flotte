@@ -11,6 +11,7 @@ from flotte.config import (
     PortRange,
     Project,
     load_config,
+    save_theme,
     preflight_config,
     save_config,
 )
@@ -78,6 +79,61 @@ class ConfigTests(unittest.TestCase):
             result.problems_for(project),
             ("test: worktree_path must include {worktree}",),
         )
+
+    def _load(self, text: str) -> Config:
+        with tempfile.TemporaryDirectory() as directory:
+            config_file = Path(directory) / "config.yaml"
+            config_file.write_text(text)
+            with patch("flotte.config.CONFIG_FILE", config_file):
+                return load_config()
+
+    def test_save_theme_leaves_the_rest_of_the_file_alone(self) -> None:
+        original = (
+            "# my config\n"
+            "theme: onedark\n"
+            "unknown_key: kept\n"
+            "projects:\n"
+            "  - name: Demo\n"
+            "    repository_path: /projects/demo\n"
+            "    worktree_path: /projects/demo-{worktree}\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            config_file = Path(directory) / "config.yaml"
+            config_file.write_text(original)
+            with patch("flotte.config.CONFIG_FILE", config_file):
+                save_theme("nord")
+                written = config_file.read_text()
+                reloaded = load_config()
+
+        self.assertEqual(written, original.replace("theme: onedark", "theme: nord"))
+        self.assertIn("# my config", written)
+        self.assertIn("unknown_key: kept", written)
+        self.assertEqual(reloaded.theme, "nord")
+        self.assertEqual([p.name for p in reloaded.projects], ["Demo"])
+
+    def test_save_theme_adds_the_key_when_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_file = Path(directory) / "config.yaml"
+            config_file.write_text("projects: []\n")
+            with patch("flotte.config.CONFIG_FILE", config_file):
+                save_theme("dracula")
+                written = config_file.read_text()
+        self.assertEqual(written, "theme: dracula\nprojects: []\n")
+
+    def test_theme_must_name_an_installed_scheme(self) -> None:
+        installed = self._load("theme: one-light\n")
+        unknown = self._load("theme: draculaa\n")
+        # Names are upstream base16 slugs verbatim; onelight was ours, not theirs.
+        retired = self._load("theme: onelight\n")
+
+        self.assertEqual(installed.theme, "one-light")
+        self.assertEqual(installed.warnings, [])
+        self.assertEqual(unknown.theme, "onedark")
+        self.assertEqual(len(unknown.warnings), 1)
+        self.assertIn("draculaa", unknown.warnings[0])
+        self.assertIn("Did you mean: dracula", unknown.warnings[0])
+        self.assertEqual(retired.theme, "onedark")
+        self.assertIn("one-light", retired.warnings[0])
 
     def test_load_reports_why_each_entry_was_skipped(self) -> None:
         text = """

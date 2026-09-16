@@ -1,31 +1,71 @@
 """Centralized theme colors and status styling.
 
+Themes are base16 scheme files (github.com/tinted-theming/schemes) used
+unmodified. base16 defines 16 slots; `base.tcss` needs 13 variables, 11 of
+which map straight onto a slot. The remaining two -- a recessed surface and a
+border colour -- are derived from the scheme's own greyscale ramp so that no
+theme needs hand-picked values.
+
 Single source of truth for:
-- Theme color parsing from TCSS files
+- base16 scheme loading and the slot -> TCSS variable mapping
 - Status icons and colors for WorktreeStatus and ContainerState
 """
 import logging
-import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Union
+
+import yaml
 
 from .models import WorktreeStatus
 from .models.container import ContainerState
 
 logger = logging.getLogger(__name__)
 
+THEMES_DIR = Path(__file__).parent / "styles" / "themes"
+DEFAULT_THEME = "onedark"
+
+BASE16_SLOTS = tuple(f"base{index:02X}" for index in range(16))
+
+# base16 slots that map directly onto a TCSS variable. `bg-dark` and `gutter`
+# have no slot and are derived; see _derive_bg_dark and _derive_gutter.
+SLOT_VARS = {
+    "base00": "bg",
+    "base02": "bg-light",
+    "base03": "comment",
+    "base05": "fg",
+    "base08": "red",
+    "base09": "orange",
+    "base0A": "yellow",
+    "base0B": "green",
+    "base0C": "cyan",
+    "base0D": "blue",
+    "base0E": "purple",
+}
+
+Rgb = tuple[int, int, int]
+
+# A derived surface this close to the background reads as no surface at all.
+_MIN_SURFACE_DELTA = 3
+# Fraction of a ramp step between base00 and base01; reproduces the hand-picked
+# OneDark value (#21252b) to within two units per channel.
+_BG_DARK_STEP = 0.5
+# WCAG AA for body text. Schemes whose own $fg on $bg falls below this are not
+# installed; see scripts/sync_themes.py.
+MIN_TEXT_CONTRAST = 4.5
+
 
 @dataclass(frozen=True)
 class ThemeColors:
-    """Color palette parsed from a TCSS theme file."""
+    """Color palette used by Rich renderables, mirroring the TCSS variables."""
     bg_light: str
     green: str
     red: str
     yellow: str
     orange: str
     blue: str
-    purple: str  # future-proofing
+    purple: str
     cyan: str
     dim: str  # mapped from $comment
 
@@ -41,56 +81,135 @@ DEFAULT_COLORS = ThemeColors(
     blue="#61afef",
     purple="#c678dd",
     cyan="#56b6c2",
-    dim="#5c6370",
+    dim="#545862",
 )
 
-REQUIRED_VARS = (
-    "bg-light", "green", "red", "yellow", "orange", "blue", "purple", "cyan", "comment"
-)
+
+def _rgb(value: object) -> Rgb:
+    """Parse a base16 hex value, with or without a leading '#'."""
+    # An all-digit slot such as 001122 arrives from YAML as an int.
+    text = str(value).strip().lstrip("#").zfill(6)
+    if len(text) != 6:
+        raise ValueError(f"Invalid base16 color: {value!r}")
+    return (int(text[0:2], 16), int(text[2:4], 16), int(text[4:6], 16))
+
+
+def _hex(rgb: Rgb) -> str:
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+def _luminance(rgb: Rgb) -> float:
+    def channel(value: int) -> float:
+        srgb = value / 255
+        return srgb / 12.92 if srgb <= 0.03928 else ((srgb + 0.055) / 1.055) ** 2.4
+
+    red, green, blue = (channel(value) for value in rgb)
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+def contrast_ratio(first: str, second: str) -> float:
+    """WCAG contrast ratio between two hex colors, from 1.0 to 21.0."""
+    lighter, darker = sorted((_luminance(_rgb(first)), _luminance(_rgb(second))))
+    return (darker + 0.05) / (lighter + 0.05)
+
+
+def _shift(origin: Rgb, toward: Rgb, amount: float) -> Rgb:
+    """Move `origin` along the line to `toward`; a negative amount overshoots back."""
+    return tuple(
+        max(0, min(255, round(o + (t - o) * amount))) for o, t in zip(origin, toward)
+    )
+
+
+def _derive_bg_dark(base00: Rgb, base01: Rgb) -> Rgb:
+    """A surface recessed from the background.
+
+    Whenever base01 is already the darker of the two -- every light scheme, and
+    dark schemes that spend the slot on a recessed surface rather than a raised
+    one -- it is the recessed surface the author chose, so use it. Otherwise
+    base16 offers nothing below base00 and the step has to be extrapolated.
+    """
+    if _luminance(base01) < _luminance(base00):
+        return base01
+
+    shifted = _shift(base00, base01, -_BG_DARK_STEP)
+    if max(abs(a - b) for a, b in zip(shifted, base00)) < _MIN_SURFACE_DELTA:
+        return base01  # base00 sits at the end of the ramp; nothing below it
+    return shifted
+
+
+def _derive_gutter(base02: Rgb, base03: Rgb) -> Rgb:
+    """Borders and rules sit between the selection background and comments."""
+    return _shift(base02, base03, 0.5)
+
+
+@lru_cache(maxsize=None)
+def read_scheme(path: Path) -> dict[str, Rgb]:
+    """Parse a base16 scheme file into its 16 slots.
+
+    Accepts both the 0.11 spec (colors nested under `palette`) and the older
+    flat layout.
+    """
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    palette = data.get("palette", data)
+    missing = [slot for slot in BASE16_SLOTS if slot not in palette]
+    if missing:
+        raise ValueError(f"Scheme '{path.name}' missing base16 slots: {missing}")
+    return {slot: _rgb(palette[slot]) for slot in BASE16_SLOTS}
+
+
+def resolve_theme(theme_name: str) -> str | None:
+    """Scheme file stem for a configured theme name, or None if not installed.
+
+    Theme names are the upstream base16 slugs verbatim, so this is just an
+    existence check.
+    """
+    return theme_name if (THEMES_DIR / f"{theme_name}.yaml").exists() else None
+
+
+def load_palette(theme_name: str) -> dict[str, str]:
+    """Return the TCSS variables for a theme, keyed without the leading '$'."""
+    resolved = resolve_theme(theme_name)
+    if resolved is None:
+        logger.warning(
+            f"Theme '{theme_name}' not found, falling back to '{DEFAULT_THEME}'"
+        )
+        resolved = DEFAULT_THEME
+
+    scheme = read_scheme(THEMES_DIR / f"{resolved}.yaml")
+    palette = {var: _hex(scheme[slot]) for slot, var in SLOT_VARS.items()}
+    palette["bg-dark"] = _hex(_derive_bg_dark(scheme["base00"], scheme["base01"]))
+    palette["gutter"] = _hex(_derive_gutter(scheme["base02"], scheme["base03"]))
+    return palette
+
+
+def palette_to_tcss(palette: dict[str, str]) -> str:
+    """Render a palette as the TCSS variable block `base.tcss` expects."""
+    return "\n".join(f"${var}: {value};" for var, value in sorted(palette.items()))
+
+
+def theme_colors(palette: dict[str, str]) -> ThemeColors:
+    """Project a palette onto the subset Rich renderables need."""
+    return ThemeColors(
+        bg_light=palette["bg-light"],
+        green=palette["green"],
+        red=palette["red"],
+        yellow=palette["yellow"],
+        orange=palette["orange"],
+        blue=palette["blue"],
+        purple=palette["purple"],
+        cyan=palette["cyan"],
+        dim=palette["comment"],
+    )
 
 
 def load_theme_colors(theme_name: str) -> ThemeColors:
-    """Parse TCSS file and extract color variables.
+    """Load a theme and return its Rich-side colors."""
+    return theme_colors(load_palette(theme_name))
 
-    Args:
-        theme_name: Name of theme (matches filename without .tcss)
 
-    Returns:
-        ThemeColors with parsed hex values
-
-    Raises:
-        ValueError: If required variables are missing from theme file
-    """
-    styles_dir = Path(__file__).parent / "styles" / "themes"
-    theme_path = styles_dir / f"{theme_name}.tcss"
-
-    if not theme_path.exists():
-        logger.warning(f"Theme '{theme_name}' not found, falling back to 'onedark'")
-        theme_path = styles_dir / "onedark.tcss"
-
-    content = theme_path.read_text(encoding="utf-8")
-
-    # Parse $var: #hex; patterns (supports 6 or 8 digit hex, ignores alpha)
-    colors = {}
-    for match in re.finditer(r'\$([\w-]+):\s*#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?', content):
-        colors[match.group(1)] = f"#{match.group(2)}"
-
-    # Validate required variables
-    missing = [v for v in REQUIRED_VARS if v not in colors]
-    if missing:
-        raise ValueError(f"Theme '{theme_name}' missing required variables: {missing}")
-
-    return ThemeColors(
-        bg_light=colors["bg-light"],
-        green=colors["green"],
-        red=colors["red"],
-        yellow=colors["yellow"],
-        orange=colors["orange"],
-        blue=colors["blue"],
-        purple=colors["purple"],
-        cyan=colors["cyan"],
-        dim=colors["comment"],
-    )
+def list_themes() -> list[str]:
+    """Names of every installed theme, for config validation and pickers."""
+    return sorted(path.stem for path in THEMES_DIR.glob("*.yaml"))
 
 
 # =============================================================================
@@ -115,6 +234,7 @@ _CONTAINER_STYLES: dict[ContainerState, tuple[str, str]] = {
     ContainerState.CREATED: ("○", "dim"),
     ContainerState.UNKNOWN: ("?", "dim"),
 }
+
 
 def get_status_style(
     status: Union[WorktreeStatus, ContainerState, str],

@@ -23,7 +23,8 @@ from flotte.services.environment_manager import (
     RESTART_ENVIRONMENT,
     START_ENVIRONMENT,
 )
-from flotte.screens import HelpScreen, LogsScreen
+from flotte.screens import LogsScreen, SettingsScreen
+from flotte.theme import load_palette
 from flotte.screens.create_worktree import CreateWorktreeScreen
 from flotte.widgets import AppHeader, WebLink, WorktreeHeader
 from flotte.widgets.worktree_header import WorktreeTable
@@ -34,6 +35,7 @@ from textual.widgets import (
     ContentSwitcher,
     DataTable,
     RichLog,
+    Select,
     Static,
     TabbedContent,
     Tabs,
@@ -604,7 +606,65 @@ class MainTests(unittest.TestCase):
 
         asyncio.run(exercise())
 
-    def test_help_screen_documents_every_binding(self) -> None:
+    def test_settings_theme_selector_applies_and_persists(self) -> None:
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                saved = stack.enter_context(patch("flotte.app.save_theme"))
+                app = FlotteApp()
+                async with app.run_test(size=(90, 34)) as pilot:
+                    await pilot.pause()
+                    await pilot.press("?")
+                    await pilot.pause()
+                    selector = app.screen.query_one("#theme-selector", Select)
+                    self.assertEqual(selector.value, "onedark")
+
+                    selector.value = "nord"
+                    await pilot.pause()
+
+                    nord = load_palette("nord")
+                    self.assertEqual(app.config.theme, "nord")
+                    self.assertEqual(app.theme_colors.red, nord["red"])
+                    self.assertEqual(app.get_css_variables()["bg"], nord["bg"])
+                    saved.assert_called_once_with("nord")
+
+        asyncio.run(exercise())
+
+    def test_settings_stays_open_while_using_the_dropdown(self) -> None:
+        """The screen used to dismiss on any key press, which the Select needs."""
+
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                stack.enter_context(patch("flotte.app.save_theme"))
+                app = FlotteApp()
+                async with app.run_test(size=(90, 34)) as pilot:
+                    await pilot.pause()
+                    await pilot.press("?")
+                    await pilot.pause()
+                    app.screen.query_one("#theme-selector", Select).focus()
+                    await pilot.press("enter")
+                    await pilot.pause()
+                    self.assertIsInstance(app.screen, SettingsScreen)
+
+                    # Type-to-search inside the overlay must not close the modal.
+                    await pilot.press(*"nord")
+                    await pilot.pause()
+                    self.assertIsInstance(app.screen, SettingsScreen)
+
+                    await pilot.press("escape")
+                    await pilot.pause()
+                    await pilot.press("escape")
+                    await pilot.pause()
+                    self.assertNotIsInstance(app.screen, SettingsScreen)
+
+        asyncio.run(exercise())
+
+    def test_settings_screen_documents_every_binding(self) -> None:
         async def exercise() -> None:
             config = self._single_project_config()
             with contextlib.ExitStack() as stack:
@@ -615,7 +675,7 @@ class MainTests(unittest.TestCase):
                     await pilot.pause()
                     await pilot.press("?")
                     await pilot.pause()
-                    self.assertIsInstance(app.screen, HelpScreen)
+                    self.assertIsInstance(app.screen, SettingsScreen)
 
                     documented = {}
                     for row in app.screen.query(".shortcut-row"):
