@@ -19,7 +19,7 @@ from .config import (
     PreflightResult,
     Project as ConfigProject,
 )
-from .theme import load_palette, theme_colors
+from .theme import effective_theme, load_palette, theme_colors
 from .models import GitStatus, Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
@@ -234,7 +234,10 @@ class FlotteApp(App):
 
     def action_show_themes(self) -> None:
         """Browse themes, applying each one as the cursor moves."""
-        self.push_screen(ThemePicker(self.config.theme), callback=self._on_theme_chosen)
+        self.push_screen(
+            ThemePicker(effective_theme(self.config.theme)),
+            callback=self._on_theme_chosen,
+        )
 
     def _on_theme_chosen(self, theme_name: str | None) -> None:
         if theme_name is not None:
@@ -242,7 +245,7 @@ class FlotteApp(App):
 
     def set_theme(self, theme_name: str) -> None:
         """Apply a theme and remember it for next launch."""
-        if theme_name == self.config.theme:
+        if effective_theme(theme_name) == effective_theme(self.config.theme):
             return
         self.apply_theme(theme_name)
         self.config.theme = theme_name

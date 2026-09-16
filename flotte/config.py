@@ -7,7 +7,7 @@ import re
 from difflib import get_close_matches
 from pathlib import Path
 
-from .theme import list_themes, resolve_theme
+from .theme import DEFAULT_THEME, is_known_theme, list_themes
 
 
 # Configuration paths
@@ -67,7 +67,9 @@ class Config:
     """Application configuration with sensible defaults."""
 
     # UI settings
-    theme: str = "onedark"  # any scheme in styles/themes/; see theme.list_themes()
+    # "terminal" reads the terminal's own colours; otherwise any scheme in
+    # styles/themes/ (see theme.list_themes()). Falls back to onedark.
+    theme: str = "terminal"
 
     # Projects list
     projects: list[Project] = field(default_factory=list)
@@ -294,9 +296,10 @@ def load_config() -> Config:
 
         # Load global settings
         if "theme" in data and isinstance(data["theme"], str):
-            if resolve_theme(data["theme"]):
+            if is_known_theme(data["theme"]):
                 config.theme = data["theme"]
             else:
+                config.theme = DEFAULT_THEME
                 # Too many themes to list; a near-miss is the useful hint.
                 near = get_close_matches(data["theme"], list_themes(), n=3)
                 hint = f" Did you mean: {', '.join(near)}?" if near else ""

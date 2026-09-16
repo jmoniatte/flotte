@@ -6,11 +6,15 @@ from unittest.mock import patch
 
 from flotte.theme import (
     BASE16_SLOTS,
+    effective_theme,
+    is_known_theme,
     list_themes,
     load_palette,
     palette_to_tcss,
     read_scheme,
+    register_terminal_scheme,
     resolve_theme,
+    selectable_themes,
     theme_colors,
 )
 
@@ -127,6 +131,35 @@ class InstalledThemesTest(unittest.TestCase):
         self.assertIsNone(resolve_theme("onelight"))  # ours once; never base16's
         self.assertEqual(resolve_theme("one-light"), "one-light")
         self.assertEqual(resolve_theme("onedark"), "onedark")
+
+
+class TerminalThemeTest(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(register_terminal_scheme, None)
+
+    def test_terminal_theme_is_offered_only_once_the_terminal_answered(self):
+        self.assertTrue(is_known_theme("terminal"))
+        self.assertIsNone(resolve_theme("terminal"))
+        self.assertEqual(effective_theme("terminal"), "onedark")
+        self.assertEqual(load_palette("terminal"), load_palette("onedark"))
+        self.assertNotIn("terminal", selectable_themes())
+
+        register_terminal_scheme({slot: _rgb(value) for slot, value in DARK.items()})
+
+        self.assertEqual(resolve_theme("terminal"), "terminal")
+        self.assertEqual(effective_theme("terminal"), "terminal")
+        self.assertEqual(selectable_themes()[0], "terminal")
+        self.assertEqual(selectable_themes()[1:], list_themes())
+        palette = load_palette("terminal")
+        self.assertEqual(palette["bg"], DARK["base00"])
+        self.assertEqual(palette["fg"], DARK["base05"])
+        self.assertEqual(palette["red"], DARK["base08"])
+        self.assertEqual(theme_colors(palette).dim, DARK["base03"])
+
+
+def _rgb(value):
+    text = value.lstrip("#")
+    return (int(text[0:2], 16), int(text[2:4], 16), int(text[4:6], 16))
 
 
 if __name__ == "__main__":

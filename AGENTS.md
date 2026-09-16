@@ -52,6 +52,14 @@ other two (`$bg-dark`, `$gutter`) from the scheme's greyscale ramp, so adding a
 theme means adding a file and nothing else. `config.py` rejects a `theme` that
 does not name one of them.
 
+`theme: terminal` (the default) is not a file. `terminal_theme.py` asks the
+terminal for its colours with OSC 10, 11 and 4 before Textual starts, maps the
+ANSI palette onto base16 slots and derives the rest, and `__main__` registers
+the result with `theme.register_terminal_scheme`. A terminal that stays silent,
+or whose `$fg` on `$bg` fails `MIN_TEXT_CONTRAST`, registers nothing: the app
+then shows `onedark` and the pickers do not list `terminal`.
+`theme.effective_theme` is the name to compare against or show as current.
+
 Filenames are the upstream scheme slugs verbatim, and that is exactly what
 `config.yaml` sets -- no aliases, no renaming. Upstream is inconsistent about
 hyphens (`onedark` but `one-light`); follow it rather than tidying it.

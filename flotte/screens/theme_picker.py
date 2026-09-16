@@ -6,7 +6,7 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input, Static
 
-from ..theme import list_themes, load_palette
+from ..theme import load_palette, selectable_themes
 
 # Order the swatch reads as a spectrum rather than in palette-variable order.
 SWATCH_VARS = ("red", "orange", "yellow", "green", "cyan", "blue", "purple")
@@ -61,7 +61,7 @@ class ThemePicker(ModalScreen[str | None]):
         """Rebuild the list, keeping the cursor on the active theme if shown."""
         table = self.query_one("#theme-table", DataTable)
         table.clear()
-        self._names = [n for n in list_themes() if needle.lower() in n.lower()]
+        self._names = [n for n in selectable_themes() if needle.lower() in n.lower()]
         for name in self._names:
             label = Text(name)
             if name == self._original:

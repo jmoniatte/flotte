@@ -94,7 +94,10 @@ Optional fields:
   all services are shown.
 - `linked_repositories`: Companion repositories paired with the project.
 
-The global `theme` can be `onedark` (default) or `onelight`.
+The global `theme` defaults to `terminal`, which reads the colours from the terminal itself
+(xterm OSC 10, 11 and 4 queries). It can also name any base16 scheme in `flotte/styles/themes/`,
+such as `onedark` or `nord`. When the terminal does not answer, `onedark` is used and `terminal`
+is not offered in the theme pickers.
 
 ## Linked repositories
 

@@ -6,7 +6,7 @@ from textual.widgets import Select, Static
 
 from .. import REPOSITORY_URL, __version__
 from .. import shortcuts as shortcut_help
-from ..theme import list_themes, resolve_theme
+from ..theme import effective_theme, selectable_themes
 from ..widgets.table_rules import DashedTableFooter
 from ..widgets.web_link import WebLink
 from ..widgets.worktree_header import WorktreeTable
@@ -35,8 +35,8 @@ class SettingsScreen(ModalScreen):
             with Horizontal(id="settings-theme-row"):
                 yield Static("Theme", id="settings-theme-label")
                 yield Select(
-                    options=[(name, name) for name in list_themes()],
-                    value=resolve_theme(self.app.config.theme),
+                    options=[(name, name) for name in selectable_themes()],
+                    value=effective_theme(self.app.config.theme),
                     id="theme-selector",
                     allow_blank=False,
                 )

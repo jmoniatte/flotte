@@ -120,6 +120,12 @@ class ConfigTests(unittest.TestCase):
                 written = config_file.read_text()
         self.assertEqual(written, "theme: dracula\nprojects: []\n")
 
+    def test_terminal_theme_is_the_default_and_always_accepted(self) -> None:
+        self.assertEqual(Config().theme, "terminal")
+        loaded = self._load("theme: terminal\n")
+        self.assertEqual(loaded.theme, "terminal")
+        self.assertEqual(loaded.warnings, [])
+
     def test_theme_must_name_an_installed_scheme(self) -> None:
         installed = self._load("theme: one-light\n")
         unknown = self._load("theme: draculaa\n")

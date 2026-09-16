@@ -1,8 +1,9 @@
 # Flotte Configuration
 # Copy to ~/.config/flotte/config.yaml
 
-# Color theme: onedark or onelight
-theme: onedark
+# Color theme: terminal (read from the terminal itself) or any base16 scheme
+# name from flotte/styles/themes/, such as onedark
+theme: terminal
 
 # Projects
 # At least one project is required
