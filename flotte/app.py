@@ -925,7 +925,8 @@ class FlotteApp(App):
         self._show_worktree_list()
 
     def action_show_settings(self) -> None:
-        """Show help screen - '?' key."""
+        """Show the settings screen - '?' key."""
+        self._clear_action_focus()
         self.push_screen(SettingsScreen())
 
     def action_show_logs(self) -> None:

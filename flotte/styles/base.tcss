@@ -253,7 +253,7 @@ WorktreeHeader #worktree-table-footer-rule {
 
 #btn-settings {
     background: $comment 30%;
-    color: $comment;
+    color: $fg;
 }
 
 #btn-settings:hover {
@@ -261,7 +261,7 @@ WorktreeHeader #worktree-table-footer-rule {
 }
 
 #btn-settings:focus {
-    background: $fg;
+    background: $comment;
     color: auto;
     text-style: bold;
 }

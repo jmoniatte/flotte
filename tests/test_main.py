@@ -664,6 +664,32 @@ class MainTests(unittest.TestCase):
 
         asyncio.run(exercise())
 
+    def test_settings_button_is_not_left_focused_behind_the_modal(self) -> None:
+        """Clicking the button used to leave it lit up once the modal closed."""
+
+        async def exercise() -> None:
+            config = self._single_project_config()
+            with contextlib.ExitStack() as stack:
+                for patcher in self._patched_app(config):
+                    stack.enter_context(patcher)
+                app = FlotteApp()
+                async with app.run_test(size=(120, 34)) as pilot:
+                    await pilot.pause()
+                    button = app.query_one("#btn-settings", Button)
+                    resting = button.styles.background
+
+                    for open_it in (lambda: pilot.click("#btn-settings"),
+                                    lambda: pilot.press("?")):
+                        await open_it()
+                        await pilot.pause()
+                        self.assertIsInstance(app.screen, SettingsScreen)
+                        await pilot.press("escape")
+                        await pilot.pause()
+                        self.assertNotIn("focus", button.get_pseudo_classes())
+                        self.assertEqual(button.styles.background, resting)
+
+        asyncio.run(exercise())
+
     def test_settings_screen_documents_every_binding(self) -> None:
         async def exercise() -> None:
             config = self._single_project_config()
