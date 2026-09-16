@@ -63,7 +63,7 @@ class SettingsScreen(ModalScreen):
             with Horizontal(id="settings-footer"):
                 yield Static("esc to close", classes="spacer")
                 yield WebLink(REPOSITORY_URL, label="Flotte", id="settings-repository")
-                yield Static(f"v{__version__}", id="settings-version")
+                yield Static(__version__, id="settings-version")
 
     @on(Select.Changed, "#theme-selector")
     def on_theme_changed(self, event: Select.Changed) -> None:

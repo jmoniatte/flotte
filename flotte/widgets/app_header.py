@@ -18,7 +18,7 @@ class AppHeader(Horizontal):
     def compose(self) -> ComposeResult:
         with Vertical(id="app-title-group"):
             yield WebLink(REPOSITORY_URL, label="Flotte", id="app-title")
-            yield Static(f"v{__version__}", id="app-subtitle")
+            yield Static(__version__, id="app-subtitle")
         yield Static("", classes="header-notification-spacer")
         yield HeaderNotification()
         yield Static("", id="header-spacer")
