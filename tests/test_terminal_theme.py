@@ -5,10 +5,13 @@ import threading
 import unittest
 
 from flotte.terminal_theme import (
+    light_background,
     parse_replies,
-    query_terminal_scheme,
+    query_terminal,
+    report_from_terminal,
     scheme_from_terminal,
 )
+from flotte.theme import contrast_ratio, hex_color, palette_from_scheme
 
 BG, FG = (0x28, 0x2C, 0x34), (0xAB, 0xB2, 0xBF)
 ANSI = {
@@ -20,6 +23,19 @@ ANSI = {
     6: (0x56, 0xB6, 0xC2),
     8: (0x54, 0x58, 0x62),
     15: (0xC8, 0xCC, 0xD4),
+}
+# Catppuccin latte as a terminal preset: a light ramp, with base16's own
+# base01 #e6e9ef and base02 #ccd0da as the surfaces to land near.
+LATTE_BG, LATTE_FG = (0xEF, 0xF1, 0xF5), (0x4C, 0x4F, 0x69)
+LATTE_ANSI = {
+    1: (0xD2, 0x0F, 0x39),
+    2: (0x40, 0xA0, 0x2B),
+    3: (0xDF, 0x8E, 0x1D),
+    4: (0x1E, 0x66, 0xF5),
+    5: (0xEA, 0x76, 0xCB),
+    6: (0x17, 0x92, 0x99),
+    8: (0x6C, 0x6F, 0x85),
+    15: (0xBC, 0xC0, 0xCC),
 }
 
 
@@ -94,6 +110,34 @@ class SchemeFromTerminalTests(unittest.TestCase):
         self.assertNotEqual(scheme["base03"], (0, 0, 0))
         self.assertTrue(all(BG[i] < scheme["base03"][i] < FG[i] for i in range(3)))
 
+    def test_surfaces_stand_off_the_background_the_same_amount_in_light_and_dark(self) -> None:
+        for name, colors in (
+            ("dark", self._colors()),
+            ("light", {"bg": LATTE_BG, "fg": LATTE_FG, **LATTE_ANSI}),
+        ):
+            with self.subTest(name):
+                scheme = scheme_from_terminal(colors)
+                bg = hex_color(scheme["base00"])
+                raised = contrast_ratio(hex_color(scheme["base01"]), bg)
+                selection = contrast_ratio(hex_color(scheme["base02"]), bg)
+                self.assertAlmostEqual(raised, 1.15, delta=0.03)
+                self.assertAlmostEqual(selection, 1.35, delta=0.03)
+                palette = palette_from_scheme(scheme)
+                self.assertGreater(contrast_ratio(palette["fg"], palette["bg-light"]), 4.5)
+        light = scheme_from_terminal({"bg": LATTE_BG, "fg": LATTE_FG, **LATTE_ANSI})
+        for slot, authored in (("base01", (0xE6, 0xE9, 0xEF)), ("base02", (0xCC, 0xD0, 0xDA))):
+            gap = max(abs(a - b) for a, b in zip(light[slot], authored))
+            self.assertLessEqual(gap, 8, f"{slot} {light[slot]} is far from base16's {authored}")
+
+    def test_reports_which_way_the_background_leans_even_when_rejected(self) -> None:
+        solarized_light = {"bg": (0xFD, 0xF6, 0xE3), "fg": (0x65, 0x7B, 0x83), **LATTE_ANSI}
+        rejected = report_from_terminal(solarized_light)
+        self.assertIsNone(rejected.scheme)
+        self.assertTrue(rejected.light_background)
+        self.assertFalse(report_from_terminal(self._colors()).light_background)
+        self.assertIsNone(light_background({}))
+        self.assertTrue(light_background({"bg": (0xFF, 0xFF, 0xFF)}))
+
     def test_rejects_a_silent_or_unreadable_terminal(self) -> None:
         missing = self._colors()
         del missing[3]
@@ -119,7 +163,7 @@ class QueryTerminalSchemeTests(unittest.TestCase):
         stdin = os.fdopen(slave, "rb", buffering=0)
         stdout = os.fdopen(os.dup(slave), "w")
         try:
-            return query_terminal_scheme(timeout=timeout, stdin=stdin, stdout=stdout)
+            return query_terminal(timeout=timeout, stdin=stdin, stdout=stdout)
         finally:
             stdout.close()
             stdin.close()
@@ -127,16 +171,18 @@ class QueryTerminalSchemeTests(unittest.TestCase):
             os.close(master)
 
     def test_reads_the_scheme_off_a_pty_that_answers(self) -> None:
-        scheme = self._query_through_pty(_onedark_replies() + b"\x1b[?62;c", timeout=2.0)
+        report = self._query_through_pty(_onedark_replies() + b"\x1b[?62;c", timeout=2.0)
 
-        self.assertEqual(scheme["base00"], BG)
-        self.assertEqual(scheme["base08"], ANSI[1])
+        self.assertEqual(report.scheme["base00"], BG)
+        self.assertEqual(report.scheme["base08"], ANSI[1])
+        self.assertFalse(report.light_background)
 
     def test_gives_up_on_a_pty_that_stays_silent(self) -> None:
-        self.assertIsNone(self._query_through_pty(None, timeout=0.05))
+        self.assertEqual(self._query_through_pty(None, timeout=0.05).scheme, None)
 
     def test_skips_anything_that_is_not_a_terminal(self) -> None:
-        self.assertIsNone(query_terminal_scheme(stdin=io.StringIO(), stdout=io.StringIO()))
+        report = query_terminal(stdin=io.StringIO(), stdout=io.StringIO())
+        self.assertEqual((report.scheme, report.light_background), (None, None))
 
 
 if __name__ == "__main__":

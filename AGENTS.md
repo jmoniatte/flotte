@@ -56,8 +56,13 @@ does not name one of them.
 terminal for its colours with OSC 10, 11 and 4 before Textual starts, maps the
 ANSI palette onto base16 slots and derives the rest, and `__main__` registers
 the result with `theme.register_terminal_scheme`. A terminal that stays silent,
-or whose `$fg` on `$bg` fails `MIN_TEXT_CONTRAST`, registers nothing: the app
-then shows `onedark` and the pickers do not list `terminal`.
+or whose `$fg` on `$bg` fails `MIN_TEXT_CONTRAST`, registers no scheme: the app
+then shows `theme.default_theme()` and the pickers do not list `terminal`. That
+default is `one-light` when the terminal reported a light background and
+`onedark` otherwise, so a rejected light terminal never gets a dark app. The
+surfaces ANSI has no slot for (`base01`, `base02`) are placed by contrast
+against the background rather than by a fixed RGB step, which lands the same
+distance out on light and dark ramps.
 `theme.effective_theme` is the name to compare against or show as current.
 
 Filenames are the upstream scheme slugs verbatim, and that is exactly what

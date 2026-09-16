@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from flotte.theme import (
     BASE16_SLOTS,
+    default_theme,
     effective_theme,
     is_known_theme,
     list_themes,
@@ -155,6 +156,14 @@ class TerminalThemeTest(unittest.TestCase):
         self.assertEqual(palette["fg"], DARK["base05"])
         self.assertEqual(palette["red"], DARK["base08"])
         self.assertEqual(theme_colors(palette).dim, DARK["base03"])
+
+    def test_a_light_terminal_that_was_rejected_falls_back_to_a_light_scheme(self):
+        self.assertEqual(default_theme(), "onedark")
+        register_terminal_scheme(None, light_background=True)
+        self.assertEqual(default_theme(), "one-light")
+        self.assertEqual(effective_theme("terminal"), "one-light")
+        self.assertEqual(load_palette("no-such-theme"), load_palette("one-light"))
+        self.assertNotIn("terminal", selectable_themes())
 
 
 def _rgb(value):

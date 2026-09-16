@@ -96,8 +96,8 @@ Optional fields:
 
 The global `theme` defaults to `terminal`, which reads the colours from the terminal itself
 (xterm OSC 10, 11 and 4 queries). It can also name any base16 scheme in `flotte/styles/themes/`,
-such as `onedark` or `nord`. When the terminal does not answer, `onedark` is used and `terminal`
-is not offered in the theme pickers.
+such as `onedark` or `nord`. When the terminal does not answer, `onedark` (or `one-light` on a
+light terminal) is used and `terminal` is not offered in the theme pickers.
 
 ## Linked repositories
 

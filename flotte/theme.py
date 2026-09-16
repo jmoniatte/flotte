@@ -24,7 +24,10 @@ from .models.container import ContainerState
 logger = logging.getLogger(__name__)
 
 THEMES_DIR = Path(__file__).parent / "styles" / "themes"
-DEFAULT_THEME = "onedark"
+# Shown when the configured theme is unusable; the light one when the terminal
+# reported a light background, see default_theme().
+DARK_FALLBACK_THEME = "onedark"
+LIGHT_FALLBACK_THEME = "one-light"
 # Not a scheme file: the palette the terminal itself reports, when it does.
 TERMINAL_THEME = "terminal"
 
@@ -50,6 +53,8 @@ Rgb = tuple[int, int, int]
 
 # Registered by __main__ once the terminal has answered; None until then.
 _terminal_scheme: dict[str, Rgb] | None = None
+# Known even when the terminal answered but its palette was rejected.
+_terminal_light: bool | None = None
 
 # A derived surface this close to the background reads as no surface at all.
 _MIN_SURFACE_DELTA = 3
@@ -162,10 +167,22 @@ def read_scheme(path: Path) -> dict[str, Rgb]:
     return {slot: _rgb(palette[slot]) for slot in BASE16_SLOTS}
 
 
-def register_terminal_scheme(scheme: dict[str, Rgb] | None) -> None:
-    """Make the terminal's reported palette selectable, or drop it with None."""
-    global _terminal_scheme
+def register_terminal_scheme(
+    scheme: dict[str, Rgb] | None, light_background: bool | None = None
+) -> None:
+    """Make the terminal's reported palette selectable, or drop it with None.
+
+    `light_background` steers the fallback even when the palette itself was
+    rejected, so a light terminal never falls back to a dark scheme.
+    """
+    global _terminal_scheme, _terminal_light
     _terminal_scheme = scheme
+    _terminal_light = light_background
+
+
+def default_theme() -> str:
+    """The scheme file shown when nothing better is available."""
+    return LIGHT_FALLBACK_THEME if _terminal_light else DARK_FALLBACK_THEME
 
 
 def is_known_theme(theme_name: str) -> bool:
@@ -187,7 +204,7 @@ def resolve_theme(theme_name: str) -> str | None:
 
 def effective_theme(theme_name: str) -> str:
     """The theme actually shown for a configured name, after any fallback."""
-    return resolve_theme(theme_name) or DEFAULT_THEME
+    return resolve_theme(theme_name) or default_theme()
 
 
 def load_palette(theme_name: str) -> dict[str, str]:
@@ -197,9 +214,9 @@ def load_palette(theme_name: str) -> dict[str, str]:
         # The terminal staying silent is expected; a missing scheme file is not.
         if theme_name != TERMINAL_THEME:
             logger.warning(
-                f"Theme '{theme_name}' not found, falling back to '{DEFAULT_THEME}'"
+                f"Theme '{theme_name}' not found, falling back to '{default_theme()}'"
             )
-        resolved = DEFAULT_THEME
+        resolved = default_theme()
 
     if resolved == TERMINAL_THEME:
         scheme = _terminal_scheme

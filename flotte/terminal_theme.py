@@ -11,6 +11,7 @@ import re
 import select
 import sys
 import time
+from dataclasses import dataclass
 
 from .theme import MIN_TEXT_CONTRAST, Rgb, contrast_ratio, hex_color, luminance, shift
 
@@ -54,6 +55,12 @@ _CUBE_DEFAULTS = {
 # Comment text has to sit between the background and the foreground; a bright
 # black left at pure black on a dark background is on the wrong side.
 _MIN_COMMENT_CONTRAST = 1.3
+# How far the raised and selection surfaces stand off the background, as WCAG
+# contrast. base16 authors land here in both light and dark schemes (onedark
+# 1.24 and 1.43, one-light 1.09 and 1.21), whereas a fixed RGB step lands
+# twice as far on a light ramp, where the greys are spread wider.
+_RAISED_CONTRAST = 1.15
+_SELECTION_CONTRAST = 1.35
 
 # DA1 goes last: every terminal answers it, even one that ignores OSC, so its
 # reply marks the end of whatever colour replies are coming.
@@ -68,6 +75,14 @@ _COLOR_REPLY = re.compile(
 )
 
 TerminalColors = dict[str | int, Rgb]
+
+
+@dataclass(frozen=True)
+class TerminalReport:
+    """What the terminal said: a usable scheme, and which way its background leans."""
+
+    scheme: dict[str, Rgb] | None = None
+    light_background: bool | None = None
 
 
 def _channel(text: bytes) -> int:
@@ -109,13 +124,38 @@ def scheme_from_terminal(colors: TerminalColors) -> dict[str, Rgb] | None:
     if not _reads_as_comment(scheme.get("base03"), bg, fg):
         scheme["base03"] = shift(bg, fg, 0.4)
     scheme.setdefault("base07", fg)
-    scheme.setdefault("base01", shift(bg, scheme["base03"], 0.3))
-    scheme.setdefault("base02", shift(bg, scheme["base03"], 0.5))
+    scheme.setdefault("base01", _toward_contrast(bg, fg, _RAISED_CONTRAST))
+    scheme.setdefault("base02", _toward_contrast(bg, fg, _SELECTION_CONTRAST))
     scheme.setdefault("base04", shift(scheme["base03"], fg, 0.5))
     scheme.setdefault("base06", shift(fg, scheme["base07"], 0.5))
     scheme.setdefault("base09", shift(scheme["base08"], scheme["base0A"], 0.5))
     scheme.setdefault("base0F", shift(scheme["base08"], bg, 0.3))
     return scheme
+
+
+def _toward_contrast(origin: Rgb, toward: Rgb, target: float) -> Rgb:
+    """The point on the line from `origin` where contrast against it reaches `target`."""
+    low, high = 0.0, 1.0
+    for _ in range(16):
+        middle = (low + high) / 2
+        if contrast_ratio(hex_color(shift(origin, toward, middle)), hex_color(origin)) < target:
+            low = middle
+        else:
+            high = middle
+    return shift(origin, toward, high)
+
+
+def light_background(colors: TerminalColors) -> bool | None:
+    """Whether the background is the lighter end; None when the terminal did not say."""
+    if "bg" not in colors:
+        return None
+    if "fg" in colors:
+        return luminance(colors["bg"]) > luminance(colors["fg"])
+    return luminance(colors["bg"]) > 0.5
+
+
+def report_from_terminal(colors: TerminalColors) -> TerminalReport:
+    return TerminalReport(scheme_from_terminal(colors), light_background(colors))
 
 
 def _reads_as_comment(color: Rgb | None, bg: Rgb, fg: Rgb) -> bool:
@@ -141,30 +181,26 @@ def _read_until(fd: int, end: re.Pattern[bytes], timeout: float) -> bytes:
     return data
 
 
-def query_terminal_scheme(
-    timeout: float = QUERY_TIMEOUT,
-    stdin=None,
-    stdout=None,
-) -> dict[str, Rgb] | None:
-    """Ask the terminal for its colours; None when it is not one or stays silent."""
+def query_terminal(timeout: float = QUERY_TIMEOUT, stdin=None, stdout=None) -> TerminalReport:
+    """Ask the terminal for its colours; an empty report when it is not one or stays silent."""
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     if termios is None:
-        return None
+        return TerminalReport()
     try:
         if not (stdin.isatty() and stdout.isatty()):
-            return None
+            return TerminalReport()
         fd = stdin.fileno()
         saved = termios.tcgetattr(fd)
     except (AttributeError, OSError, ValueError, termios.error):
-        return None
+        return TerminalReport()
     try:
         tty.setcbreak(fd)
         stdout.write(_QUERY)
         stdout.flush()
         data = _read_until(fd, _DA1_REPLY, timeout)
     except OSError:
-        return None
+        return TerminalReport()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, saved)
-    return scheme_from_terminal(parse_replies(data))
+    return report_from_terminal(parse_replies(data))
