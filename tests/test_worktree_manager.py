@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock
@@ -23,3 +24,42 @@ class WorktreeManagerTests(unittest.TestCase):
 
         git.remove_worktree.assert_called_once_with(worktree.path, force=True)
         manager.prune_empty_worktree_parents.assert_called_once_with(worktree.path)
+
+    def test_remove_remains_deletes_leftovers_and_prunes_git(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            workspaces = Path(root) / "workspaces"
+            git = Mock(spec=GitClient)
+            git.prune_worktrees.return_value = (0, "", "")
+            manager = WorktreeManager(
+                Path(root) / "main",
+                f"{workspaces}/{{worktree}}/project",
+                git=git,
+            )
+            worktree = Worktree("feature", workspaces / "feature" / "project")
+            (worktree.path / "files").mkdir(parents=True)
+            (worktree.path / "files" / "left.txt").write_text("x")
+            (worktree.path.parent / "AGENTS.md").symlink_to(Path(root) / "missing.md")
+
+            self.assertTrue(manager.remove_worktree_remains_sync(worktree))
+
+            git.prune_worktrees.assert_called_once_with()
+            self.assertFalse(worktree.path.parent.exists())
+            self.assertTrue(workspaces.exists())
+
+    def test_prune_parents_keeps_directories_holding_real_files(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            workspaces = Path(root) / "workspaces"
+            manager = WorktreeManager(
+                Path(root) / "main",
+                f"{workspaces}/{{worktree}}/project",
+                git=Mock(spec=GitClient),
+            )
+            parent = workspaces / "feature"
+            parent.mkdir(parents=True)
+            (parent / "AGENTS.md").symlink_to(Path(root) / "missing.md")
+            (parent / "notes.txt").write_text("keep")
+
+            manager.prune_empty_worktree_parents(parent / "project")
+
+            self.assertTrue((parent / "notes.txt").exists())
+            self.assertTrue((parent / "AGENTS.md").is_symlink())

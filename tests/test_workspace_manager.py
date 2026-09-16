@@ -184,9 +184,8 @@ class WorkspaceManagerTests(unittest.TestCase):
     def test_delete_repairs_permissions_only_after_git_reports_them(self) -> None:
         worktree = Worktree("feature", Path("/tmp/feature"))
         worktrees = Mock(spec=WorktreeManager)
-        worktrees.remove_worktree_sync.side_effect = (
-            RuntimeError("failed to delete: Permission denied"),
-            True,
+        worktrees.remove_worktree_sync.side_effect = RuntimeError(
+            "failed to delete: Permission denied"
         )
         environment = Mock(spec=EnvironmentManager)
         environment.cleanup = AsyncMock()
@@ -200,8 +199,9 @@ class WorkspaceManagerTests(unittest.TestCase):
 
         asyncio.run(manager.delete(worktree, progress))
 
-        self.assertEqual(worktrees.remove_worktree_sync.call_count, 2)
+        worktrees.remove_worktree_sync.assert_called_once_with(worktree)
         environment.make_worktree_removable.assert_awaited_once_with(worktree)
+        worktrees.remove_worktree_remains_sync.assert_called_once_with(worktree)
         self.assertIn(
             call("Repairing worktree permissions..."),
             progress.call_args_list,

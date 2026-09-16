@@ -1,5 +1,6 @@
 import asyncio
 import re
+import shutil
 from pathlib import Path
 
 from ..models import Worktree
@@ -228,6 +229,20 @@ class WorktreeManager:
         self.prune_empty_worktree_parents(worktree.path)
         return True
 
+    def remove_worktree_remains_sync(self, worktree: Worktree) -> bool:
+        """Finish a removal git gave up on halfway.
+
+        Git drops the worktree registration even when it fails to delete every
+        file, so a second `git worktree remove` would be refused.
+        """
+        if worktree.path.exists():
+            shutil.rmtree(worktree.path)
+        returncode, _, error = self.git.prune_worktrees()
+        if returncode != 0:
+            raise RuntimeError(f"Failed to prune worktrees: {error}")
+        self.prune_empty_worktree_parents(worktree.path)
+        return True
+
     def prune_empty_worktree_parents(self, worktree_path: Path) -> None:
         path = worktree_path.absolute()
         try:
@@ -237,8 +252,20 @@ class WorktreeManager:
 
         parent = path.parent
         while parent != self.worktree_root:
-            try:
-                parent.rmdir()
-            except OSError:
+            if not self._remove_if_only_symlinks(parent):
                 return
             parent = parent.parent
+
+    @staticmethod
+    def _remove_if_only_symlinks(directory: Path) -> bool:
+        # post_create_commands may drop symlinks (AGENTS.md, ...) beside the worktree.
+        try:
+            entries = list(directory.iterdir())
+            if any(not entry.is_symlink() for entry in entries):
+                return False
+            for entry in entries:
+                entry.unlink()
+            directory.rmdir()
+        except OSError:
+            return False
+        return True

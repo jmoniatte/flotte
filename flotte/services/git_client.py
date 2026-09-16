@@ -43,3 +43,6 @@ class GitClient:
             args.append("--force")
         args.append(str(path))
         return self.run(*args)
+
+    def prune_worktrees(self) -> tuple[int, str, str]:
+        return self.run("worktree", "prune")

@@ -187,7 +187,7 @@ class WorkspaceManager:
                 self._report(on_progress, "Repairing worktree permissions...")
                 await self.environment.make_worktree_removable(worktree)
                 await asyncio.to_thread(
-                    self.worktrees.remove_worktree_sync,
+                    self.worktrees.remove_worktree_remains_sync,
                     worktree,
                 )
         finally:
