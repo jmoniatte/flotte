@@ -105,6 +105,27 @@ class WorktreeManager:
         # Truncate to 30 chars
         return sanitized[:30].lower()
 
+    def _check_worktree_name_is_free(
+        self, name: str, worktree_path: Path, branch_name: str
+    ) -> None:
+        # Different branches can sanitize to the same name, and git's own error does not say which.
+        resolved = worktree_path.resolve()
+        for existing in self.discover_worktrees_sync():
+            if existing.path.resolve() != resolved:
+                continue
+            if existing.branch == branch_name:
+                raise RuntimeError(f"Branch {branch_name} already has the worktree {name}")
+            owner = f"branch {existing.branch}" if existing.branch else "a detached HEAD"
+            raise RuntimeError(
+                f"A worktree named {name} already exists (from {owner}); "
+                f"{branch_name} maps to the same name"
+            )
+        if worktree_path.exists():
+            raise RuntimeError(
+                f"{worktree_path} already exists and is not a worktree; "
+                f"{branch_name} maps to the name {name}"
+            )
+
     def create_worktree_sync(
         self,
         branch_name: str,
@@ -126,6 +147,7 @@ class WorktreeManager:
         """
         sanitized_name = self._sanitize_branch_name(branch_name)
         worktree_path = self._worktree_path(sanitized_name)
+        self._check_worktree_name_is_free(sanitized_name, worktree_path, branch_name)
 
         # Ensure parent directory exists
         worktree_path.parent.mkdir(parents=True, exist_ok=True)

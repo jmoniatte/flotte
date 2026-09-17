@@ -46,6 +46,34 @@ class WorktreeManagerTests(unittest.TestCase):
             self.assertFalse(worktree.path.parent.exists())
             self.assertTrue(workspaces.exists())
 
+    def test_create_refuses_a_name_another_branch_already_uses(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            workspaces = Path(root) / "workspaces"
+            existing = workspaces / "feature-login" / "project"
+            existing.mkdir(parents=True)
+            leftover = workspaces / "feature-signup" / "project"
+            leftover.mkdir(parents=True)
+            git = Mock(spec=GitClient)
+            git.run.return_value = (0, f"{existing}  abc1234 [feature-login]\n", "")
+            manager = WorktreeManager(
+                Path(root) / "main",
+                f"{workspaces}/{{worktree}}/project",
+                git=git,
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "from branch feature-login"):
+                manager.create_worktree_sync("feature/login", "main")
+            with self.assertRaisesRegex(RuntimeError, "already has the worktree"):
+                manager.create_worktree_sync("feature-login", None)
+            with self.assertRaisesRegex(RuntimeError, "is not a worktree"):
+                manager.create_worktree_sync("feature/signup", "main")
+            git.run.assert_called_with("worktree", "list")
+
+            git.run.side_effect = [(0, "", ""), (0, "", "")]
+            created = manager.create_worktree_sync("feature/logout", "main")
+            self.assertEqual(created.name, "feature-logout")
+            self.assertEqual(created.branch, "feature/logout")
+
     def test_prune_parents_keeps_directories_holding_real_files(self) -> None:
         with tempfile.TemporaryDirectory() as root:
             workspaces = Path(root) / "workspaces"
