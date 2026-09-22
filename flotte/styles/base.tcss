@@ -810,35 +810,37 @@ LogsScreen {
     height: 1fr;
 }
 
+/* Textual's own tab look, as in ouifi: the active tab bold over a blue bar, the rest dimmed, a thin rule across */
 #logs-tabs Tabs {
-    height: 1;
+    height: 2;
     background: transparent;
     margin-bottom: 1;
 }
 
 #logs-tabs Tab {
     background: transparent;
-    color: $blue;
-    padding: 0 1;
+    color: $comment;
+    padding: 0 2;
 }
 
 #logs-tabs Tab.-active {
-    color: $yellow;
+    color: $fg;
     text-style: bold;
 }
 
 #logs-tabs Tab:hover {
-    color: $blue;
-    text-style: underline;
+    color: $fg;
+    text-style: none;
 }
 
 #logs-tabs Tab.-active:hover {
-    color: $yellow;
+    color: $fg;
     text-style: bold;
 }
 
-#logs-tabs Underline {
-    background: transparent;
+#logs-tabs Underline > .underline--bar {
+    color: $blue;
+    background: $gutter;
 }
 
 #logs-tabs TabPane {
@@ -956,8 +958,9 @@ CreateWorktreeScreen #branch-mode {
     margin: 0;
 }
 
+/* Textual's own tab look, as in ouifi: the active tab bold over a blue bar, the rest dimmed, a thin rule across */
 CreateWorktreeScreen #branch-mode Tabs {
-    height: 1;
+    height: 2;
     background: transparent;
     margin-bottom: 1;
 }
@@ -965,20 +968,27 @@ CreateWorktreeScreen #branch-mode Tabs {
 CreateWorktreeScreen #branch-mode Tab {
     background: transparent;
     color: $comment;
-    padding: 0 1;
+    padding: 0 2;
 }
 
 CreateWorktreeScreen #branch-mode Tab.-active {
-    color: $blue;
+    color: $fg;
     text-style: bold;
 }
 
 CreateWorktreeScreen #branch-mode Tab:hover {
     color: $fg;
+    text-style: none;
 }
 
-CreateWorktreeScreen #branch-mode Underline {
-    background: transparent;
+CreateWorktreeScreen #branch-mode Tab.-active:hover {
+    color: $fg;
+    text-style: bold;
+}
+
+CreateWorktreeScreen #branch-mode Underline > .underline--bar {
+    color: $blue;
+    background: $gutter;
 }
 
 CreateWorktreeScreen #branch-mode TabPane {
