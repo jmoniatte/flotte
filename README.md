@@ -206,4 +206,5 @@ flotte
 | `r` | Refresh status |
 | `R` | Go Ride |
 | `q` | Quit |
-| `?` | Show help |
+| `?` | Show help (or click the Flotte logo) |
+| `,` | Settings |

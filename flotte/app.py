@@ -46,6 +46,7 @@ from .screens import (
     CreateWorktreeScreen,
     DeleteWorktreeScreen,
     DeleteWorktreeResult,
+    HelpScreen,
     SettingsScreen,
     ThemePicker,
     LogsScreen,
@@ -58,6 +59,7 @@ from .widgets import (
     WorktreeOpened,
     LinkedRepositoryAction,
     HeaderNotification,
+    HelpRequested,
 )
 
 GREETING_TEMPLATES = (
@@ -121,7 +123,8 @@ class FlotteApp(App):
             group=GENERAL,
         ),
         Binding("t", "show_themes", "Change theme", show=False, group=GENERAL),
-        Binding("?", "show_settings", "Show settings", show=False, group=GENERAL),
+        Binding("?", "show_help", "Help", show=False, group=GENERAL),
+        Binding("comma", "show_settings", "Settings", show=False, key_display=",", group=GENERAL),
         Binding("tab", "focus_next", show=False),
         Binding("shift+tab", "focus_previous", show=False),
     ]
@@ -928,9 +931,15 @@ class FlotteApp(App):
         self._show_worktree_list()
 
     def action_show_settings(self) -> None:
-        """Show the settings screen - '?' key."""
+        """Show the settings screen - ',' key."""
         self._clear_action_focus()
         self.push_screen(SettingsScreen())
+
+    @on(HelpRequested)
+    def action_show_help(self) -> None:
+        """Show the shortcuts - '?' key, or a click on the logo."""
+        self._clear_action_focus()
+        self.push_screen(HelpScreen())
 
     def action_show_logs(self) -> None:
         """Show all logs for the selected worktree."""

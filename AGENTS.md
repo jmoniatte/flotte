@@ -5,9 +5,9 @@ TUI for managing docker-compose projects across git worktrees.
 ## Rules
 
 - Do not git commit unless asked
-- The settings screen lists every binding that has a description and a `group`
-  (`shortcuts.ACTIONS` or `shortcuts.GENERAL`); document a new key there, not in
-  `settings_screen.py`
+- The help screen (`?`, or clicking the logo) lists every binding that has a description and
+  a `group` (`shortcuts.ACTIONS` or `shortcuts.GENERAL`); document a new key there, not in
+  `help_screen.py`
 
 ## Run
 
@@ -34,10 +34,10 @@ flotte/                 # git root + pyproject.toml (run uv commands here)
   flotte/               # Python package
     app.py              # Main Textual app
     config.py           # Config loading (~/.config/flotte/config.yaml)
-    shortcuts.py        # Settings screen shortcuts, read off the bindings
+    shortcuts.py        # Help screen shortcuts, read off the bindings
     services/           # WorktreeManager, DockerManager, RideWrapper
     widgets/            # Textual widgets
-    screens/            # Textual screens
+    screens/            # Textual screens (panel.py is the base of settings and help)
     theme.py            # base16 scheme loading, palette derivation
     styles/themes/      # base16 scheme files, one .yaml per theme
 ```
@@ -74,7 +74,7 @@ place the editorial rule lives: a scheme whose own `$fg` on `$bg` falls below
 `MIN_TEXT_CONTRAST` (WCAG AA) is skipped, since `base.tcss` cannot rescue it.
 Do not hand-add a scheme the script would reject.
 
-Settings (`?`) has a theme dropdown; the picker (`t`) previews as the cursor
+Settings (`,` or the Settings button) has a theme dropdown; the picker (`t`) previews as the cursor
 moves. Both route through `FlotteApp.set_theme`. The palette is
 served from `FlotteApp.get_css_variables` rather than baked into `CSS`. Anything
 that renders a Rich colour from `app.theme_colors` must be rebuilt in

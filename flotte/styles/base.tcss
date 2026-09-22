@@ -598,15 +598,15 @@ ModalScreen Button:focus {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   SETTINGS SCREEN
+   PANELS (settings, help)
    ═══════════════════════════════════════════════════════════════════════ */
 
-SettingsScreen {
+PanelScreen {
     align: center top;
     background: $bg 80%;
 }
 
-SettingsScreen > Vertical {
+PanelScreen > Vertical {
     width: auto;
     min-width: 64;
     max-width: 70;
@@ -617,35 +617,41 @@ SettingsScreen > Vertical {
     padding: 1 2;
 }
 
-SettingsScreen Static {
+/* Settings holds one row; only Help needs the room for its two columns */
+PanelScreen #settings-panel {
+    width: 56;
+    min-width: 0;
+}
+
+PanelScreen Static {
     color: $fg;
 }
 
-SettingsScreen #dialog-title {
+PanelScreen #dialog-title {
     text-style: bold;
     color: $blue;
 }
 
-SettingsScreen #title-separator {
+PanelScreen #title-separator {
     height: 1;
 }
 
-SettingsScreen #settings-theme-row {
+PanelScreen #settings-theme-row {
     height: auto;
     margin-bottom: 1;
 }
 
-SettingsScreen #settings-theme-label {
+PanelScreen #settings-theme-label {
     width: 12;
     height: 1;
     color: $comment;
 }
 
-SettingsScreen #theme-selector {
+PanelScreen #theme-selector {
     width: 1fr;
 }
 
-SettingsScreen #theme-selector SelectCurrent {
+PanelScreen #theme-selector SelectCurrent {
     background: transparent;
     border: none !important;
     border-bottom: solid $gutter !important;
@@ -653,97 +659,91 @@ SettingsScreen #theme-selector SelectCurrent {
     color: $fg;
 }
 
-SettingsScreen #theme-selector SelectCurrent:hover,
-SettingsScreen #theme-selector:focus SelectCurrent {
+PanelScreen #theme-selector SelectCurrent:hover,
+PanelScreen #theme-selector:focus SelectCurrent {
     border-bottom: solid $blue !important;
 }
 
-SettingsScreen #theme-selector SelectOverlay {
+PanelScreen #theme-selector SelectOverlay {
     background: $bg;
     border: none;
     max-height: 12;
     scrollbar-size: 0 0;
 }
 
-SettingsScreen #theme-selector SelectOverlay > .option-list--option-highlighted {
+PanelScreen #theme-selector SelectOverlay > .option-list--option-highlighted {
     background: $bg-light;
     color: $fg;
     text-style: none;
 }
 
-SettingsScreen #settings-theme-separator {
-    height: 1;
-    color: $comment;
-    margin-bottom: 1;
-}
-
-SettingsScreen .section-title {
+PanelScreen .section-title {
     text-style: bold;
     color: $fg;
     border-bottom: ascii $gutter;
 }
 
-SettingsScreen #shortcuts-sections {
+PanelScreen #shortcuts-sections {
     height: auto;
 }
 
-SettingsScreen .shortcuts-section {
+PanelScreen .shortcuts-section {
     height: auto;
 }
 
-SettingsScreen #shortcuts-actions {
+PanelScreen #shortcuts-actions {
     width: 32;
     margin-right: 2;
 }
 
-SettingsScreen #shortcuts-general {
+PanelScreen #shortcuts-general {
     width: 32;
 }
 
-SettingsScreen #shortcuts-separator {
+PanelScreen #shortcuts-separator {
     height: 1;
     color: $comment;
 }
 
-SettingsScreen .shortcut-row {
+PanelScreen .shortcut-row {
     height: 1;
 }
 
-SettingsScreen .shortcut-key {
+PanelScreen .shortcut-key {
     width: 8;
     color: $green;
 }
 
-SettingsScreen .shortcut-desc {
+PanelScreen .shortcut-desc {
     color: $fg;
 }
 
-SettingsScreen #settings-footer {
+PanelScreen #panel-footer {
     height: 1;
     align: right middle;
 }
 
-SettingsScreen #settings-footer-spacer {
+PanelScreen #panel-footer-spacer {
     height: 1;
 }
 
-SettingsScreen #settings-footer .spacer {
+PanelScreen #panel-footer .spacer {
     width: 1fr;
 }
 
-SettingsScreen #settings-version {
+PanelScreen #panel-version {
     width: auto;
     margin-left: 1;
     color: $comment;
 }
 
-SettingsScreen #settings-repository {
+PanelScreen #panel-repository {
     width: auto;
     color: $blue;
     background: transparent;
 }
 
-SettingsScreen #settings-repository:hover {
+PanelScreen #panel-repository:hover {
     color: $blue;
     text-style: underline;
     background: transparent;

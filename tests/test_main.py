@@ -23,7 +23,7 @@ from flotte.services.environment_manager import (
     RESTART_ENVIRONMENT,
     START_ENVIRONMENT,
 )
-from flotte.screens import LogsScreen, SettingsScreen
+from flotte.screens import HelpScreen, LogsScreen, SettingsScreen
 from flotte.theme import load_palette
 from flotte.screens.create_worktree import CreateWorktreeScreen
 from flotte.widgets import AppHeader, WebLink, WorktreeHeader
@@ -616,7 +616,7 @@ class MainTests(unittest.TestCase):
                 app = FlotteApp()
                 async with app.run_test(size=(90, 34)) as pilot:
                     await pilot.pause()
-                    await pilot.press("?")
+                    await pilot.press("comma")
                     await pilot.pause()
                     selector = app.screen.query_one("#theme-selector", Select)
                     self.assertEqual(selector.value, "onedark")
@@ -644,7 +644,7 @@ class MainTests(unittest.TestCase):
                 app = FlotteApp()
                 async with app.run_test(size=(90, 34)) as pilot:
                     await pilot.pause()
-                    await pilot.press("?")
+                    await pilot.press("comma")
                     await pilot.pause()
                     app.screen.query_one("#theme-selector", Select).focus()
                     await pilot.press("enter")
@@ -679,7 +679,7 @@ class MainTests(unittest.TestCase):
                     resting = button.styles.background
 
                     for open_it in (lambda: pilot.click("#btn-settings"),
-                                    lambda: pilot.press("?")):
+                                    lambda: pilot.press("comma")):
                         await open_it()
                         await pilot.pause()
                         self.assertIsInstance(app.screen, SettingsScreen)
@@ -690,7 +690,7 @@ class MainTests(unittest.TestCase):
 
         asyncio.run(exercise())
 
-    def test_settings_screen_documents_every_binding(self) -> None:
+    def test_help_screen_documents_every_binding(self) -> None:
         async def exercise() -> None:
             config = self._single_project_config()
             with contextlib.ExitStack() as stack:
@@ -701,7 +701,7 @@ class MainTests(unittest.TestCase):
                     await pilot.pause()
                     await pilot.press("?")
                     await pilot.pause()
-                    self.assertIsInstance(app.screen, SettingsScreen)
+                    self.assertIsInstance(app.screen, HelpScreen)
 
                     documented = {}
                     for row in app.screen.query(".shortcut-row"):
@@ -733,6 +733,18 @@ class MainTests(unittest.TestCase):
                     self.assertEqual(documented["o"].render().plain, "Open web URL")
                     self.assertIn("j", documented)
                     self.assertEqual(shortcuts.SECTIONS, ("Actions", "General"))
+                    self.assertEqual(documented[","].render().plain, "Settings")
+
+                    # The logo opens Help too, and Settings holds only the theme
+                    await pilot.press("escape")
+                    await pilot.click("#app-title")
+                    await pilot.pause()
+                    self.assertIsInstance(app.screen, HelpScreen)
+                    await pilot.press("escape", "comma")
+                    await pilot.pause()
+                    self.assertIsInstance(app.screen, SettingsScreen)
+                    self.assertEqual(list(app.screen.query(".shortcut-row")), [])
+                    app.screen.query_one("#theme-selector", Select)
 
         asyncio.run(exercise())
 
