@@ -11,7 +11,6 @@ from flotte.config import (
     PortRange,
     Project,
     load_config,
-    save_theme,
     preflight_config,
     save_config,
 )
@@ -86,39 +85,6 @@ class ConfigTests(unittest.TestCase):
             config_file.write_text(text)
             with patch("flotte.config.CONFIG_FILE", config_file):
                 return load_config()
-
-    def test_save_theme_leaves_the_rest_of_the_file_alone(self) -> None:
-        original = (
-            "# my config\n"
-            "theme: onedark\n"
-            "unknown_key: kept\n"
-            "projects:\n"
-            "  - name: Demo\n"
-            "    repository_path: /projects/demo\n"
-            "    worktree_path: /projects/demo-{worktree}\n"
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            config_file = Path(directory) / "config.yaml"
-            config_file.write_text(original)
-            with patch("flotte.config.CONFIG_FILE", config_file):
-                save_theme("nord")
-                written = config_file.read_text()
-                reloaded = load_config()
-
-        self.assertEqual(written, original.replace("theme: onedark", "theme: nord"))
-        self.assertIn("# my config", written)
-        self.assertIn("unknown_key: kept", written)
-        self.assertEqual(reloaded.theme, "nord")
-        self.assertEqual([p.name for p in reloaded.projects], ["Demo"])
-
-    def test_save_theme_adds_the_key_when_absent(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            config_file = Path(directory) / "config.yaml"
-            config_file.write_text("projects: []\n")
-            with patch("flotte.config.CONFIG_FILE", config_file):
-                save_theme("dracula")
-                written = config_file.read_text()
-        self.assertEqual(written, "theme: dracula\nprojects: []\n")
 
     def test_terminal_theme_is_the_default_and_always_accepted(self) -> None:
         self.assertEqual(Config().theme, "terminal")

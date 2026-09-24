@@ -7,11 +7,11 @@ from textual.reactive import reactive
 from textual.message import Message
 from rich.align import Align
 from rich.text import Text
+from ouikit.shortcuts import ACTIONS, GENERAL
 
-from ..shortcuts import ACTIONS, GENERAL
 from ..formatters import format_git_status, format_web_url
 from ..models import GitStatus, Worktree, WorktreeStatus
-from ..theme import get_status_style
+from ..colors import get_status_style
 from .table_rules import DashedHeaderDataTable, DashedTableFooter
 
 

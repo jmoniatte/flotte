@@ -95,9 +95,11 @@ Optional fields:
 - `linked_repositories`: Companion repositories paired with the project.
 
 The global `theme` defaults to `terminal`, which reads the colours from the terminal itself
-(xterm OSC 10, 11 and 4 queries). It can also name any base16 scheme in `flotte/styles/themes/`,
-such as `onedark` or `nord`. When the terminal does not answer, `onedark` (or `one-light` on a
-light terminal) is used and `terminal` is not offered in the theme pickers.
+(xterm OSC 10, 11 and 4 queries). It can also name any base16 scheme that
+[ouikit](https://github.com/jmoniatte/ouikit) ships, such as `onedark` or `nord`. Press `t` to
+browse them; the choice is written back to the config. When the terminal does not answer,
+`onedark` (or `one-light` on a light terminal) is used and `terminal` is not offered in the
+theme picker.
 
 ## Linked repositories
 
@@ -207,4 +209,4 @@ flotte
 | `R` | Go Ride |
 | `q` | Quit |
 | `?` | Show help (or click the Flotte logo) |
-| `,` | Settings |
+| `t` | Change theme |

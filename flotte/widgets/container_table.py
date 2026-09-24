@@ -3,7 +3,7 @@ from rich.align import Align
 from rich.text import Text
 
 from ..models import Worktree, Container, ContainerState
-from ..theme import get_status_style
+from ..colors import get_status_style
 from .table_rules import DashedHeaderDataTable
 
 

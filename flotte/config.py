@@ -3,11 +3,9 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass, field
-import re
-from difflib import get_close_matches
 from pathlib import Path
 
-from .theme import default_theme, is_known_theme, list_themes
+from ouikit.config import read_theme
 
 
 # Configuration paths
@@ -68,7 +66,7 @@ class Config:
 
     # UI settings
     # "terminal" reads the terminal's own colours; otherwise any scheme in
-    # styles/themes/ (see theme.list_themes()). Falls back to theme.default_theme().
+    # ouikit (see ouikit.theme.list_themes()). Set with t in the app.
     theme: str = "terminal"
 
     # Projects list
@@ -258,22 +256,6 @@ def _linked_repositories(
     return tuple(repositories)
 
 
-_THEME_LINE = re.compile(r"^theme:.*$", re.MULTILINE)
-
-
-def save_theme(theme: str) -> None:
-    """Persist the theme alone.
-
-    save_config rewrites the whole file, which would strip a hand-written
-    config's comments and any key it does not know about.
-    """
-    ensure_config_dir()
-    line = f"theme: {theme}"
-    text = CONFIG_FILE.read_text() if CONFIG_FILE.exists() else ""
-    updated, replaced = _THEME_LINE.subn(line, text, count=1)
-    CONFIG_FILE.write_text(updated if replaced else f"{line}\n{text}")
-
-
 def load_config() -> Config:
     """Load configuration from file, falling back to defaults."""
     config = Config()
@@ -295,19 +277,9 @@ def load_config() -> Config:
             return config
 
         # Load global settings
-        if "theme" in data and isinstance(data["theme"], str):
-            if is_known_theme(data["theme"]):
-                config.theme = data["theme"]
-            else:
-                config.theme = default_theme()
-                # Too many themes to list; a near-miss is the useful hint.
-                near = get_close_matches(data["theme"], list_themes(), n=3)
-                hint = f" Did you mean: {', '.join(near)}?" if near else ""
-                _warn(
-                    config.warnings,
-                    f"theme: '{data['theme']}' is not installed, using "
-                    f"'{config.theme}'.{hint}",
-                )
+        config.theme, warning = read_theme(data.get("theme"))
+        if warning:
+            _warn(config.warnings, warning)
 
         # Load projects array
         required_fields = ("name", "repository_path", "worktree_path")

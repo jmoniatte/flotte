@@ -23,19 +23,22 @@ from flotte.services.environment_manager import (
     RESTART_ENVIRONMENT,
     START_ENVIRONMENT,
 )
-from flotte.screens import HelpScreen, LogsScreen, SettingsScreen
-from flotte.theme import load_palette
+from flotte.config import CONFIG_FILE
+from flotte.screens import LogsScreen
 from flotte.screens.create_worktree import CreateWorktreeScreen
-from flotte.widgets import AppHeader, WebLink, WorktreeHeader
+from flotte.widgets import WebLink, WorktreeHeader
 from flotte.widgets.worktree_header import WorktreeTable
-from flotte import shortcuts
+from ouikit import shortcuts
+from ouikit.app_header import AppHeader
+from ouikit.help_screen import HelpScreen
+from ouikit.theme import load_palette
+from ouikit.theme_picker import ThemePicker
 from textual.widgets import (
     Button,
     Checkbox,
     ContentSwitcher,
     DataTable,
     RichLog,
-    Select,
     Static,
     TabbedContent,
     Tabs,
@@ -257,7 +260,7 @@ class MainTests(unittest.TestCase):
                     )
                     left_gap = (
                         notification.region.x
-                        - app.query_one("#app-title-group").region.right
+                        - app.query_one("#app-title").region.right
                     )
                     right_gap = (
                         app.query_one("#project-selector").region.x
@@ -606,66 +609,32 @@ class MainTests(unittest.TestCase):
 
         asyncio.run(exercise())
 
-    def test_settings_theme_selector_applies_and_persists(self) -> None:
+    def test_the_theme_picker_applies_and_persists(self) -> None:
         async def exercise() -> None:
             config = self._single_project_config()
             with contextlib.ExitStack() as stack:
                 for patcher in self._patched_app(config):
                     stack.enter_context(patcher)
-                saved = stack.enter_context(patch("flotte.app.save_theme"))
+                saved = stack.enter_context(patch("ouikit.base_app.save_theme"))
                 app = FlotteApp()
                 async with app.run_test(size=(90, 34)) as pilot:
                     await pilot.pause()
-                    await pilot.press("comma")
+                    await pilot.press("t")
                     await pilot.pause()
-                    selector = app.screen.query_one("#theme-selector", Select)
-                    self.assertEqual(selector.value, "onedark")
-
-                    selector.value = "nord"
+                    self.assertIsInstance(app.screen, ThemePicker)
+                    await pilot.press(*"nord", "enter")
                     await pilot.pause()
 
                     nord = load_palette("nord")
-                    self.assertEqual(app.config.theme, "nord")
+                    self.assertEqual(app.theme_name, "nord")
                     self.assertEqual(app.theme_colors.red, nord["red"])
                     self.assertEqual(app.get_css_variables()["bg"], nord["bg"])
-                    saved.assert_called_once_with("nord")
+                    saved.assert_called_once_with("nord", CONFIG_FILE)
 
         asyncio.run(exercise())
 
-    def test_settings_stays_open_while_using_the_dropdown(self) -> None:
-        """The screen used to dismiss on any key press, which the Select needs."""
-
-        async def exercise() -> None:
-            config = self._single_project_config()
-            with contextlib.ExitStack() as stack:
-                for patcher in self._patched_app(config):
-                    stack.enter_context(patcher)
-                stack.enter_context(patch("flotte.app.save_theme"))
-                app = FlotteApp()
-                async with app.run_test(size=(90, 34)) as pilot:
-                    await pilot.pause()
-                    await pilot.press("comma")
-                    await pilot.pause()
-                    app.screen.query_one("#theme-selector", Select).focus()
-                    await pilot.press("enter")
-                    await pilot.pause()
-                    self.assertIsInstance(app.screen, SettingsScreen)
-
-                    # Type-to-search inside the overlay must not close the modal.
-                    await pilot.press(*"nord")
-                    await pilot.pause()
-                    self.assertIsInstance(app.screen, SettingsScreen)
-
-                    await pilot.press("escape")
-                    await pilot.pause()
-                    await pilot.press("escape")
-                    await pilot.pause()
-                    self.assertNotIsInstance(app.screen, SettingsScreen)
-
-        asyncio.run(exercise())
-
-    def test_settings_button_is_not_left_focused_behind_the_modal(self) -> None:
-        """Clicking the button used to leave it lit up once the modal closed."""
+    def test_a_button_is_not_left_focused_behind_a_panel(self) -> None:
+        """Clicking a button used to leave it lit up once the panel over it closed."""
 
         async def exercise() -> None:
             config = self._single_project_config()
@@ -675,18 +644,16 @@ class MainTests(unittest.TestCase):
                 app = FlotteApp()
                 async with app.run_test(size=(120, 34)) as pilot:
                     await pilot.pause()
-                    button = app.query_one("#btn-settings", Button)
+                    button = app.query_one("#btn-refresh", Button)
                     resting = button.styles.background
-
-                    for open_it in (lambda: pilot.click("#btn-settings"),
-                                    lambda: pilot.press("comma")):
-                        await open_it()
-                        await pilot.pause()
-                        self.assertIsInstance(app.screen, SettingsScreen)
-                        await pilot.press("escape")
-                        await pilot.pause()
-                        self.assertNotIn("focus", button.get_pseudo_classes())
-                        self.assertEqual(button.styles.background, resting)
+                    button.focus()
+                    await pilot.press("question_mark")
+                    await pilot.pause()
+                    self.assertIsInstance(app.screen, HelpScreen)
+                    await pilot.press("escape")
+                    await pilot.pause()
+                    self.assertNotIn("focus", button.get_pseudo_classes())
+                    self.assertEqual(button.styles.background, resting)
 
         asyncio.run(exercise())
 
@@ -733,18 +700,13 @@ class MainTests(unittest.TestCase):
                     self.assertEqual(documented["o"].render().plain, "Open web URL")
                     self.assertIn("j", documented)
                     self.assertEqual(shortcuts.SECTIONS, ("Actions", "General"))
-                    self.assertEqual(documented[","].render().plain, "Settings")
+                    self.assertNotIn(",", documented)
 
-                    # The logo opens Help too, and Settings holds only the theme
+                    # The logo opens Help too
                     await pilot.press("escape")
                     await pilot.click("#app-title")
                     await pilot.pause()
                     self.assertIsInstance(app.screen, HelpScreen)
-                    await pilot.press("escape", "comma")
-                    await pilot.pause()
-                    self.assertIsInstance(app.screen, SettingsScreen)
-                    self.assertEqual(list(app.screen.query(".shortcut-row")), [])
-                    app.screen.query_one("#theme-selector", Select)
 
         asyncio.run(exercise())
 

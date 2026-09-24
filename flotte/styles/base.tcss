@@ -6,9 +6,8 @@
    GLOBAL LAYOUT
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* A full-size app rather than a pop-up, so it draws its own frame */
 Screen {
-    background: $bg;
-    color: $fg;
     border: solid $gutter;
 }
 
@@ -16,64 +15,9 @@ ModalScreen {
     border: none;
 }
 
-/* Custom app header with project selector */
+/* A blank row between ouikit's header and the list */
 #app-header {
-    dock: top;
-    height: auto;
-    background: $bg;
-    padding: 0 1;
-    border-bottom: solid $gutter;
     margin: 0 0 1 0;
-}
-
-#app-title-group {
-    width: auto;
-    height: auto;
-}
-
-#header-spacer {
-    width: 1fr;
-}
-
-.header-notification-spacer {
-    width: 1fr;
-}
-
-#app-title {
-    width: auto;
-    text-style: bold;
-    color: $blue;
-    background: transparent;
-}
-
-#app-title:hover {
-    color: $blue;
-    text-style: bold underline;
-    background: transparent;
-}
-
-#app-subtitle {
-    width: auto;
-    color: $comment;
-}
-
-HeaderNotification {
-    width: 40%;
-    height: auto;
-    max-height: 2;
-    padding: 0 1;
-}
-
-HeaderNotification.-information {
-    color: $green;
-}
-
-HeaderNotification.-warning {
-    color: $yellow;
-}
-
-HeaderNotification.-error {
-    color: $red;
 }
 
 #project-selector {
@@ -115,8 +59,10 @@ HeaderNotification.-error {
     background: $bg-light;
 }
 
+/* Two rows like the project dropdown it replaces on the details view, so the page does not jump */
 #project-name {
     width: 25;
+    height: 2;
     content-align: left middle;
     color: $comment;
 }
@@ -243,25 +189,6 @@ WorktreeHeader #worktree-table-footer-rule {
 
 #btn-refresh:focus {
     background: $purple;
-    color: auto;
-    text-style: bold;
-}
-
-#worktree-controls .spacer {
-    width: 1fr;
-}
-
-#btn-settings {
-    background: $comment 30%;
-    color: $fg;
-}
-
-#btn-settings:hover {
-    background: $comment 50%;
-}
-
-#btn-settings:focus {
-    background: $comment;
     color: auto;
     text-style: bold;
 }
@@ -551,21 +478,7 @@ ContainerControls #btn-delete-worktree:focus {
    MODAL SCREENS
    ═══════════════════════════════════════════════════════════════════════ */
 
-ModalScreen {
-    align: center top;
-    background: $bg 80%;
-}
-
-ModalScreen > Vertical {
-    width: 60;
-    height: auto;
-    max-height: 80%;
-    background: $bg-dark;
-    border: none;
-    padding: 1 2;
-    margin-top: 4;
-}
-
+/* Flotte's forms: full-width inputs with room around them; the boxes and buttons are ouikit's */
 ModalScreen #dialog-title,
 #no-config-dialog #dialog-title {
     border-bottom: ascii $gutter;
@@ -583,171 +496,9 @@ ModalScreen Input:focus {
     border: solid $blue;
 }
 
-ModalScreen Button {
-    width: auto;
-    min-width: 0;
-    margin: 1 1 0 0;
-    padding: 0 2;
-    background: $bg-light;
-    color: $fg;
-}
-
-ModalScreen Button:focus {
-    background: $blue;
-    color: auto;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
-   PANELS (settings, help)
+   LOGS SCREEN
    ═══════════════════════════════════════════════════════════════════════ */
-
-PanelScreen {
-    align: center top;
-    background: $bg 80%;
-}
-
-PanelScreen > Vertical {
-    width: auto;
-    min-width: 64;
-    max-width: 70;
-    height: auto;
-    max-height: 80%;
-    background: $bg-dark;
-    border: none;
-    padding: 1 2;
-}
-
-/* Settings holds one row; only Help needs the room for its two columns */
-PanelScreen #settings-panel {
-    width: 56;
-    min-width: 0;
-}
-
-PanelScreen Static {
-    color: $fg;
-}
-
-PanelScreen #dialog-title {
-    text-style: bold;
-    color: $blue;
-}
-
-PanelScreen #title-separator {
-    height: 1;
-}
-
-PanelScreen #settings-theme-row {
-    height: auto;
-    margin-bottom: 1;
-}
-
-PanelScreen #settings-theme-label {
-    width: 12;
-    height: 1;
-    color: $comment;
-}
-
-PanelScreen #theme-selector {
-    width: 1fr;
-}
-
-PanelScreen #theme-selector SelectCurrent {
-    background: transparent;
-    border: none !important;
-    border-bottom: solid $gutter !important;
-    padding: 0 1;
-    color: $fg;
-}
-
-PanelScreen #theme-selector SelectCurrent:hover,
-PanelScreen #theme-selector:focus SelectCurrent {
-    border-bottom: solid $blue !important;
-}
-
-PanelScreen #theme-selector SelectOverlay {
-    background: $bg;
-    border: none;
-    max-height: 12;
-    scrollbar-size: 0 0;
-}
-
-PanelScreen #theme-selector SelectOverlay > .option-list--option-highlighted {
-    background: $bg-light;
-    color: $fg;
-    text-style: none;
-}
-
-PanelScreen .section-title {
-    text-style: bold;
-    color: $fg;
-    border-bottom: ascii $gutter;
-}
-
-PanelScreen #shortcuts-sections {
-    height: auto;
-}
-
-PanelScreen .shortcuts-section {
-    height: auto;
-}
-
-PanelScreen #shortcuts-actions {
-    width: 32;
-    margin-right: 2;
-}
-
-PanelScreen #shortcuts-general {
-    width: 32;
-}
-
-PanelScreen #shortcuts-separator {
-    height: 1;
-    color: $comment;
-}
-
-PanelScreen .shortcut-row {
-    height: 1;
-}
-
-PanelScreen .shortcut-key {
-    width: 8;
-    color: $green;
-}
-
-PanelScreen .shortcut-desc {
-    color: $fg;
-}
-
-PanelScreen #panel-footer {
-    height: 1;
-    align: right middle;
-}
-
-PanelScreen #panel-footer-spacer {
-    height: 1;
-}
-
-PanelScreen #panel-footer .spacer {
-    width: 1fr;
-}
-
-PanelScreen #panel-version {
-    width: auto;
-    margin-left: 1;
-    color: $comment;
-}
-
-PanelScreen #panel-repository {
-    width: auto;
-    color: $blue;
-    background: transparent;
-}
-
-PanelScreen #panel-repository:hover {
-    color: $blue;
-    text-style: underline;
-    background: transparent;
-}
 
 LogsScreen {
     background: $bg;
@@ -810,39 +561,6 @@ LogsScreen {
     height: 1fr;
 }
 
-/* Textual's own tab look, as in ouifi: the active tab bold over a blue bar, the rest dimmed, a thin rule across */
-#logs-tabs Tabs {
-    height: 2;
-    background: transparent;
-    margin-bottom: 1;
-}
-
-#logs-tabs Tab {
-    background: transparent;
-    color: $comment;
-    padding: 0 2;
-}
-
-#logs-tabs Tab.-active {
-    color: $fg;
-    text-style: bold;
-}
-
-#logs-tabs Tab:hover {
-    color: $fg;
-    text-style: none;
-}
-
-#logs-tabs Tab.-active:hover {
-    color: $fg;
-    text-style: bold;
-}
-
-#logs-tabs Underline > .underline--bar {
-    color: $blue;
-    background: $gutter;
-}
-
 #logs-tabs TabPane {
     height: 1fr;
     padding: 0;
@@ -864,73 +582,6 @@ LogsScreen {
 #worktree-log-rule {
     height: 1;
     color: $comment;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   CONFIRM DIALOG
-   ═══════════════════════════════════════════════════════════════════════ */
-
-ConfirmDialog > Vertical {
-    width: auto;
-    min-width: 40;
-    max-width: 60;
-    background: $bg-dark;
-    border: none;
-    padding: 1 2;
-}
-
-ConfirmDialog #dialog-title {
-    text-style: bold;
-    color: $red;
-    margin-bottom: 1;
-}
-
-ConfirmDialog #dialog-message {
-    color: $fg;
-}
-
-ConfirmDialog #dialog-buttons {
-    height: 1;
-    align: right middle;
-    margin-top: 1;
-}
-
-ConfirmDialog Button {
-    width: auto;
-    min-width: 0;
-    border: none;
-    margin: 0 0 0 1;
-    padding: 0 2;
-}
-
-ConfirmDialog #cancel-btn {
-    background: $bg-light;
-    color: $fg;
-}
-
-ConfirmDialog #cancel-btn:hover {
-    background: $gutter;
-}
-
-ConfirmDialog #cancel-btn:focus {
-    background: $blue;
-    color: auto;
-    text-style: bold;
-}
-
-ConfirmDialog #confirm-btn {
-    background: $red 30%;
-    color: $red;
-}
-
-ConfirmDialog #confirm-btn:hover {
-    background: $red 50%;
-}
-
-ConfirmDialog #confirm-btn:focus {
-    background: $red;
-    color: auto;
-    text-style: bold;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -956,44 +607,6 @@ CreateWorktreeScreen #dialog-title {
 CreateWorktreeScreen #branch-mode {
     height: auto;
     margin: 0;
-}
-
-/* Textual's own tab look, as in ouifi: the active tab bold over a blue bar, the rest dimmed, a thin rule across */
-CreateWorktreeScreen #branch-mode Tabs {
-    height: 2;
-    background: transparent;
-    margin-bottom: 1;
-}
-
-CreateWorktreeScreen #branch-mode Tab {
-    background: transparent;
-    color: $comment;
-    padding: 0 2;
-}
-
-CreateWorktreeScreen #branch-mode Tab.-active {
-    color: $fg;
-    text-style: bold;
-}
-
-CreateWorktreeScreen #branch-mode Tab:hover {
-    color: $fg;
-    text-style: none;
-}
-
-CreateWorktreeScreen #branch-mode Tab.-active:hover {
-    color: $fg;
-    text-style: bold;
-}
-
-CreateWorktreeScreen #branch-mode Underline > .underline--bar {
-    color: $blue;
-    background: $gutter;
-}
-
-CreateWorktreeScreen #branch-mode TabPane {
-    height: auto;
-    padding: 0;
 }
 
 CreateWorktreeScreen .field-label {
@@ -1430,37 +1043,6 @@ LinkedRepositories {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   TOAST NOTIFICATIONS
-   ═══════════════════════════════════════════════════════════════════════ */
-
-ToastRack {
-    dock: bottom;
-    align-horizontal: right;
-    margin-top: 0;
-}
-
-Toast {
-    padding: 0 1;
-    margin: 0 1 1 0;
-    width: auto;
-}
-
-Toast.-information {
-    background: $green;
-    color: auto;
-}
-
-Toast.-warning {
-    background: $yellow;
-    color: auto;
-}
-
-Toast.-error {
-    background: $red;
-    color: auto;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
    NO CONFIG DIALOG (shown when no projects configured)
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1550,7 +1132,6 @@ Button:disabled {
 /* These selectors override the more-specific action hover and focus rules above. */
 #btn-new-worktree:disabled,
 #btn-refresh:disabled,
-#btn-settings:disabled,
 ContainerControls #btn-container-start:disabled,
 ContainerControls #btn-container-stop:disabled,
 ContainerControls #btn-container-restart:disabled,
@@ -1570,56 +1151,4 @@ ModalScreen #delete-btn:disabled,
     background: $comment 30%;
     color: $comment;
     text-style: none;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   THEME PICKER
-   ═══════════════════════════════════════════════════════════════════════ */
-
-ThemePicker > Vertical {
-    width: 54;
-    height: 1fr;
-    max-height: 100%;
-    margin-top: 2;
-    margin-bottom: 2;
-}
-
-ThemePicker #theme-filter {
-    width: 1fr;
-    height: 2;
-    margin: 0 0 1 0;
-    padding: 0;
-    background: transparent;
-    color: $fg;
-    border: none !important;
-    border-bottom: solid $gutter !important;
-}
-
-ThemePicker #theme-filter:focus {
-    border-bottom: solid $blue !important;
-}
-
-ThemePicker #theme-table {
-    height: 1fr;
-    background: transparent;
-    border: none;
-    color: $fg;
-    scrollbar-size: 0 0;
-}
-
-ThemePicker #theme-table > .datatable--cursor {
-    background: $bg-light;
-    color: $fg;
-    text-style: none;
-}
-
-ThemePicker #theme-table > .datatable--hover {
-    background: transparent;
-}
-
-ThemePicker #theme-hint {
-    color: $comment;
-    margin-top: 1;
-    border-top: ascii $gutter;
-    padding-top: 1;
 }

@@ -8,7 +8,14 @@ dependencies = [
     "textual>=0.47.0",
     "rich>=13.7.0",
     "pyyaml>=6.0",
+    "ouikit",
 ]
+
+[tool.uv.sources]
+# Not published: installed from GitHub's master; `uv lock --upgrade-package ouikit` picks up new commits.
+# To work on ouikit and this app together, use the folder next to this one instead:
+# ouikit = { path = "../ouikit", editable = true }
+ouikit = { git = "ssh://git@github.com/jmoniatte/ouikit.git", branch = "master" }
 
 [project.scripts]
 flotte = "flotte.__main__:main"
@@ -26,6 +33,6 @@ where = ["."]
 include = ["flotte*"]
 
 [tool.setuptools.package-data]
-flotte = ["styles/*.tcss", "styles/themes/*.yaml"]
+flotte = ["styles/*.tcss"]
 
 [tool.setuptools_scm]

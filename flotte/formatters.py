@@ -1,7 +1,7 @@
 from rich.text import Text
 
 from .models import GitStatus
-from .theme import ThemeColors
+from .colors import ThemeColors
 
 
 def display_web_url(url: str | None) -> str:

@@ -4,6 +4,7 @@ import csv
 from datetime import datetime, tzinfo
 from pathlib import Path
 
+from ouikit.app_header import AppHeader
 from textual.app import ComposeResult
 from textual import events, on
 from textual.binding import Binding
@@ -16,7 +17,7 @@ from rich.text import Text
 from ..models import LinkedWorktree
 from ..services.docker_manager import DockerManager
 from ..services.worktree_log import WorktreeLogStore
-from ..widgets import AppHeader, DashedTableFooter
+from ..widgets import DashedTableFooter
 
 
 def _local_timezone_name() -> str:

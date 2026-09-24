@@ -2,7 +2,7 @@ import unittest
 
 from flotte.formatters import display_web_url, format_git_status, format_web_url
 from flotte.models import GitStatus
-from flotte.theme import DEFAULT_COLORS
+from flotte.colors import DEFAULT_COLORS
 
 
 class FormatterTests(unittest.TestCase):

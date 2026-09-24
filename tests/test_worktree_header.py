@@ -5,17 +5,18 @@ import unittest
 from textual.app import App, ComposeResult
 
 from flotte.models import Worktree
-from flotte.theme import DEFAULT_COLORS, load_palette, palette_to_tcss
+from flotte.app import load_stylesheet
+from flotte.colors import DEFAULT_COLORS
+from ouikit.theme import load_palette
 from flotte.widgets.worktree_header import WorktreeHeader, WorktreeOpened, WorktreeTable
 
 
 class WorktreeHeaderApp(App):
-    CSS = (
-        palette_to_tcss(load_palette("onedark"))
-        + "\n"
-        + Path("flotte/styles/base.tcss").read_text()
-    )
+    CSS = load_stylesheet()
     theme_colors = DEFAULT_COLORS
+
+    def get_css_variables(self) -> dict[str, str]:
+        return {**super().get_css_variables(), **load_palette("onedark")}
 
     def __init__(self) -> None:
         super().__init__()

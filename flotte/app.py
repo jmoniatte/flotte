@@ -4,22 +4,26 @@ from getpass import getuser
 from pathlib import Path
 from random import choice
 
-from textual.app import App, ComposeResult
+import ouikit
+from ouikit.app_header import AppHeader
+from ouikit.base_app import HELP_BINDING, THEME_BINDING, BaseApp
+from ouikit.dialog import ConfirmDialog
+from ouikit.shortcuts import ACTIONS, GENERAL
+from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Horizontal, Vertical
-from textual.notifications import Notification, SeverityLevel
 from textual.widgets import Button, ContentSwitcher, Static, Select
 from textual import events, on
 
-from .shortcuts import ACTIONS, GENERAL
+from . import REPOSITORY_URL, __version__
+from .colors import theme_colors
 from .config import (
-    save_theme,
+    CONFIG_FILE,
     load_config,
     preflight_config,
     PreflightResult,
     Project as ConfigProject,
 )
-from .theme import effective_theme, load_palette, theme_colors
 from .models import GitStatus, Worktree
 from .models.project import Project
 from .models.worktree import WorktreeStatus
@@ -42,25 +46,19 @@ from .services import (
     get_git_status,
 )
 from .screens import (
-    ConfirmDialog,
     CreateWorktreeScreen,
     DeleteWorktreeScreen,
     DeleteWorktreeResult,
-    HelpScreen,
-    SettingsScreen,
-    ThemePicker,
     LogsScreen,
 )
 from .widgets import (
-    AppHeader,
     WorktreeChanged,
     WorktreeDetailView,
     WorktreeListView,
     WorktreeOpened,
     LinkedRepositoryAction,
-    HeaderNotification,
-    HelpRequested,
 )
+from .widgets.worktree_header import WorktreeTable
 
 GREETING_TEMPLATES = (
     "Hello {name}",
@@ -89,6 +87,14 @@ GREETING_TEMPLATES = (
 # Worktrees whose Git column is read concurrently
 LIST_GIT_STATUS_CONCURRENCY = 8
 
+STYLES_DIR = Path(__file__).parent / "styles"
+# ouikit's stylesheets first, so flotte's own rules win where they differ
+STYLE_FILES = (*ouikit.STYLE_FILES, STYLES_DIR / "base.tcss")
+
+
+def load_stylesheet() -> str:
+    return "\n".join(path.read_text() for path in STYLE_FILES)
+
 
 def _random_greeting() -> str:
     account_name = getuser().strip()
@@ -96,12 +102,15 @@ def _random_greeting() -> str:
     return choice(GREETING_TEMPLATES).format(name=display_name)
 
 
-class FlotteApp(App):
+class FlotteApp(BaseApp):
     """Flotte - Manage docker-compose projects across git worktrees."""
 
     TITLE = "Flotte"
     SUB_TITLE = "Manage docker-compose projects across git worktrees"
     ENABLE_COMMAND_PALETTE = False
+    VERSION = __version__
+    REPOSITORY_URL = REPOSITORY_URL
+    HELP_BINDINGS = (WorktreeTable.BINDINGS,)
 
     # A description plus a help group is what puts a key on the help screen
     BINDINGS = [
@@ -122,44 +131,11 @@ class FlotteApp(App):
             key_display="esc",
             group=GENERAL,
         ),
-        Binding("t", "show_themes", "Change theme", show=False, group=GENERAL),
-        Binding("?", "show_help", "Help", show=False, group=GENERAL),
-        Binding("comma", "show_settings", "Settings", show=False, key_display=",", group=GENERAL),
+        THEME_BINDING,
+        HELP_BINDING,
         Binding("tab", "focus_next", show=False),
         Binding("shift+tab", "focus_previous", show=False),
     ]
-
-    def notify(
-        self,
-        message: str,
-        *,
-        title: str = "",
-        severity: SeverityLevel = "information",
-        timeout: float | None = None,
-        markup: bool = True,
-    ) -> None:
-        notification = Notification(
-            message,
-            title,
-            severity,
-            self.NOTIFICATION_TIMEOUT if timeout is None else timeout,
-            markup=markup,
-        )
-        self.call_later(self._show_notification, notification)
-
-    def _show_notification(self, notification: Notification) -> None:
-        for screen in reversed(self.screen_stack):
-            notifications = list(screen.query(HeaderNotification))
-            if notifications:
-                notifications[0].show_notification(notification)
-                return
-        super().notify(
-            notification.message,
-            title=notification.title,
-            severity=notification.severity,
-            timeout=max(notification.time_left, 0),
-            markup=notification.markup,
-        )
 
     def __init__(self):
         # Load config first to determine theme
@@ -167,14 +143,10 @@ class FlotteApp(App):
         # Filled in by a worker once the UI is up; no problems are known before then
         self.preflight = PreflightResult(tuple(self.config.projects), ())
 
-        # One base16 scheme drives both the TCSS variables and the Rich colors.
-        # The palette is served from get_css_variables rather than baked into
-        # CSS, so apply_theme can swap it without restarting.
-        self._palette = load_palette(self.config.theme)
-        self.theme_colors = theme_colors(self._palette)
-        self.CSS = (Path(__file__).parent / "styles" / "base.tcss").read_text()
-
-        super().__init__()
+        self.CSS = load_stylesheet()
+        super().__init__(self.config.theme, CONFIG_FILE)
+        # One base16 scheme drives both the TCSS variables and these Rich colors
+        self.theme_colors = theme_colors(self.palette)
 
         initial_project = self.config.projects[0] if self.config.projects else None
         self._configure_project_runtime(initial_project)
@@ -235,35 +207,9 @@ class FlotteApp(App):
             self.linked_repository_controller,
         )
 
-    def action_show_themes(self) -> None:
-        """Browse themes, applying each one as the cursor moves."""
-        self.push_screen(
-            ThemePicker(effective_theme(self.config.theme)),
-            callback=self._on_theme_chosen,
-        )
-
-    def _on_theme_chosen(self, theme_name: str | None) -> None:
-        if theme_name is not None:
-            self.set_theme(theme_name)
-
-    def set_theme(self, theme_name: str) -> None:
-        """Apply a theme and remember it for next launch."""
-        if effective_theme(theme_name) == effective_theme(self.config.theme):
-            return
-        self.apply_theme(theme_name)
-        self.config.theme = theme_name
-        save_theme(theme_name)
-        self.notify(f"Theme set to {theme_name}")
-
-    def get_css_variables(self) -> dict[str, str]:
-        """Serve the base16 palette to the stylesheet alongside Textual's own."""
-        return {**super().get_css_variables(), **self._palette}
-
     def apply_theme(self, theme_name: str) -> None:
-        """Swap the palette and repaint in place."""
-        self._palette = load_palette(theme_name)
-        self.theme_colors = theme_colors(self._palette)
-        self.refresh_css()
+        super().apply_theme(theme_name)
+        self.theme_colors = theme_colors(self.palette)
         self._repaint_themed_content()
 
     def _repaint_themed_content(self) -> None:
@@ -279,7 +225,6 @@ class FlotteApp(App):
     def compose(self) -> ComposeResult:
         # Show no-config screen if no projects configured.
         if not self.config.projects:
-            from .config import CONFIG_FILE
             with Center(id="no-config-center"):
                 with Vertical(id="no-config-dialog"):
                     yield Static("No Projects Configured", id="dialog-title")
@@ -593,7 +538,6 @@ class FlotteApp(App):
         button_actions = {
             "btn-new-worktree": self.action_new_worktree,
             "btn-refresh": self.action_refresh,
-            "btn-settings": self.action_show_settings,
             "btn-container-start": self.action_start_environment,
             "btn-container-stop": self.action_stop_environment,
             "btn-container-restart": self.action_restart_environment,
@@ -930,16 +874,10 @@ class FlotteApp(App):
             self.query_one(WorktreeListView).select_worktree(main_wt)
         self._show_worktree_list()
 
-    def action_show_settings(self) -> None:
-        """Show the settings screen - ',' key."""
+    def action_help(self) -> None:
+        """Show the shortcuts - '?' key; a click on the logo goes straight to BaseApp's."""
         self._clear_action_focus()
-        self.push_screen(SettingsScreen())
-
-    @on(HelpRequested)
-    def action_show_help(self) -> None:
-        """Show the shortcuts - '?' key, or a click on the logo."""
-        self._clear_action_focus()
-        self.push_screen(HelpScreen())
+        super().action_help()
 
     def action_show_logs(self) -> None:
         """Show all logs for the selected worktree."""

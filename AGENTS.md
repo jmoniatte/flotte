@@ -1,19 +1,24 @@
 # Flotte
 
-TUI for managing docker-compose projects across git worktrees.
+TUI for managing docker-compose projects across git worktrees. The themes, the header and its
+messages, Help, the confirm dialog and the startup come from
+[ouikit](https://github.com/jmoniatte/ouikit), shared with ouie, ouifi and yafyaf-tui.
 
 ## Rules
 
 - Do not git commit unless asked
-- The help screen (`?`, or clicking the logo) lists every binding that has a description and
-  a `group` (`shortcuts.ACTIONS` or `shortcuts.GENERAL`); document a new key there, not in
-  `help_screen.py`
+- The help screen (`?`, or clicking the logo, ouikit's `HelpScreen`) lists every binding that
+  has a description and a `group` (`ouikit.shortcuts.ACTIONS` or `GENERAL`) in
+  `FlotteApp.HELP_BINDINGS` and `FlotteApp.BINDINGS`; document a new key there
+- Code that every app would use goes in ouikit, not here; see its AGENTS.md
 
 ## Run
 
 ```bash
 flotte
 ```
+
+It refuses to start unless stdin and stdout are a terminal (ouikit's `start`).
 
 ## Test
 
@@ -24,7 +29,9 @@ uv run python -m unittest discover -s tests
 uv run ruff check .
 ```
 
-There is no pytest. `ruff` is pinned in the `dev` dependency group, so use
+There is no pytest. ouikit comes from GitHub's master (`[tool.uv.sources]`); after a push there,
+`uv lock --upgrade-package ouikit` picks it up. To work on both at once, switch that source to
+the commented-out `../ouikit` path. `ruff` is pinned in the `dev` dependency group, so use
 `uv run ruff`, not whatever `ruff` is on PATH.
 
 ## Structure
@@ -32,55 +39,27 @@ There is no pytest. `ruff` is pinned in the `dev` dependency group, so use
 ```
 flotte/                 # git root + pyproject.toml (run uv commands here)
   flotte/               # Python package
-    app.py              # Main Textual app
-    config.py           # Config loading (~/.config/flotte/config.yaml)
-    shortcuts.py        # Help screen shortcuts, read off the bindings
+    app.py              # Main Textual app (an ouikit BaseApp: theme, header messages, Help)
+    config.py           # Config loading (~/.config/flotte/config.yaml); the theme through ouikit.config
+    colors.py           # The Rich colors taken from ouikit's palette, and the status icons and colors
     services/           # WorktreeManager, DockerManager, RideWrapper
     widgets/            # Textual widgets
-    screens/            # Textual screens (panel.py is the base of settings and help)
-    theme.py            # base16 scheme loading, palette derivation
-    styles/themes/      # base16 scheme files, one .yaml per theme
+    screens/            # Textual screens (create and delete worktree, logs)
+    styles/base.tcss    # flotte's own styles, joined after ouikit's (see app.STYLE_FILES)
 ```
 
 ## Themes
 
-`flotte/styles/themes/` holds the whole
-[base16 catalogue](https://github.com/tinted-theming/schemes), one scheme file
-per theme, copied in unmodified - never hand-edit one. `theme.py` maps 11 of
-the 16 slots straight onto the TCSS variables `base.tcss` uses and derives the
-other two (`$bg-dark`, `$gutter`) from the scheme's greyscale ramp, so adding a
-theme means adding a file and nothing else. `config.py` rejects a `theme` that
-does not name one of them.
+Themes live in ouikit: the base16 schemes, the terminal's own palette, the picker and the rules
+for all of them are in its AGENTS.md. `FlotteApp` is a `ouikit.base_app.BaseApp`, so `t` opens
+the picker and the choice is saved to the config file. There is no Settings panel: the theme
+was all it held. `colors.theme_colors` turns `BaseApp.palette` into `app.theme_colors`, the
+colors the tables bake into Rich text. Anything that renders a Rich colour from
+`app.theme_colors` must be rebuilt in `_repaint_themed_content`, because `refresh_css` only
+re-applies TCSS; `FlotteApp.apply_theme` calls it.
 
-`theme: terminal` (the default) is not a file. `terminal_theme.py` asks the
-terminal for its colours with OSC 10, 11 and 4 before Textual starts, maps the
-ANSI palette onto base16 slots and derives the rest, and `__main__` registers
-the result with `theme.register_terminal_scheme`. A terminal that stays silent,
-or whose `$fg` on `$bg` fails `MIN_TEXT_CONTRAST`, registers no scheme: the app
-then shows `theme.default_theme()` and the pickers do not list `terminal`. That
-default is `one-light` when the terminal reported a light background and
-`onedark` otherwise, so a rejected light terminal never gets a dark app. The
-surfaces ANSI has no slot for (`base01`, `base02`) are placed by contrast
-against the background rather than by a fixed RGB step, which lands the same
-distance out on light and dark ramps.
-`theme.effective_theme` is the name to compare against or show as current.
-
-Filenames are the upstream scheme slugs verbatim, and that is exactly what
-`config.yaml` sets -- no aliases, no renaming. Upstream is inconsistent about
-hyphens (`onedark` but `one-light`); follow it rather than tidying it.
-
-`scripts/sync_themes.py` refreshes the directory from upstream. It is the only
-place the editorial rule lives: a scheme whose own `$fg` on `$bg` falls below
-`MIN_TEXT_CONTRAST` (WCAG AA) is skipped, since `base.tcss` cannot rescue it.
-Do not hand-add a scheme the script would reject.
-
-Settings (`,` or the Settings button) has a theme dropdown; the picker (`t`) previews as the cursor
-moves. Both route through `FlotteApp.set_theme`. The palette is
-served from `FlotteApp.get_css_variables` rather than baked into `CSS`. Anything
-that renders a Rich colour from `app.theme_colors` must be rebuilt in
-`_repaint_themed_content`, because `refresh_css` only re-applies TCSS.
-
-Never hardcode a color in `base.tcss`. For text on an accent background use
+`base.tcss` only holds what differs from ouikit: flotte's frame, its screens and forms, and wider
+Help columns. Never hardcode a color in it. For text on an accent background use
 `color: auto`, which picks a contrasting foreground per theme.
 
 ## Config
@@ -88,5 +67,11 @@ Never hardcode a color in `base.tcss`. For text on an accent background use
 `~/.config/flotte/config.yaml` - requires at least one project entry with `name` and `path`.
 
 Config structure:
-- `theme`: color theme, matching a file in `flotte/styles/themes/` (global)
+- `theme`: color theme, a scheme name from ouikit or `terminal` (global); `t` writes it back
 - `projects`: list of project configs (name, path, ride_command, post_create_commands)
+
+## Versions
+
+The version comes from git tags via setuptools-scm. Tags have no `v` prefix (the `v0.x` tags are
+from before the switch). Release by tagging the next version after the latest one:
+`git describe --tags --abbrev=0`.
