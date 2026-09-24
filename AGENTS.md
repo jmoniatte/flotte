@@ -58,9 +58,10 @@ colors the tables bake into Rich text. Anything that renders a Rich colour from
 `app.theme_colors` must be rebuilt in `_repaint_themed_content`, because `refresh_css` only
 re-applies TCSS; `FlotteApp.apply_theme` calls it.
 
-`base.tcss` only holds what differs from ouikit: flotte's frame, its screens and forms, and wider
-Help columns. Never hardcode a color in it. For text on an accent background use
-`color: auto`, which picks a contrasting foreground per theme.
+`base.tcss` only holds what differs from ouikit: flotte's screens and forms. Like every app on
+ouikit, flotte draws no border around the screen; the window manager frames the window. Never
+hardcode a color in it. For text on an accent background use `color: auto`, which picks a
+contrasting foreground per theme.
 
 ## Config
 

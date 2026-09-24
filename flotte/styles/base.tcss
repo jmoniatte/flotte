@@ -6,15 +6,6 @@
    GLOBAL LAYOUT
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* A full-size app rather than a pop-up, so it draws its own frame */
-Screen {
-    border: solid $gutter;
-}
-
-ModalScreen {
-    border: none;
-}
-
 /* A blank row between ouikit's header and the list */
 #app-header {
     margin: 0 0 1 0;

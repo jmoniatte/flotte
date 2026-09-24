@@ -126,11 +126,11 @@ class DashedHeaderRuleTests(unittest.TestCase):
                 strips = app.screen._compositor.render_strips()
                 rule = next(
                     segment
-                    for segment in strips[2]
+                    for segment in strips[1]
                     if segment.text.strip().startswith("-")
                 )
                 body = next(
-                    segment for segment in strips[1] if segment.style.bgcolor
+                    segment for segment in strips[0] if segment.style.bgcolor
                 )
                 return (
                     rule.style.bgcolor.triplet.hex,
