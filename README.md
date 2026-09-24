@@ -210,3 +210,4 @@ flotte
 | `q` | Quit |
 | `?` | Show help (or click the Flotte logo) |
 | `t` | Change theme |
+| `y` | Copy the text selected with the mouse |

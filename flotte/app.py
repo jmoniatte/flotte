@@ -6,7 +6,7 @@ from random import choice
 
 import ouikit
 from ouikit.app_header import AppHeader
-from ouikit.base_app import HELP_BINDING, THEME_BINDING, BaseApp
+from ouikit.base_app import COPY_BINDING, HELP_BINDING, THEME_BINDING, BaseApp
 from ouikit.dialog import ConfirmDialog
 from ouikit.shortcuts import ACTIONS, GENERAL
 from textual.app import ComposeResult
@@ -132,6 +132,7 @@ class FlotteApp(BaseApp):
             group=GENERAL,
         ),
         THEME_BINDING,
+        COPY_BINDING,
         HELP_BINDING,
         Binding("tab", "focus_next", show=False),
         Binding("shift+tab", "focus_previous", show=False),
