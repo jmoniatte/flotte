@@ -8,14 +8,14 @@ dependencies = [
     "textual>=0.47.0",
     "rich>=13.7.0",
     "pyyaml>=6.0",
-    "ouikit",
+    "tui-kit",
 ]
 
 [tool.uv.sources]
-# Not published: installed from GitHub's master; `uv lock --upgrade-package ouikit` picks up new commits.
-# To work on ouikit and this app together, use the folder next to this one instead:
-# ouikit = { path = "../ouikit", editable = true }
-ouikit = { git = "ssh://git@github.com/jmoniatte/ouikit.git", branch = "master" }
+# Not published: installed from GitHub's master; `uv lock --upgrade-package tui-kit` picks up new commits.
+# To work on tui-kit and this app together, use the folder next to this one instead:
+# tui-kit = { path = "../tui-kit", editable = true }
+tui-kit = { git = "ssh://git@github.com/jmoniatte/tui-kit.git", branch = "master" }
 
 [project.scripts]
 flotte = "flotte.__main__:main"

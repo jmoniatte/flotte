@@ -4,11 +4,11 @@ from getpass import getuser
 from pathlib import Path
 from random import choice
 
-import ouikit
-from ouikit.app_header import AppHeader
-from ouikit.base_app import COPY_BINDING, HELP_BINDING, THEME_BINDING, BaseApp
-from ouikit.dialog import ConfirmDialog
-from ouikit.shortcuts import ACTIONS, GENERAL
+import tui_kit
+from tui_kit.app_header import AppHeader
+from tui_kit.base_app import COPY_BINDING, HELP_BINDING, THEME_BINDING, BaseApp
+from tui_kit.dialog import ConfirmDialog
+from tui_kit.shortcuts import ACTIONS, GENERAL
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Horizontal, Vertical
@@ -88,8 +88,8 @@ GREETING_TEMPLATES = (
 LIST_GIT_STATUS_CONCURRENCY = 8
 
 STYLES_DIR = Path(__file__).parent / "styles"
-# ouikit's stylesheets first, so flotte's own rules win where they differ
-STYLE_FILES = (*ouikit.STYLE_FILES, STYLES_DIR / "base.tcss")
+# tui-kit's stylesheets first, so flotte's own rules win where they differ
+STYLE_FILES = (*tui_kit.STYLE_FILES, STYLES_DIR / "base.tcss")
 
 
 def load_stylesheet() -> str:

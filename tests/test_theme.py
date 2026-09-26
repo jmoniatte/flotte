@@ -1,7 +1,7 @@
 import re
 import unittest
 
-from ouikit.theme import list_themes, load_palette
+from tui_kit.theme import list_themes, load_palette
 
 from flotte.app import load_stylesheet
 from flotte.colors import theme_colors

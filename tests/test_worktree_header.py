@@ -7,7 +7,7 @@ from textual.app import App, ComposeResult
 from flotte.models import Worktree
 from flotte.app import load_stylesheet
 from flotte.colors import DEFAULT_COLORS
-from ouikit.theme import load_palette
+from tui_kit.theme import load_palette
 from flotte.widgets.worktree_header import WorktreeHeader, WorktreeOpened, WorktreeTable
 
 

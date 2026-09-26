@@ -6,7 +6,7 @@
    GLOBAL LAYOUT
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* A blank row between ouikit's header and the list */
+/* A blank row between tui-kit's header and the list */
 #app-header {
     margin: 0 0 1 0;
 }
@@ -469,7 +469,7 @@ ContainerControls #btn-delete-worktree:focus {
    MODAL SCREENS
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Flotte's forms: full-width inputs with room around them; the boxes and buttons are ouikit's */
+/* Flotte's forms: full-width inputs with room around them; the boxes and buttons are tui-kit's */
 ModalScreen #dialog-title,
 #no-config-dialog #dialog-title {
     border-bottom: ascii $gutter;

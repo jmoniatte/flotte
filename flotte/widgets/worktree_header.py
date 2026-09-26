@@ -7,7 +7,7 @@ from textual.reactive import reactive
 from textual.message import Message
 from rich.align import Align
 from rich.text import Text
-from ouikit.shortcuts import ACTIONS, GENERAL
+from tui_kit.shortcuts import ACTIONS, GENERAL
 
 from ..formatters import format_git_status, format_web_url
 from ..models import GitStatus, Worktree, WorktreeStatus

@@ -1,7 +1,7 @@
 import argparse
 from collections.abc import Sequence
 
-from ouikit.start import start
+from tui_kit.start import start
 
 from . import __version__
 from .app import FlotteApp

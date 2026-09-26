@@ -1,6 +1,6 @@
-"""The Rich colors flotte bakes into its tables, taken from ouikit's palette, and the status styles.
+"""The Rich colors flotte bakes into its tables, taken from tui_kit's palette, and the status styles.
 
-Everything else about themes lives in ouikit.
+Everything else about themes lives in tui-kit.
 """
 from dataclasses import dataclass
 from typing import Union

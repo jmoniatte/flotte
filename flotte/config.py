@@ -5,7 +5,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ouikit.config import read_theme
+from tui_kit.config import read_theme
 
 
 # Configuration paths
@@ -66,7 +66,7 @@ class Config:
 
     # UI settings
     # "terminal" reads the terminal's own colours; otherwise any scheme in
-    # ouikit (see ouikit.theme.list_themes()). Set with t in the app.
+    # tui-kit (see tui_kit.theme.list_themes()). Set with t in the app.
     theme: str = "terminal"
 
     # Projects list

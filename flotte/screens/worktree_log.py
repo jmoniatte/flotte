@@ -4,7 +4,7 @@ import csv
 from datetime import datetime, tzinfo
 from pathlib import Path
 
-from ouikit.app_header import AppHeader
+from tui_kit.app_header import AppHeader
 from textual.app import ComposeResult
 from textual import events, on
 from textual.binding import Binding

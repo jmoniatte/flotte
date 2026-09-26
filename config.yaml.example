@@ -2,7 +2,7 @@
 # Copy to ~/.config/flotte/config.yaml
 
 # Color theme: terminal (read from the terminal itself) or any base16 scheme
-# name from ouikit (ouikit/styles/themes/), such as onedark. Press t in the app
+# name from tui_kit (tui_kit/styles/themes/), such as onedark. Press t in the app
 # to browse them; the choice is written back here.
 theme: terminal
 

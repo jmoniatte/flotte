@@ -28,11 +28,11 @@ from flotte.screens import LogsScreen
 from flotte.screens.create_worktree import CreateWorktreeScreen
 from flotte.widgets import WebLink, WorktreeHeader
 from flotte.widgets.worktree_header import WorktreeTable
-from ouikit import shortcuts
-from ouikit.app_header import AppHeader
-from ouikit.help_screen import HelpScreen
-from ouikit.theme import load_palette
-from ouikit.theme_picker import ThemePicker
+from tui_kit import shortcuts
+from tui_kit.app_header import AppHeader
+from tui_kit.help_screen import HelpScreen
+from tui_kit.theme import load_palette
+from tui_kit.theme_picker import ThemePicker
 from textual.widgets import (
     Button,
     Checkbox,
@@ -615,7 +615,7 @@ class MainTests(unittest.TestCase):
             with contextlib.ExitStack() as stack:
                 for patcher in self._patched_app(config):
                     stack.enter_context(patcher)
-                saved = stack.enter_context(patch("ouikit.base_app.save_theme"))
+                saved = stack.enter_context(patch("tui_kit.base_app.save_theme"))
                 app = FlotteApp()
                 async with app.run_test(size=(90, 34)) as pilot:
                     await pilot.pause()

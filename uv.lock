@@ -6,10 +6,10 @@ requires-python = ">=3.11"
 name = "flotte"
 source = { editable = "." }
 dependencies = [
-    { name = "ouikit" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "textual" },
+    { name = "tui-kit" },
 ]
 
 [package.dev-dependencies]
@@ -19,10 +19,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ouikit", git = "ssh://git@github.com/jmoniatte/ouikit.git?branch=master" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "textual", specifier = ">=0.47.0" },
+    { name = "tui-kit", git = "ssh://git@github.com/jmoniatte/tui-kit.git?branch=master" },
 ]
 
 [package.metadata.requires-dev]
@@ -76,16 +76,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
-]
-
-[[package]]
-name = "ouikit"
-version = "0.1.0"
-source = { git = "ssh://git@github.com/jmoniatte/ouikit.git?branch=master#f6712d87b578b2fdaa2cc336761e49f523ac00c2" }
-dependencies = [
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "textual" },
 ]
 
 [[package]]
@@ -214,6 +204,16 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/15/4b/24ae02d857ec0fa6661d27a989994e65c6a3b3d56c7177b2d8e022d29ccc/textual-7.2.0.tar.gz", hash = "sha256:5355f2dc16fbdc452a714dee2e440125e33b82373b3032cb53bea96e7019fa0b", size = 1582530, upload-time = "2026-01-11T17:40:50.75Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/48/b8/cc8ed2548ff1bf0fd719dd399bb56869d82a57143c2772cfd57f68efc1d3/textual-7.2.0-py3-none-any.whl", hash = "sha256:2624077f02dbd504beea9a24a943770f954f500a5f29a0bfa83465c52fa3ea1c", size = 715809, upload-time = "2026-01-11T17:40:48.679Z" },
+]
+
+[[package]]
+name = "tui-kit"
+version = "0.1.0"
+source = { git = "ssh://git@github.com/jmoniatte/tui-kit.git?branch=master#a56bcf0e2c256f465db1d68a2d4bf6f7d2eefe46" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "textual" },
 ]
 
 [[package]]
